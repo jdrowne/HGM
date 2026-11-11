@@ -1,1 +1,2 @@
 - [Work only on this repo](work-only-on-this-repo.md) — never touch upstream metauto-ai/HGM or other repos; gh writes must target jdrowne/RustyHGM
+- [Commit directly to main](commit-directly-to-main.md) — no branches or PRs; one logical change per commit, pushed to origin main
