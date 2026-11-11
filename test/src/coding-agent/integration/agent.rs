@@ -115,7 +115,7 @@ fn repo(root: &Path) -> std::path::PathBuf {
 fn explicit<'a>(cmd: &'a mut Command, root: &Path, provider: &str, base: &str) -> &'a mut Command {
     let key = root.join("key");
     fs::write(&key, "k\n").unwrap();
-    cmd.args(["--self_improve", "false", "--timeout", "3600"])
+    cmd.args(["--timeout", "3600"])
         .args(["--provider", provider, "--base_url", base])
         .arg("--api_key_file")
         .arg(key)
@@ -157,7 +157,7 @@ fn edited() -> Ran {
         .arg("--outdir")
         .arg(tmp.path())
         .args(["--model", "vllm-x", "--test_description", "run it"])
-        .args(["--polyglot", "false", "--language", "python"])
+        .args(["--language", "python"])
         .output()
         .unwrap();
     Ran { tmp, out, seen }
@@ -225,14 +225,7 @@ fn polyglot() -> Ran {
         .arg("--git_dir")
         .arg(&repo)
         .args(["--chat_history_file", "chat.md", "--outdir", ""])
-        .args([
-            "--polyglot",
-            "true",
-            "--language",
-            "rust",
-            "--model",
-            "vllm-x",
-        ])
+        .args(["--polyglot", "--language", "rust", "--model", "vllm-x"])
         .args(["--test_description", "run it"])
         .output()
         .unwrap();
@@ -285,7 +278,7 @@ fn failing(tmp: &Path, chat: &Path, outdir: &Path) -> Command {
             "--model",
             "qwen",
         ])
-        .args(["--polyglot", "false", "--language", "python"])
+        .args(["--language", "python"])
         .args(["--test_description", "t"])
         .arg("--git_dir")
         .arg(tmp)

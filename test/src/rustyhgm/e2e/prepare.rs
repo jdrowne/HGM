@@ -55,7 +55,7 @@ fn prepare_with(root: &Path, repo: Option<&str>, path: Option<&Path>) -> Output 
     key_file(root);
     let mut cmd = Command::new(binary("rustyhgm"));
     cmd.args(flags(&[
-        ("--polyglot", "true"),
+        ("--polyglot", ""),
         ("--continue_from", "output_rustyhgm/none"),
         ("--polyglot_repo", repo.unwrap_or("no-such-repo")),
     ]))

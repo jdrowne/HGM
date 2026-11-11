@@ -198,7 +198,7 @@ fn run_args(host: &str, key: &str, progenitors: &str) -> Vec<String> {
             "--polyglot_repo",
             "https://github.com/Aider-AI/polyglot-benchmark.git",
         ),
-        ("--polyglot", "true"),
+        ("--polyglot", ""),
         ("--max_task_evals", "1"),
         ("--max_workers", "1"),
         ("--eval_random_level", "0"),

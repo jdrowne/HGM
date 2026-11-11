@@ -13,7 +13,7 @@ fn binary(name: &str) -> PathBuf {
         })
 }
 
-const SETTINGS: [(&str, &str); 32] = [
+const SETTINGS: [(&str, &str); 29] = [
     ("--self_improve_llm", "m"),
     ("--self_improve_provider", "openrouter"),
     ("--self_improve_base_url", "http://127.0.0.1:9/v1"),
@@ -33,7 +33,6 @@ const SETTINGS: [(&str, &str); 32] = [
     ("--progenitor_dir", "progenitors"),
     ("--alpha", "0.6"),
     ("--beta", "1.0"),
-    ("--cool_down", "false"),
     ("--eval_random_level", "1.0"),
     ("--n_pseudo_descendant_evals", "10000"),
     ("--expansion_statistic", "clade"),
@@ -42,8 +41,6 @@ const SETTINGS: [(&str, &str); 32] = [
     ("--max_task_evals", "800"),
     ("--self_improve_timeout", "3600"),
     ("--evaluation_timeout", "3600"),
-    ("--full_eval", "false"),
-    ("--polyglot", "false"),
     ("--output_dir", "out"),
     ("--progenitor_name", "agent"),
 ];
@@ -51,15 +48,18 @@ const SETTINGS: [(&str, &str); 32] = [
 fn flags(changes: &[(&str, &str)]) -> Vec<String> {
     let set = SETTINGS.iter().map(|(flag, value)| {
         let changed = changes.iter().find(|(f, _)| f == flag);
-        (*flag, changed.map_or(*value, |(_, v)| *v))
+        vec![*flag, changed.map_or(*value, |(_, v)| *v)]
     });
     let extra = changes
         .iter()
         .filter(|(flag, _)| SETTINGS.iter().all(|(f, _)| f != flag))
-        .copied();
-    set.chain(extra)
-        .flat_map(|(flag, value)| [flag.to_owned(), value.to_owned()])
-        .collect()
+        .map(|(flag, value)| {
+            [*flag, *value]
+                .into_iter()
+                .filter(|w| !w.is_empty())
+                .collect()
+        });
+    set.chain(extra).flatten().map(str::to_owned).collect()
 }
 
 struct Ran {
@@ -487,7 +487,7 @@ fn full_eval() -> Ran {
     in_root(
         |_| {},
         |c| {
-            c.args(flags(&[("--full_eval", "true"), ("--output_dir", "full")]));
+            c.args(flags(&[("--full_eval", ""), ("--output_dir", "full")]));
         },
     )
 }

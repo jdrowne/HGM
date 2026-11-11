@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Instant;
 
-use clap::{ArgAction, Parser, ValueEnum};
+use clap::{Parser, ValueEnum};
 
 use crate::git::diff_versus_commit;
 use crate::llm::{Client, Provider, Service, create_client};
@@ -39,11 +39,11 @@ pub struct Args {
     pub outdir: String,
     #[arg(long = "test_description")]
     pub test_description: String,
-    #[arg(long = "self_improve", action = ArgAction::Set, required = true, value_name = "BOOL")]
+    #[arg(long = "self_improve")]
     pub self_improve: bool,
     #[arg(long = "instance_id")]
     pub instance_id: Option<String>,
-    #[arg(long, action = ArgAction::Set, required = true, value_name = "BOOL")]
+    #[arg(long)]
     pub polyglot: bool,
     #[arg(long, value_enum)]
     pub language: Language,

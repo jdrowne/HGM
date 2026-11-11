@@ -4,15 +4,13 @@ use clap::Parser;
 use rustyhgm_coding_agent::agent::{Args, ChatLog, Language};
 use rustyhgm_coding_agent::llm::{Provider, Service};
 
-const FLAGS: [(&str, &str); 14] = [
+const FLAGS: [(&str, &str); 12] = [
     ("--problem_statement", "p"),
     ("--git_dir", "/repo"),
     ("--base_commit", "c"),
     ("--chat_history_file", "chat.md"),
     ("--outdir", "/rustyhgm/"),
     ("--test_description", "None"),
-    ("--self_improve", "false"),
-    ("--polyglot", "false"),
     ("--language", "python"),
     ("--model", "m"),
     ("--provider", "vllm"),
@@ -23,11 +21,23 @@ const FLAGS: [(&str, &str); 14] = [
 
 fn argv(changes: &[(&str, &str)], without: &str) -> Vec<String> {
     let mut argv = vec!["rustyhgm-coding-agent".to_owned()];
-    for (flag, value) in FLAGS.iter().filter(|(flag, _)| *flag != without) {
-        let changed = changes.iter().find(|(f, _)| f == flag);
-        argv.push((*flag).to_owned());
-        argv.push(changed.map_or(*value, |(_, v)| *v).to_owned());
-    }
+    let set = FLAGS
+        .iter()
+        .filter(|(flag, _)| *flag != without)
+        .map(|(flag, value)| {
+            let changed = changes.iter().find(|(f, _)| f == flag);
+            vec![*flag, changed.map_or(*value, |(_, v)| *v)]
+        });
+    let extra = changes
+        .iter()
+        .filter(|(flag, _)| FLAGS.iter().all(|(f, _)| f != flag))
+        .map(|(flag, value)| {
+            [*flag, *value]
+                .into_iter()
+                .filter(|w| !w.is_empty())
+                .collect()
+        });
+    argv.extend(set.chain(extra).flatten().map(str::to_owned));
     argv
 }
 
@@ -36,7 +46,7 @@ fn args(changes: &[(&str, &str)]) -> Args {
 }
 
 #[test]
-fn every_flag_but_the_instance_id_is_required_and_named_when_missing() {
+fn every_flag_with_a_value_but_the_instance_id_is_required_and_named_when_missing() {
     let unnamed: Vec<&str> = FLAGS
         .iter()
         .map(|(flag, _)| *flag)
@@ -73,8 +83,14 @@ fn an_unknown_provider_is_rejected() {
 }
 
 #[test]
-fn a_yes_no_flag_takes_only_true_or_false() {
-    assert!(Args::try_parse_from(argv(&[("--polyglot", "yes")], "")).is_err());
+fn a_yes_no_flag_left_out_is_off() {
+    let args = args(&[]);
+    assert_eq!((args.self_improve, args.polyglot), (false, false));
+}
+
+#[test]
+fn a_yes_no_flag_takes_no_value() {
+    assert!(Args::try_parse_from(argv(&[("--polyglot", "true")], "")).is_err());
 }
 
 #[test]
@@ -126,7 +142,7 @@ fn the_instruction_carries_the_test_description() {
 #[test]
 fn the_polyglot_instruction_matches_the_python() {
     assert_eq!(
-        args(&[("--polyglot", "true")]).instruction(),
+        args(&[("--polyglot", "")]).instruction(),
         "I have uploaded a code repository in the directory /repo. Help solve the following problem.\n\n<problem_description>\np\n</problem_description>\n\nYour task is to make changes to the files in the /repo directory to address the <problem_description>. I have already taken care of the required dependencies.\n\n\nPlease analyze the problem description carefully. Then make edits to the code files to complete the instruction."
     );
 }

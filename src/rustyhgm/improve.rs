@@ -183,7 +183,6 @@ impl SelfImprove {
         let log = attempt.log;
         log.info("Running self-improvement");
         let timeout = self.timeout.to_string();
-        let polyglot = self.polyglot.to_string();
         let test_description = get_test_description("", TestRepo::Hgm);
         let mut argv = vec![
             "timeout",
@@ -202,9 +201,6 @@ impl SelfImprove {
             "--test_description",
             &test_description,
             "--self_improve",
-            "true",
-            "--polyglot",
-            &polyglot,
             "--language",
             "rust",
             "--model",
@@ -212,6 +208,9 @@ impl SelfImprove {
             "--timeout",
             &timeout,
         ];
+        if self.polyglot {
+            argv.push("--polyglot");
+        }
         let service = service_flags(&self.self_improve_service);
         argv.extend(service.iter().map(String::as_str));
         let patch = attempt.run_dir.join(MODEL_PATCH_FILE);

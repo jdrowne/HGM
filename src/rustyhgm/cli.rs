@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use clap::{ArgAction, Parser};
+use clap::Parser;
 use rustyhgm_bench::dataset::Hub;
 use rustyhgm_bench::swebench::Swebench;
 use rustyhgm_coding_agent::llm::{Provider, Service, read_api_key};
@@ -51,7 +51,7 @@ pub struct Cli {
     pub alpha: f64,
     #[arg(long, value_name = "X")]
     pub beta: f64,
-    #[arg(long = "cool_down", action = ArgAction::Set, required = true, value_name = "BOOL")]
+    #[arg(long = "cool_down")]
     pub cool_down: bool,
     #[arg(long = "eval_random_level", value_name = "P")]
     pub eval_random_level: f64,
@@ -69,9 +69,9 @@ pub struct Cli {
     pub self_improve_timeout: u64,
     #[arg(long = "evaluation_timeout", value_name = "SECS")]
     pub evaluation_timeout: u64,
-    #[arg(long = "full_eval", action = ArgAction::Set, required = true, value_name = "BOOL")]
+    #[arg(long = "full_eval")]
     pub full_eval: bool,
-    #[arg(long, action = ArgAction::Set, required = true, value_name = "BOOL")]
+    #[arg(long)]
     pub polyglot: bool,
     #[arg(long = "output_dir", value_name = "DIR")]
     pub output_dir: String,

@@ -43,7 +43,7 @@ fn every_flag_reaches_the_configuration() {
         ("--diagnose_llm", "c"),
         ("--alpha", "0.5"),
         ("--beta", "2"),
-        ("--cool_down", "true"),
+        ("--cool_down", ""),
         ("--eval_random_level", "0.25"),
         ("--n_pseudo_descendant_evals", "13"),
         ("--expansion_statistic", "own"),
@@ -51,8 +51,8 @@ fn every_flag_reaches_the_configuration() {
         ("--max_task_evals", "7"),
         ("--self_improve_timeout", "11"),
         ("--evaluation_timeout", "12"),
-        ("--full_eval", "true"),
-        ("--polyglot", "true"),
+        ("--full_eval", ""),
+        ("--polyglot", ""),
         ("--output_dir", "out"),
         ("--progenitor_name", "agent"),
         ("--continue_from", "prev"),
@@ -188,15 +188,17 @@ fn an_unknown_provider_is_refused() {
 }
 
 #[test]
-fn a_yes_no_flag_needs_its_value() {
-    let mut args = argv(&[], &["--cool_down"]);
-    args.push("--cool_down".to_owned());
-    assert!(Cli::try_parse_from(args).is_err());
+fn a_yes_no_flag_left_out_is_off() {
+    let args = cli(&[]);
+    assert_eq!(
+        (args.cool_down, args.full_eval, args.polyglot),
+        (false, false, false)
+    );
 }
 
 #[test]
-fn a_yes_no_flag_takes_only_true_or_false() {
-    assert!(parse_error(&[("--polyglot", "yes")], &[]).contains("--polyglot"));
+fn a_yes_no_flag_takes_no_value() {
+    assert!(parse_error(&[("--polyglot", "true")], &[]).contains("'true'"));
 }
 
 #[test]

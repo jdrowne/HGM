@@ -52,7 +52,7 @@ fn the_search_settings_come_from_the_flags() {
         ("--max_workers", "3"),
         ("--alpha", "0.5"),
         ("--beta", "2"),
-        ("--cool_down", "true"),
+        ("--cool_down", ""),
         ("--n_pseudo_descendant_evals", "13"),
         ("--expansion_statistic", "own"),
         ("--eval_random_level", "0.25"),
@@ -82,7 +82,7 @@ fn offline(root: &Path) -> Hub {
 }
 
 fn full_eval() -> HgmConfig {
-    cli(&[("--full_eval", "true")]).config()
+    cli(&[("--full_eval", "")]).config()
 }
 
 fn verified_cache(root: &Path) {

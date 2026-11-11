@@ -56,10 +56,9 @@ One run does the whole job:
   --dataset_endpoint https://huggingface.co --dataset_dir ~/.cache/rustyhgm/datasets \
   --polyglot_repo https://github.com/Aider-AI/polyglot-benchmark.git --polyglot_dir rustyhgm/polyglot \
   --progenitor_dir rustyhgm/progenitors \
-  --alpha 0.6 --beta 1.0 --cool_down false --eval_random_level 1.0 \
+  --alpha 0.6 --beta 1.0 --eval_random_level 1.0 \
   --n_pseudo_descendant_evals 10000 --expansion_statistic clade --epsilon 0.01 \
   --max_workers 20 --max_task_evals 100 --self_improve_timeout 3600 --evaluation_timeout 3600 \
-  --full_eval false --polyglot false \
   --output_dir runs/first --progenitor_name default_agent \
   --holdout_split Lite --holdout_tasks 50
 ```
@@ -76,7 +75,7 @@ One run does the whole job:
 
 ### Flags
 
-Every setting is a required flag with no default, so the command line alone says what a run will do. Leaving one out stops `rustyhgm` with an error that names it. Yes/no settings take `true` or `false`, as in `--cool_down false`.
+Every setting that takes a value is a required flag with no default, so the command line alone says what a run will do. Leaving one out stops `rustyhgm` with an error that names it. Yes/no settings are off unless their flag is given, as in `--cool_down`, and take no value.
 
 | Flag | What it sets |
 | --- | --- |
@@ -99,7 +98,7 @@ Every setting is a required flag with no default, so the command line alone says
 | `--progenitor_dir <dir>` | Where the progenitor is built and measured, and found again by later runs |
 | `--alpha <x>` | How bushy the tree grows: more children per evaluation as it rises |
 | `--beta <x>` | How fast `--cool_down` sharpens; ignored without it |
-| `--cool_down <true\|false>` | Sharpens every draw as the budget runs out |
+| `--cool_down` | Sharpens every draw as the budget runs out |
 | `--eval_random_level <p>` | Odds of picking an untried task at random, rather than the next one in pool order |
 | `--n_pseudo_descendant_evals <n>` | Caps how many of a version's own results count in its clade pool |
 | `--expansion_statistic <clade\|own>` | Whether a parent is judged on its whole clade or on its own results |
@@ -108,8 +107,8 @@ Every setting is a required flag with no default, so the command line alone says
 | `--max_task_evals <n>` | Total task evaluations in the run's budget |
 | `--self_improve_timeout <secs>` | Time limit for one self-edit |
 | `--evaluation_timeout <secs>` | Time limit for one task attempt |
-| `--full_eval <true\|false>` | Uses all 500 SWE-bench Verified tasks instead of the 60-task pool |
-| `--polyglot <true\|false>` | Uses the Polyglot benchmark instead of SWE-bench |
+| `--full_eval` | Uses all 500 SWE-bench Verified tasks instead of the 60-task pool |
+| `--polyglot` | Uses the Polyglot benchmark instead of SWE-bench |
 | `--output_dir <dir>` | Where the run record goes |
 | `--progenitor_name <name>` | Name of the progenitor's folder and Docker image |
 
@@ -118,7 +117,7 @@ These flags ask for an extra step, so they are given only when that step is want
 | Flag | What it does |
 | --- | --- |
 | `--continue_from <dir>` | Resumes an earlier run from its record |
-| `--holdout_split <name>` | After the run, scores the best agent on `princeton-nlp/SWE-bench_<name>`, such as `Lite`; needs `--holdout_tasks` and is not allowed with `--polyglot true` |
+| `--holdout_split <name>` | After the run, scores the best agent on `princeton-nlp/SWE-bench_<name>`, such as `Lite`; needs `--holdout_tasks` and is not allowed with `--polyglot` |
 | `--holdout_tasks <n>` | Scores the first `n` held-out tasks; needs `--holdout_split` |
 
 The first run with a given agent name writes the progenitor into `progenitor_swe/<name>/` or `progenitor_polyglot/<name>/` in the `--progenitor_dir` folder and measures it on every task in the pool. The progenitor is the `rustyhgm-coding-agent` source as it was when `rustyhgm` was built, with the builder `Dockerfile` beside it; it is the root of the tree, which the paper calls the initial agent, and a run records it under the commit id `progenitor`. Later runs with the same `--progenitor_dir` reuse that folder and its results, so delete it to measure a newer progenitor. Folders written by a release from before the progenitor got its name, such as `initial_swe/` and `initial_polyglot/`, are not found under the new names, and a run made by such a release, whose root is `initial`, cannot be continued with `--continue_from`.
@@ -127,7 +126,7 @@ The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout`
 
 ### The coding agent
 
-The harness also builds `rustyhgm-coding-agent`, the agent being evolved, and runs it inside containers. Releases carry only `rustyhgm`, so to watch one attempt by hand, run the agent from a clone of this repository with `cargo run -p rustyhgm-coding-agent -- <flags>`. It reads no environment variables, and every flag but `--instance_id` is required.
+The harness also builds `rustyhgm-coding-agent`, the agent being evolved, and runs it inside containers. Releases carry only `rustyhgm`, so to watch one attempt by hand, run the agent from a clone of this repository with `cargo run -p rustyhgm-coding-agent -- <flags>`. It reads no environment variables. Every flag that takes a value is required except `--instance_id`, and the yes/no flags are off unless given.
 
 | Flag | What it sets |
 | --- | --- |
@@ -137,8 +136,8 @@ The harness also builds `rustyhgm-coding-agent`, the agent being evolved, and ru
 | `--chat_history_file <file>` | Where the conversation log is written |
 | `--outdir <dir>` | Where `model_patch.diff` is written; empty means the working directory |
 | `--test_description <text>` | How to run the repository's tests |
-| `--self_improve <true\|false>` | Whether it edits the agent's own source rather than solving a task |
-| `--polyglot <true\|false>` | Whether it uses Polyglot prompts and tests |
+| `--self_improve` | Whether it edits the agent's own source rather than solving a task |
+| `--polyglot` | Whether it uses Polyglot prompts and tests |
 | `--language <lang>` | Task language: `cpp`, `java`, `python`, `go`, `rust` or `javascript` |
 | `--model <model>` | Model to use |
 | `--provider <openai\|openrouter\|vllm>` | Service that serves the model |

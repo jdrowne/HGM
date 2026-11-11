@@ -11,7 +11,7 @@ use rustyhgm::node::{Bench, Eval};
 use rustyhgm_coding_agent::llm::{Provider, Service};
 use serde_json::{Value, json};
 
-pub const SETTINGS: [(&str, &str); 32] = [
+pub const SETTINGS: [(&str, &str); 29] = [
     ("--self_improve_llm", "si"),
     ("--self_improve_provider", "openai"),
     ("--self_improve_base_url", "http://si/v1"),
@@ -31,7 +31,6 @@ pub const SETTINGS: [(&str, &str); 32] = [
     ("--progenitor_dir", "progenitors"),
     ("--alpha", "0.6"),
     ("--beta", "1.0"),
-    ("--cool_down", "false"),
     ("--eval_random_level", "1.0"),
     ("--n_pseudo_descendant_evals", "10000"),
     ("--expansion_statistic", "clade"),
@@ -40,8 +39,6 @@ pub const SETTINGS: [(&str, &str); 32] = [
     ("--max_task_evals", "800"),
     ("--self_improve_timeout", "3600"),
     ("--evaluation_timeout", "3600"),
-    ("--full_eval", "false"),
-    ("--polyglot", "false"),
     ("--output_dir", "out"),
     ("--progenitor_name", "agent"),
 ];
@@ -53,16 +50,18 @@ pub fn argv(changes: &[(&str, &str)], without: &[&str]) -> Vec<String> {
         .filter(|(flag, _)| !without.contains(flag))
         .map(|(flag, value)| {
             let changed = changes.iter().find(|(f, _)| f == flag);
-            (*flag, changed.map_or(*value, |(_, v)| *v))
+            vec![*flag, changed.map_or(*value, |(_, v)| *v)]
         });
     let extra = changes
         .iter()
         .filter(|(flag, _)| SETTINGS.iter().all(|(f, _)| f != flag))
-        .copied();
-    for (flag, value) in set.chain(extra) {
-        argv.push(flag.to_owned());
-        argv.push(value.to_owned());
-    }
+        .map(|(flag, value)| {
+            [*flag, *value]
+                .into_iter()
+                .filter(|w| !w.is_empty())
+                .collect()
+        });
+    argv.extend(set.chain(extra).flatten().map(str::to_owned));
     argv
 }
 
