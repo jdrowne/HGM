@@ -238,17 +238,13 @@ impl Harness {
         self.docker
             .remove_existing_container(&spec.container_name(&run_id), log)
             .map_err(message)?;
+        let mounts = key_mount(&self.service);
         let images = Images {
             docker: &self.docker,
             root: &self.root,
+            read_only_mounts: &mounts,
         };
-        let started = container.insert(images.build_container(
-            &spec,
-            &run_id,
-            &key_mount(&self.service),
-            log,
-            true,
-        )?);
+        let started = container.insert(images.build_container(&spec, &run_id, log, true)?);
         self.setup(job, started, log)?;
         self.solve(job, started, log)?;
         let patch = model_patch.insert(self.collect(job, started, log)?);
@@ -367,6 +363,7 @@ impl Harness {
         let images = Images {
             docker: &self.docker,
             root: &self.root,
+            read_only_mounts: &[],
         };
         images.build_env_images(&specs, run.max_workers)?;
         let name = format!("{}_0", run.model_name_or_path);

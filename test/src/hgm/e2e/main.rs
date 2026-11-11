@@ -512,7 +512,9 @@ fn a_run_without_its_key_file_names_it() {
     let ran = keyless();
     let named = format!("{}gone: ", std::path::MAIN_SEPARATOR);
     assert!(
-        ran.stderr.starts_with("hgm: ") && ran.stderr.contains(&named),
+        ran.stderr
+            .strip_prefix("hgm: ")
+            .is_some_and(|rest| rest.contains(&named)),
         "{}",
         ran.stderr
     );
