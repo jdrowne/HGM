@@ -2,6 +2,8 @@ use std::path::PathBuf;
 use std::process::Command;
 
 #[cfg(unix)]
+mod improve;
+#[cfg(unix)]
 mod prepare;
 
 fn binary(name: &str) -> PathBuf {
