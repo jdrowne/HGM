@@ -135,20 +135,27 @@ fn commit_exercise(
     solution: &BTreeSet<&str>,
 ) -> Result<(String, String), String> {
     let dir = &exercise.dir;
-    git(dir, &["init"])?;
-    for file in solution {
-        git(dir, &["add", file])?;
-    }
-    for file in extra_files(exercise)? {
-        if dir.join(file).exists() {
-            git(dir, &["add", file])?;
-        }
-    }
-    git(dir, &["commit", "-m", "Initial commit"])?;
-    let solution_commit = git(dir, &["rev-parse", "HEAD"])?;
-    git(dir, &["add", "."])?;
-    git(dir, &["commit", "--amend", "-m", "all files"])?;
-    let all_files_commit = git(dir, &["rev-parse", "HEAD"])?;
+    let mut steps: Vec<Vec<&str>> = vec![vec!["init"]];
+    steps.extend(solution.iter().map(|file| vec!["add", file]));
+    let extra = extra_files(exercise)?;
+    steps.extend(
+        extra
+            .into_iter()
+            .filter(|file| dir.join(file).exists())
+            .map(|file| vec!["add", file]),
+    );
+    steps.push(vec!["commit", "-m", "Initial commit"]);
+    steps.push(vec!["rev-parse", "HEAD"]);
+    let solution_at = steps.len() - 1;
+    steps.push(vec!["add", "."]);
+    steps.push(vec!["commit", "--amend", "-m", "all files"]);
+    steps.push(vec!["rev-parse", "HEAD"]);
+    let mut outputs = steps
+        .iter()
+        .map(|args| git(dir, args))
+        .collect::<Result<Vec<String>, String>>()?;
+    let all_files_commit = outputs.pop().unwrap_or_default();
+    let solution_commit = outputs.swap_remove(solution_at);
     Ok((solution_commit, all_files_commit))
 }
 

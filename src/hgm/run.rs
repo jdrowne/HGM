@@ -319,6 +319,6 @@ pub fn evaluate(args: &EvaluateArgs, root_dir: &Path) -> Result<(), String> {
 }
 
 pub fn prepare_polyglot(root_dir: &Path) -> Result<(), String> {
-    let url = std::env::var("HGM_POLYGLOT_REPO").unwrap_or_else(|_| REPO_URL.to_owned());
-    prepare(root_dir, &url).map(|_| ())
+    let url = std::env::var("HGM_POLYGLOT_REPO").ok();
+    prepare(root_dir, url.as_deref().unwrap_or(REPO_URL)).map(|_| ())
 }
