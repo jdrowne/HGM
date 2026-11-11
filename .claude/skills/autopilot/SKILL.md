@@ -21,7 +21,7 @@ REMINDER (autopilot)
 3. Otherwise work each issue, lowest number first, until it closes. If one needs a decision from me, add the "needs decision" label to it, comment explaining the decision, and move on to the next.
 ```
 
-For each `--skip-label`, add ` and .name != "LABEL"` after
+For each `--skip-label`, add a space and `and .name != "LABEL"` right after
 `.name != "needs decision"`.
 
 Report the reminder's ID, next run and seven-day expiry.
