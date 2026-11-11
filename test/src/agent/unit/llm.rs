@@ -4,8 +4,7 @@ use hgm_agent::llm::{
 };
 use serde_json::{Value, json};
 
-use crate::common::cases;
-use crate::stub::{Seen, content, ok, refused, serve};
+use crate::common::{Seen, cases, content, ok, refused, serve};
 
 #[test]
 fn extract_json_matches_the_python() {

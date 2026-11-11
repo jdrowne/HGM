@@ -4,7 +4,10 @@ fn crate_is_linked() {
 }
 
 fn agent() -> std::process::Command {
-    std::process::Command::new(env!("CARGO_BIN_EXE_hgm-agent"))
+    std::process::Command::new(
+        std::env::var_os("NEXTEST_BIN_EXE_hgm-agent")
+            .unwrap_or_else(|| env!("CARGO_BIN_EXE_hgm-agent").into()),
+    )
 }
 
 #[test]

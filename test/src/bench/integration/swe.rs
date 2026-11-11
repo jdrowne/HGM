@@ -142,7 +142,7 @@ fn agent_run(root: &Path, patches: Vec<PathBuf>) -> Run {
 fn cache_rows(root: &Path) {
     let dir = root.join("cache").join(SWE_BENCH).join("test");
     fs::create_dir_all(&dir).unwrap();
-    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    let fixture = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .join("../../test/src/bench/unit/fixtures/rows.parquet");
     fs::copy(fixture, dir.join("rows.parquet")).unwrap();
     fs::write(dir.join("files.json"), r#"["rows.parquet"]"#).unwrap();

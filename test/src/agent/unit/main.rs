@@ -1,7 +1,6 @@
 mod common;
 mod llm;
 mod patch;
-mod stub;
 mod testrepo;
 
 #[test]
