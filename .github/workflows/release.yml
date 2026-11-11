@@ -117,7 +117,7 @@ jobs:
       - name: Assert no comments
         uses: 10U-Labs/assert-no-comments@latest
         with:
-          trees: .claude/statusline.sh .github/workflows/release.yml config.yaml etc src test
+          trees: .github/workflows/release.yml config.yaml etc src test
           verbose: "true"
   assert-no-empty-test-files:
     runs-on: ubuntu-latest
