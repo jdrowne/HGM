@@ -44,10 +44,8 @@ pub fn files() -> Vec<(String, &'static [u8])> {
 }
 
 pub fn write(dest: &Path) -> io::Result<()> {
-    for (rel, contents) in files() {
+    files().into_iter().try_for_each(|(rel, contents)| {
         let path = dest.join(rel);
-        fs::create_dir_all(path.parent().unwrap_or(dest))?;
-        fs::write(&path, contents)?;
-    }
-    Ok(())
+        fs::create_dir_all(path.parent().unwrap_or(dest)).and_then(|()| fs::write(&path, contents))
+    })
 }

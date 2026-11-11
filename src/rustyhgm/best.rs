@@ -81,42 +81,42 @@ pub fn pick(run_dir: &Path, epsilon: f64) -> Result<Belief, String> {
     best_belief(&record, epsilon)
 }
 
-fn git(dir: &Path, args: &[&str]) -> Result<(), String> {
-    let out = Command::new("git")
+fn apply(git: &str, dest: &Path, patch: &Path) -> Result<(), String> {
+    let out = Command::new(git)
+        .env("GIT_CEILING_DIRECTORIES", dest.parent().unwrap_or(dest))
         .args(["-c", "core.autocrlf=false", "-C"])
-        .arg(dir)
-        .args(args)
+        .arg(dest)
+        .arg("apply")
+        .arg(patch)
         .output()
-        .map_err(|e| format!("git {}: {e}", args.join(" ")))?;
+        .map_err(|e| format!("{git} apply: {e}"))?;
     if out.status.success() {
         Ok(())
     } else {
         Err(format!(
-            "git {} failed: {}",
-            args.join(" "),
+            "git apply failed: {}",
             String::from_utf8_lossy(&out.stderr).trim()
         ))
     }
 }
 
 pub fn export(run_dir: &Path, commit_id: &str, dest: &Path) -> Result<(), String> {
+    export_with("git", run_dir, commit_id, dest)
+}
+
+pub fn export_with(git: &str, run_dir: &Path, commit_id: &str, dest: &Path) -> Result<(), String> {
+    let run_dir = std::path::absolute(run_dir).map_err(|e| at(run_dir, e))?;
+    let dest = std::path::absolute(dest).map_err(|e| at(dest, e))?;
     let seed = run_dir.join(ROOT_COMMIT).join("src");
     if !seed.is_dir() {
         return Err(format!("{}: the seed source is missing", seed.display()));
     }
-    let patches = model_patch_paths(run_dir, "", commit_id).map_err(|e| at(run_dir, e))?;
+    let patches = model_patch_paths(&run_dir, "", commit_id).map_err(|e| at(&run_dir, e))?;
     if dest.exists() {
-        fs::remove_dir_all(dest).map_err(|e| at(dest, e))?;
+        fs::remove_dir_all(&dest).map_err(|e| at(&dest, e))?;
     }
-    copy_tree(&seed, dest).map_err(|e| at(dest, e))?;
-    if patches.is_empty() {
-        return Ok(());
-    }
-    git(dest, &["init", "-q"])?;
-    for patch in &patches {
-        let patch = std::path::absolute(patch).map_err(|e| at(patch, e))?;
-        git(dest, &["apply", &patch.to_string_lossy()]).map_err(|e| at(&patch, e))?;
-    }
-    let repo = dest.join(".git");
-    fs::remove_dir_all(&repo).map_err(|e| at(&repo, e))
+    copy_tree(&seed, &dest).map_err(|e| at(&dest, e))?;
+    patches
+        .iter()
+        .try_for_each(|patch| apply(git, &dest, patch).map_err(|e| at(patch, e)))
 }

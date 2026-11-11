@@ -102,3 +102,11 @@ fn the_seed_cannot_be_written_under_a_file() {
     fs::write(&file, "").unwrap();
     assert!(seed::write(&file.join("seed")).is_err());
 }
+
+#[test]
+fn the_seed_cannot_be_written_over_a_folder() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (rel, _) = seed::files().remove(0);
+    fs::create_dir_all(tmp.path().join(rel)).unwrap();
+    assert!(seed::write(tmp.path()).is_err());
+}

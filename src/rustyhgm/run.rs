@@ -94,9 +94,11 @@ fn previous_run(prev: &Path) -> Result<(Vec<String>, Tree), String> {
 }
 
 fn build_seed(src_path: &Path, docker: &Docker, log: &Log) -> Result<(), rustyhgm_sandbox::Error> {
-    let build = tempfile::tempdir()?;
-    seed::write(build.path())?;
-    prepare_initial_agent(build.path(), src_path, Some(docker), log).map(|_| ())
+    tempfile::tempdir()
+        .and_then(|build| seed::write(build.path()).map(|()| build))
+        .map_err(rustyhgm_sandbox::Error::from)
+        .and_then(|build| prepare_initial_agent(build.path(), src_path, Some(docker), log))
+        .map(|_| ())
 }
 
 pub fn initialize_run(

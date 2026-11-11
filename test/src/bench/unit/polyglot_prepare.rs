@@ -1,6 +1,6 @@
 use std::fs;
 
-use rustyhgm_bench::polyglot_prepare::modify_cmake_file;
+use rustyhgm_bench::polyglot_prepare::{modify_cmake_file, prepare};
 
 const MARKER: &str = "get_filename_component(exercise ${CMAKE_CURRENT_SOURCE_DIR} NAME)";
 
@@ -33,4 +33,12 @@ fn a_file_without_the_lookup_is_left_alone() {
 fn a_missing_cmake_file_is_an_error() {
     let tmp = tempfile::tempdir().unwrap();
     assert!(modify_cmake_file(&tmp.path().join("missing"), "t").is_err());
+}
+
+#[test]
+fn the_benchmark_cannot_be_cloned_under_a_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    let file = tmp.path().join("file");
+    fs::write(&file, "").unwrap();
+    assert!(prepare(&file.join("polyglot"), "rustyhgm-no-such-url").is_err());
 }

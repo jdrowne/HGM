@@ -5,8 +5,8 @@ use std::time::Duration;
 use rustyhgm::cli::Cli;
 use rustyhgm::node::Evaluator;
 use rustyhgm::run::{
-    Init, bench_for, finish, improve_dataset, initial_folder, initialize_run, resolve_output_dir,
-    run, run_tasks, settings,
+    Holdout, Init, bench_for, finish, holdout, improve_dataset, initial_folder, initialize_run,
+    resolve_output_dir, run, run_tasks, settings,
 };
 use rustyhgm::search::Settings;
 use rustyhgm_bench::dataset::Hub;
@@ -745,4 +745,60 @@ fn finish_needs_the_run_records() {
         .unwrap_err()
         .contains("rustyhgm_metadata.jsonl")
     );
+}
+
+#[test]
+fn finish_needs_the_seed_source() {
+    let (_tmp, out) = finished_run();
+    fs::remove_dir_all(out.join("initial")).unwrap();
+    assert!(
+        finish(
+            &cli(&[]),
+            &cli(&[]).config(),
+            &service(),
+            &cli(&[]).tools(&out),
+            &out,
+        )
+        .unwrap_err()
+        .contains("the seed source is missing")
+    );
+}
+
+fn held_out(results: &str) -> String {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let cache = root.join("cache/princeton-nlp/SWE-bench_Lite/test");
+    fs::create_dir_all(&cache).unwrap();
+    fs::copy(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../test/src/bench/unit/fixtures/rows.parquet"),
+        cache.join("rows.parquet"),
+    )
+    .unwrap();
+    fs::write(cache.join("files.json"), r#"["rows.parquet"]"#).unwrap();
+    fs::write(root.join("file"), "").unwrap();
+    let agent_dir = root.join("best_agent");
+    fs::create_dir_all(&agent_dir).unwrap();
+    holdout(&Holdout {
+        agent_dir: &agent_dir,
+        results_dir: &root.join(results),
+        split: "Lite",
+        n_tasks: 1,
+        llm: "m",
+        service: &service(),
+        tools: &cli(&[]).tools(root),
+        timeout: 1,
+        max_workers: 1,
+    })
+    .unwrap_err()
+}
+
+#[test]
+fn a_holdout_cannot_record_under_a_file() {
+    assert!(held_out("file/holdout").contains("file/holdout"));
+}
+
+#[test]
+fn a_holdout_fails_when_the_agent_cannot_be_built() {
+    assert!(held_out("holdout").contains("No such file or directory"));
 }

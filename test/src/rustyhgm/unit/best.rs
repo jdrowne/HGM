@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rustyhgm::best::{Belief, beliefs, best_belief, check_epsilon, export, pick, quantile};
+use rustyhgm::best::{
+    Belief, beliefs, best_belief, check_epsilon, export, export_with, pick, quantile,
+};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -311,4 +313,66 @@ fn export_fails_on_a_patch_that_does_not_apply() {
 fn export_fails_for_an_unknown_commit() {
     let (_tmp, run) = mismatched_seed_run();
     assert!(export(&run, "missing", &run.join("best_agent")).is_err());
+}
+
+fn chain_run() -> (TempDir, PathBuf) {
+    let tmp = tempfile::tempdir().unwrap();
+    let run = tmp.path().join("run");
+    fs::create_dir_all(run.join("initial/src")).unwrap();
+    fs::write(run.join("initial/src/lib.rs"), "seed\n").unwrap();
+    version(&run, "c1", "initial", Some(FIRST));
+    (tmp, run)
+}
+
+#[test]
+fn export_fails_without_the_git_program() {
+    let (_tmp, run) = chain_run();
+    assert!(
+        export_with("rustyhgm-no-such-git", &run, "c1", &run.join("best_agent"))
+            .unwrap_err()
+            .contains("rustyhgm-no-such-git apply")
+    );
+}
+
+#[test]
+fn export_fails_for_an_empty_run_folder() {
+    assert!(export(Path::new(""), "c1", Path::new("best_agent")).is_err());
+}
+
+#[test]
+fn export_fails_for_an_empty_destination() {
+    let (_tmp, run) = chain_run();
+    assert!(export(&run, "c1", Path::new("")).is_err());
+}
+
+#[test]
+fn export_fails_when_the_destination_is_a_file() {
+    let (_tmp, run) = chain_run();
+    let dest = run.join("best_agent");
+    fs::write(&dest, "").unwrap();
+    assert!(export(&run, "c1", &dest).is_err());
+}
+
+#[test]
+fn export_fails_when_the_destination_is_under_a_file() {
+    let (_tmp, run) = chain_run();
+    let file = run.join("file");
+    fs::write(&file, "").unwrap();
+    assert!(export(&run, "c1", &file.join("best_agent")).is_err());
+}
+
+#[test]
+fn export_ignores_a_repository_around_the_destination() {
+    let (_tmp, run) = chain_run();
+    std::process::Command::new("git")
+        .args(["init", "-q"])
+        .arg(&run)
+        .status()
+        .unwrap();
+    let dest = run.join("best_agent");
+    export(&run, "c1", &dest).unwrap();
+    assert_eq!(
+        fs::read_to_string(dest.join("lib.rs")).unwrap(),
+        "seed\none\n"
+    );
 }

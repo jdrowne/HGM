@@ -183,6 +183,7 @@ impl SelfImprove {
         let log = attempt.log;
         log.info("Running self-improvement");
         let timeout = self.timeout.to_string();
+        let polyglot = self.polyglot.to_string();
         let test_description = get_test_description("", TestRepo::Hgm);
         let mut argv = vec![
             "timeout",
@@ -203,7 +204,7 @@ impl SelfImprove {
             "--self_improve",
             "true",
             "--polyglot",
-            if self.polyglot { "true" } else { "false" },
+            &polyglot,
             "--language",
             "rust",
             "--model",
