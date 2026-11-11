@@ -5,8 +5,10 @@ metadata:
   node_type: memory
   type: feedback
   originSessionId: e1d06916-0e12-4044-a8b1-d481032b3ce2
-  modified: 2026-11-11T16:24:18.258Z
+  modified: 2026-11-11T16:30:25.718Z
 ---
+
+# Every input is explicit
 
 Every input to `hgm` and `hgm-agent` is given explicitly by the person running it. No setting has a default value (no clap `default_value`, no serde `default`, no fallback when a file is missing), no environment variable is read, and nothing is found by looking in the working directory.
 
