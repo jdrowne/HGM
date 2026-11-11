@@ -7,7 +7,17 @@ use serde_json::{Value, json};
 use super::binary;
 
 const BENCH: &str = "polyglot/polyglot-benchmark";
+const COMMITS: &str = "polyglot_benchmark_commits.json";
+const DATASET: &str = "polyglot/polyglot_benchmark_metadata.json";
 const MARKER: &str = "get_filename_component(exercise ${CMAKE_CURRENT_SOURCE_DIR} NAME)";
+
+fn native(path: &str) -> String {
+    path.replace('/', std::path::MAIN_SEPARATOR_STR)
+}
+
+fn under(rel: &str) -> String {
+    native(&format!("{BENCH}/{rel}"))
+}
 
 fn write(path: &Path, text: &str) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -289,10 +299,7 @@ fn check_hello_fields(entry: &Value, commits: &Value) {
             "reference_answers",
             json!("### .meta/example.py\ndef hello(): return 'hi'\n\n\n"),
         ),
-        (
-            "repo",
-            json!(format!("{BENCH}/python/exercises/practice/hello")),
-        ),
+        ("repo", json!(under("python/exercises/practice/hello"))),
     ];
     for (key, value) in expected {
         assert_eq!(entry[key], value, "{key}");
@@ -318,16 +325,16 @@ fn prepare_polyglot_registers_each_exercise_and_writes_the_dataset() {
     assert!(out.status.success(), "{out:?}");
     let log = stdout(&out);
     for line in [
-        format!("Found polyglot-benchmark at {BENCH}\n"),
+        format!("Found polyglot-benchmark at {}\n", native(BENCH)),
         "Initializing git repositories for 10 practice directories...\n".to_owned(),
-        format!("Error initializing git in {BENCH}/go/exercises/practice/missing: git add gone.go failed: "),
+        format!("Error initializing git in {}: git add gone.go failed: ", under("go/exercises/practice/missing")),
         "Saved commit hashes to ".to_owned(),
-        format!("{BENCH}/polyglot_benchmark_commits.json\n"),
-        format!("Error processing {BENCH}/go/exercises/practice/emptydocs: Problem statement cannot be empty\n"),
-        format!("Error processing {BENCH}/go/exercises/practice/missing: 'go__missing'\n"),
-        format!("Error processing {BENCH}/rust/exercises/practice/badtest: "),
-        format!("Error processing {BENCH}/rust/exercises/practice/baddoc: "),
-        format!("Error processing {BENCH}/rust/exercises/practice/badexample: "),
+        format!("{}\n", under(COMMITS)),
+        format!("Error processing {}: Problem statement cannot be empty\n", under("go/exercises/practice/emptydocs")),
+        format!("Error processing {}: 'go__missing'\n", under("go/exercises/practice/missing")),
+        format!("Error processing {}: ", under("rust/exercises/practice/badtest")),
+        format!("Error processing {}: ", under("rust/exercises/practice/baddoc")),
+        format!("Error processing {}: ", under("rust/exercises/practice/badexample")),
         "Generated metadata for 4 tasks\nMetadata written to polyglot/polyglot_benchmark_metadata.json\n".to_owned(),
     ] {
         assert!(log.contains(&line), "{line}\n---\n{log}");
@@ -390,7 +397,8 @@ fn check_later_runs(root: &Path, dataset: &Path) {
     let log = stdout(&out);
     assert!(
         log.contains(&format!(
-            "Error processing {BENCH}/javascript/exercises/practice/leap: "
+            "Error processing {}: ",
+            under("javascript/exercises/practice/leap")
         )),
         "{log}"
     );
@@ -407,7 +415,8 @@ fn check_later_runs(root: &Path, dataset: &Path) {
     let log = stdout(&out);
     assert!(
         log.contains(&format!(
-            "Error processing {BENCH}/python/exercises/practice/hello: "
+            "Error processing {}: ",
+            under("python/exercises/practice/hello")
         )),
         "{log}"
     );
@@ -446,14 +455,16 @@ fn prepare_polyglot_clones_the_benchmark_when_it_is_missing() {
     let log = stdout(&out);
     assert!(
         log.starts_with(&format!(
-            "Cloning polyglot-benchmark repository to {BENCH} ...\n"
+            "Cloning polyglot-benchmark repository to {} ...\n",
+            native(BENCH)
         )),
         "{log}"
     );
     assert!(log.contains("Generated metadata for 1 tasks\n"), "{log}");
     assert!(
         log.contains(&format!(
-            "Error initializing git in {BENCH}/cpp/exercises/practice/nocmake: "
+            "Error initializing git in {}: ",
+            under("cpp/exercises/practice/nocmake")
         )),
         "{log}"
     );
@@ -492,14 +503,14 @@ fn prepare_polyglot_stops_on_a_bad_config_or_an_unwritable_output() {
         let e = failure(&prepare(&root, "unused"));
         assert!(e.contains(expected), "{name}: {e}");
     }
-    for blocked in [
-        "polyglot/polyglot_benchmark_metadata.json",
-        "polyglot/polyglot-benchmark/polyglot_benchmark_commits.json",
+    for (blocked, shown) in [
+        (DATASET.to_owned(), DATASET.to_owned()),
+        (format!("{BENCH}/{COMMITS}"), under(COMMITS)),
     ] {
         let root = tmp.path().join(blocked.replace('/', "_"));
         hello(&root.join(BENCH));
-        fs::create_dir_all(root.join(blocked)).unwrap();
+        fs::create_dir_all(root.join(&blocked)).unwrap();
         let e = failure(&prepare(&root, "unused"));
-        assert!(e.contains(&format!("{blocked}: ")), "{blocked}: {e}");
+        assert!(e.contains(&format!("{shown}: ")), "{blocked}: {e}");
     }
 }
