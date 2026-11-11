@@ -12,3 +12,5 @@
 - [Checking locally, then verifying through CI](verifying-through-ci.md) — run locally only the new/touched tests and fmt/clippy/no-comments; workspace-wide tests, coverage gate, Docker tiers and platforms are CI's
 - [gh run list --commit takes a full SHA](gh-run-list-commit-takes-a-full-sha.md) — a short SHA returns nothing and a watch loop on it never ends; pass git rev-parse output
 - [Memories carry no history](memories-carry-no-history.md) — the rule and its reason only; no dates, requesters, incidents or origins; a changed rule is rewritten, not annotated
+- [Explain choices in plain language](explain-choices-in-plain-language.md) — for decisions on unfamiliar tools, show rendered options side by side with a recommendation, not technical questions
+- [README diagrams are Mermaid](readme-diagrams-are-mermaid.md) — fenced mermaid GitHub renders; stable kinds only (flowchart with subgraph boxes); nothing newer than GitHub's Mermaid; no %% comments
