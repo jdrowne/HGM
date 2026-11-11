@@ -11,26 +11,26 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@main
       # rustup installs the toolchain pinned in rust-toolchain.toml.
       - run: rustup show active-toolchain
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@master
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo clippy --workspace --all-targets -- -D warnings
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@main
       - run: rustup show active-toolchain
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@master
       # Unit and integration tiers. Integration tests may use the runner's
       # Docker daemon. The e2e tier runs in e2e.yml.
-      - run: cargo test --workspace --locked --lib --bins --test unit --test integration
+      - run: cargo test --workspace --lib --bins --test unit --test integration
 
   agent-subtree:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@main
       - run: rustup show active-toolchain
       - run: test/agent-subtree.sh

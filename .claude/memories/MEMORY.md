@@ -1,2 +1,3 @@
 - [Work only on this repo](work-only-on-this-repo.md) — never touch upstream metauto-ai/HGM or other repos; gh writes must target jdrowne/RustyHGM
 - [Commit directly to main](commit-directly-to-main.md) — no branches or PRs; push straight to origin main; commits need not be small
+- [Always use latest versions](always-use-latest-versions.md) — never pin toolchains, crates, actions or images; stable / "*" / @main / :latest; no committed Cargo.lock

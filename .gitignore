@@ -21,3 +21,4 @@ polyglot/polyglot-benchmark/
 polyglot/predictions/
 # Rust
 /target/
+/Cargo.lock

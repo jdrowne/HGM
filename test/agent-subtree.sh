@@ -10,7 +10,6 @@ trap 'rm -rf "$dest"' EXIT
 
 paths=(
   Cargo.toml
-  Cargo.lock
   rust-toolchain.toml
   src/agent
   lib/agent
@@ -24,7 +23,6 @@ for p in "${paths[@]}"; do
 done
 
 cd "$dest"
-# Cargo.lock still lists the crates that were left out; cargo prunes them.
 cargo build --workspace --all-targets
 cargo test --workspace --lib --bins --test unit --test integration
 echo "agent subtree OK: $(cargo metadata --no-deps --format-version 1 | grep -o '"name":"hgm[a-z-]*"' | sort -u | tr '\n' ' ')"
