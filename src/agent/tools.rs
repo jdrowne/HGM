@@ -207,6 +207,11 @@ pub fn filter_error(error: &str) -> String {
     filtered.join("\n").trim().to_owned()
 }
 
+#[cfg(windows)]
+const SHELL: &str = "bash";
+#[cfg(not(windows))]
+const SHELL: &str = "/bin/bash";
+
 #[derive(Debug, Clone)]
 pub struct Bash {
     pub program: PathBuf,
@@ -216,7 +221,7 @@ pub struct Bash {
 impl Default for Bash {
     fn default() -> Self {
         Bash {
-            program: PathBuf::from("/bin/bash"),
+            program: PathBuf::from(SHELL),
             timeout: Duration::from_secs(120),
         }
     }

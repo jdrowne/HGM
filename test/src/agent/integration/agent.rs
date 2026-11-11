@@ -31,7 +31,7 @@ fn completion(body: &Value) -> Value {
             .next()
             .unwrap()
             .to_owned();
-        let command = format!("cd {dir} && echo new > added.txt");
+        let command = format!("cd '{dir}' && echo new > added.txt");
         json!({"role": "assistant", "content": null, "tool_calls": [{
             "id": "c1",
             "type": "function",
