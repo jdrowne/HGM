@@ -331,13 +331,13 @@ def main():
                 for task in load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
             ]
         else:
-            tasks = load_json_file("./swe_bench/subsets/small.json") \
-                    + load_json_file("./swe_bench/subsets/medium.json") 
+            tasks = load_json_file("./src/bench/subsets/swe/small.json") \
+                    + load_json_file("./src/bench/subsets/swe/medium.json") 
         random.seed(42)
         random.shuffle(tasks)
     else:
-        tasks = load_json_file("./polyglot/subsets/medium.json") + load_json_file(
-            "./polyglot/subsets/small.json"
+        tasks = load_json_file("./src/bench/subsets/polyglot/medium.json") + load_json_file(
+            "./src/bench/subsets/polyglot/small.json"
         )
 
     src_path, submitted_ids = initialize_run(

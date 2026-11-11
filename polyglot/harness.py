@@ -513,7 +513,7 @@ def main():
 
     from utils.common_utils import load_json_file
 
-    swe_issues_med = load_json_file("./polyglot/subsets/medium.json")
+    swe_issues_med = load_json_file("./src/bench/subsets/polyglot/medium.json")
     model_patch_paths = (
         args.model_patch_paths.split(",")
         if args.model_patch_paths is not None

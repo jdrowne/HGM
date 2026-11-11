@@ -389,9 +389,9 @@ def main():
 
     # Load the test task list
     if args.test_task_list == "small":
-        test_task_list = load_json_file("./swe_bench/subsets/small.json")
+        test_task_list = load_json_file("./src/bench/subsets/swe/small.json")
     elif args.test_task_list == "medium":
-        test_task_list = load_json_file("./swe_bench/subsets/medium.json")
+        test_task_list = load_json_file("./src/bench/subsets/swe/medium.json")
     else:
         # Default to None, means all of them
         test_task_list = None

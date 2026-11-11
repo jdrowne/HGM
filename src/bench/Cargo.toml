@@ -19,5 +19,11 @@ path = "../../test/src/bench/unit/main.rs"
 name = "integration"
 path = "../../test/src/bench/integration/main.rs"
 
+[dependencies]
+parquet = { version = "*", default-features = false, features = ["snap"] }
+serde_json = { version = "*", features = ["preserve_order"] }
+ureq = { version = "*", features = ["json"] }
+
 [dev-dependencies]
-serde_json = "*"
+serde_json = { version = "*", features = ["preserve_order"] }
+tempfile = "*"

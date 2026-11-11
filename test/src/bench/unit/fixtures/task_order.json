@@ -3,7 +3,7 @@
   "cases": [
     {
       "name": "swe_small_plus_medium_shuffled_seed_42",
-      "input": "swe_bench/subsets/small.json + medium.json",
+      "input": "src/bench/subsets/swe/small.json + medium.json",
       "output": [
         "django__django-12325",
         "sphinx-doc__sphinx-9229",
@@ -135,7 +135,7 @@
     },
     {
       "name": "polyglot_medium_plus_small",
-      "input": "polyglot/subsets/medium.json + small.json",
+      "input": "src/bench/subsets/polyglot/medium.json + small.json",
       "output": [
         "javascript__queen-attack",
         "rust__wordy",

@@ -974,10 +974,10 @@ def capture_dockerignore():
 def capture_task_order():
     from utils.common_utils import load_json_file
 
-    tasks = load_json_file("./swe_bench/subsets/small.json") + load_json_file("./swe_bench/subsets/medium.json")
+    tasks = load_json_file("./src/bench/subsets/swe/small.json") + load_json_file("./src/bench/subsets/swe/medium.json")
     random.seed(42)
     random.shuffle(tasks)
-    poly = load_json_file("./polyglot/subsets/medium.json") + load_json_file("./polyglot/subsets/small.json")
+    poly = load_json_file("./src/bench/subsets/polyglot/medium.json") + load_json_file("./src/bench/subsets/polyglot/small.json")
 
     import hgm_utils
 
@@ -993,9 +993,9 @@ def capture_task_order():
         "task_order",
         "hgm.py: task list construction; hgm_utils.init (dedup); polyglot/harness.py: get_eval_script",
         [
-            {"name": "swe_small_plus_medium_shuffled_seed_42", "input": "swe_bench/subsets/small.json + medium.json", "output": tasks},
+            {"name": "swe_small_plus_medium_shuffled_seed_42", "input": "src/bench/subsets/swe/small.json + medium.json", "output": tasks},
             {"name": "swe_total_tasks_after_init_dedup", "input": "shuffled list + its first 3 again", "output": swe_dedup},
-            {"name": "polyglot_medium_plus_small", "input": "polyglot/subsets/medium.json + small.json", "output": poly},
+            {"name": "polyglot_medium_plus_small", "input": "src/bench/subsets/polyglot/medium.json + small.json", "output": poly},
             {"name": "polyglot_total_tasks_after_init_dedup", "input": "polyglot list", "output": poly_dedup},
             {"name": "get_eval_script", "input": ["cd /repo", "cargo test"], "output": get_eval_script(["cd /repo", "cargo test"])},
         ],
@@ -1091,6 +1091,30 @@ def capture_py_shuffle():
     write("bench", "py_shuffle", "random.seed(int); random.shuffle", cases)
 
 
+def capture_dataset_rows():
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from datasets import load_dataset
+
+    rows = [
+        {"repo": "astropy/astropy", "instance_id": "astropy__astropy-12907", "version": "4.3",
+         "FAIL_TO_PASS": "[\"a\"]", "hints_text": "", "problem_statement": "Caf\u00e9 \u2603\nline two\r\n"},
+        {"repo": "django/django", "instance_id": "django__django-11099", "version": "3.0",
+         "FAIL_TO_PASS": "[]", "hints_text": None, "problem_statement": "tab\there"},
+        {"repo": "sympy/sympy", "instance_id": "sympy__sympy-20590", "version": "1.7",
+         "FAIL_TO_PASS": "[\"b\", \"c\"]", "hints_text": "x" * 3000, "problem_statement": ""},
+    ]
+    path = FIXTURES / "bench" / "unit" / "fixtures" / "rows.parquet"
+    pq.write_table(pa.Table.from_pylist(rows), path, compression="snappy", row_group_size=2)
+    loaded = [dict(r) for r in load_dataset("parquet", data_files=str(path), cache_dir=tempfile.mkdtemp())["train"]]
+    write(
+        "bench",
+        "dataset_rows",
+        "datasets.load_dataset('parquet') over rows.parquet, written by pyarrow with snappy and two row groups",
+        [{"name": "rows_parquet", "input": "rows.parquet", "output": loaded}],
+    )
+
+
 def main():
     capture_config()
     capture_tree()
@@ -1110,6 +1134,7 @@ def main():
     capture_testrepo_prompt()
     capture_polyglot_specs()
     capture_py_shuffle()
+    capture_dataset_rows()
 
 
 if __name__ == "__main__":
