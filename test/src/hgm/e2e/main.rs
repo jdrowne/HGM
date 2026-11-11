@@ -277,6 +277,34 @@ fn runs_fail_when_their_tasks_or_records_are_missing() {
 
 #[cfg(unix)]
 #[test]
+fn best_prints_the_best_belief_agent_of_a_run() {
+    let tmp = tempfile::tempdir().unwrap();
+    let run = tmp.path().join("run");
+    std::fs::create_dir_all(&run).unwrap();
+    let node = |commit: &str, mean: f64, evals: u64| serde_json::json!({"commit_id": commit, "id": 1, "parent_id": 0, "mean_utility": mean, "num_evals": evals});
+    let record =
+        serde_json::json!({"n_task_evals": 5, "nodes": [node("a", 1.0, 1), node("b", 0.75, 4)]});
+    std::fs::write(run.join("hgm_metadata.jsonl"), format!("{record:#}\n")).unwrap();
+    let out = hgm_in(tmp.path())
+        .args(["best", "--run_dir", "run"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.starts_with("b\t0."), "{stdout}");
+    assert!(stdout.ends_with("\t3/4\n"), "{stdout}");
+    let out = hgm_in(tmp.path())
+        .args(["best", "--run_dir", "none"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+}
+
+#[test]
 fn hgm_needs_a_working_directory() {
     let tmp = tempfile::tempdir().unwrap();
     let gone = tmp.path().join("gone");

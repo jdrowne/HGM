@@ -15,6 +15,7 @@ pub enum Command {
     Run(RunArgs),
     Evaluate(EvaluateArgs),
     PreparePolyglot,
+    Best(BestArgs),
 }
 
 #[derive(Clone, Debug, Default, Args)]
@@ -136,4 +137,12 @@ pub struct EvaluateArgs {
     pub num_workers: usize,
     #[arg(long = "n_tasks")]
     pub n_tasks: Option<usize>,
+}
+
+#[derive(Clone, Debug, Args)]
+pub struct BestArgs {
+    #[arg(long = "run_dir")]
+    pub run_dir: PathBuf,
+    #[arg(long, default_value_t = 0.01)]
+    pub epsilon: f64,
 }

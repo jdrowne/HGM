@@ -36,6 +36,7 @@ hgm-core = { path = "../core" }
 hgm-sandbox = { path = "../sandbox" }
 rand = "*"
 serde_json = { version = "*", features = ["preserve_order"] }
+statrs = "*"
 
 [dev-dependencies]
 serde_json = { version = "*", features = ["preserve_order"] }
