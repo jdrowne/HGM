@@ -1,6 +1,7 @@
 mod common;
 mod config;
 mod metadata;
+mod prompts;
 mod pyjson;
 mod sampling;
 mod scheduler;

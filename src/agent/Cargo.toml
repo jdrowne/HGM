@@ -20,5 +20,10 @@ path = "../../test/src/agent/unit/main.rs"
 name = "integration"
 path = "../../test/src/agent/integration/main.rs"
 
+[dependencies]
+regex = "*"
+serde_json = { version = "*", features = ["preserve_order"] }
+ureq = { version = "*", features = ["json"] }
+
 [dev-dependencies]
-serde_json = "*"
+serde_json = { version = "*", features = ["preserve_order"] }

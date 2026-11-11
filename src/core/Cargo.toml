@@ -12,6 +12,7 @@ path = "lib.rs"
 chrono = "*"
 rand = "*"
 rand_distr = "*"
+regex = "*"
 serde = { version = "*", features = ["derive"] }
 serde_json = { version = "*", features = ["preserve_order"] }
 serde_norway = "*"

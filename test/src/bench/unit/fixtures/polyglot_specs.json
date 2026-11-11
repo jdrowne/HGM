@@ -1,0 +1,329 @@
+{
+  "source": "polyglot/test_spec.py: make_test_spec; polyglot/dockerfiles.py",
+  "cases": [
+    {
+      "name": "make_test_spec_python_x86_64",
+      "input": {
+        "instance": {
+          "instance_id": "python__task-one",
+          "language": "python",
+          "repo": "polyglot/polyglot-benchmark/python/exercises/practice/task-one",
+          "base_commit": "abc123",
+          "test_patch": "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+        },
+        "machine": "x86_64"
+      },
+      "output": {
+        "arch": "x86_64",
+        "platform": "linux/x86_64",
+        "base_image_key": "pb.base.x86_64:latest",
+        "env_image_key": "pb.env.x86_64.ce9e95520b42abb86d1825:latest",
+        "instance_image_key": "pb.eval.x86_64.python__task-one:latest",
+        "container_name": "pb.eval.python__task-one.r1",
+        "setup_env_script": "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.11  -y\nconda activate testbed\npython -m pip install flake8~=5.0.4 pylint~=2.17.1 black==22.3.0 yapf~=0.32.0 tomli>=1.1.0 pytest pytest-env pytest-asyncio async_timeout trio testpath\n",
+        "eval_script": "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit diff abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ngit checkout abc123 -- src/y.py && rm -f test_x.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n\nEOF_114329324912\npytest -rA --tb=long\ngit checkout abc123 -- src/y.py && rm -f test_x.py\n",
+        "install_repo_script": "#!/bin/bash\nset -euxo pipefail\ncd /polyglot/polyglot-benchmark/python/exercises/practice/task-one\ngit clone . /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\n",
+        "base_dockerfile": "\nFROM buildpack-deps:jammy\n\n# Install Python 3.11\nRUN apt-get update && apt-get install -y \\\n    software-properties-common \\\n    cmake \\\n    libboost-all-dev \\\n    && add-apt-repository ppa:deadsnakes/ppa \\\n    && apt-get update \\\n    && apt-get install -y \\\n    python3.11 \\\n    python3.11-venv \\\n    python3.11-dev \\\n    python3-pip \\\n    ca-certificates-java \\\n    openjdk-21-jdk \\\n    libtbb-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Install Go with architecture detection\nRUN ARCH=$(uname -m) && \\\n    if [ \"$ARCH\" = \"x86_64\" ]; then \\\n        GOARCH=\"amd64\"; \\\n    elif [ \"$ARCH\" = \"aarch64\" ]; then \\\n        GOARCH=\"arm64\"; \\\n    else \\\n        false; \\\n    fi && \\\n    curl -L \"https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz\" -o go.tar.gz && \\\n    tar -C /usr/local -xzf go.tar.gz && \\\n    rm go.tar.gz\nENV PATH=\"/usr/local/go/bin:${PATH}\"\n\n# Install Rust\nADD https://sh.rustup.rs /tmp/rustup.sh\nRUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh\nENV PATH=\"/root/.cargo/bin:${PATH}\"\n\n# Install Node.js and dependencies\nRUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \\\n    apt-get install -y nodejs && \\\n    rm -rf /var/lib/apt/lists/* && \\\n    mkdir -p /npm-install && \\\n    cd /npm-install && \\\n    npm init -y && \\\n    npm install \\\n    jest \\\n    @babel/core@7.25.2 \\\n    @exercism/babel-preset-javascript@0.2.1 \\\n    @exercism/eslint-config-javascript@0.6.0 \\\n    @types/jest@29.5.12 \\\n    @types/node@20.12.12 \\\n    babel-jest@29.6.4 \\\n    core-js@3.37.1 \\\n    eslint@8.49.0\n\n# Download and install conda\nRUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-x86_64.sh' -O miniconda.sh \\\n    && bash miniconda.sh -b -p /opt/miniconda3\n# Add conda to PATH\nENV PATH=/opt/miniconda3/bin:$PATH\n# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)\nRUN conda init --all\nRUN conda config --append channels conda-forge\n\nRUN adduser --disabled-password --gecos 'dog' nonroot\n",
+        "env_dockerfile": "FROM --platform=linux/x86_64 pb.base.x86_64:latest\n\nCOPY ./setup_env.sh /root/\nRUN chmod +x /root/setup_env.sh\nRUN /bin/bash -c \"source ~/.bashrc && /root/setup_env.sh\"\n\nWORKDIR /testbed/\n\n# Automatically activate the testbed environment\nRUN echo \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed\" > /root/.bashrc\n",
+        "instance_dockerfile": "FROM --platform=linux/x86_64 pb.env.x86_64.ce9e95520b42abb86d1825:latest\n\nCOPY ./setup_repo.sh /root/\nCOPY ./polyglot /polyglot\nRUN /bin/bash /root/setup_repo.sh\n\nWORKDIR /testbed/\n"
+      }
+    },
+    {
+      "name": "make_test_spec_python_arm64",
+      "input": {
+        "instance": {
+          "instance_id": "python__task-one",
+          "language": "python",
+          "repo": "polyglot/polyglot-benchmark/python/exercises/practice/task-one",
+          "base_commit": "abc123",
+          "test_patch": "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+        },
+        "machine": "arm64"
+      },
+      "output": {
+        "arch": "arm64",
+        "platform": "linux/arm64/v8",
+        "base_image_key": "pb.base.arm64:latest",
+        "env_image_key": "pb.env.arm64.ce9e95520b42abb86d1825:latest",
+        "instance_image_key": "pb.eval.arm64.python__task-one:latest",
+        "container_name": "pb.eval.python__task-one.r1",
+        "setup_env_script": "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.11  -y\nconda activate testbed\npython -m pip install flake8~=5.0.4 pylint~=2.17.1 black==22.3.0 yapf~=0.32.0 tomli>=1.1.0 pytest pytest-env pytest-asyncio async_timeout trio testpath\n",
+        "eval_script": "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit diff abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ngit checkout abc123 -- src/y.py && rm -f test_x.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n\nEOF_114329324912\npytest -rA --tb=long\ngit checkout abc123 -- src/y.py && rm -f test_x.py\n",
+        "install_repo_script": "#!/bin/bash\nset -euxo pipefail\ncd /polyglot/polyglot-benchmark/python/exercises/practice/task-one\ngit clone . /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\n",
+        "base_dockerfile": "\nFROM buildpack-deps:jammy\n\n# Install Python 3.11\nRUN apt-get update && apt-get install -y \\\n    software-properties-common \\\n    cmake \\\n    libboost-all-dev \\\n    && add-apt-repository ppa:deadsnakes/ppa \\\n    && apt-get update \\\n    && apt-get install -y \\\n    python3.11 \\\n    python3.11-venv \\\n    python3.11-dev \\\n    python3-pip \\\n    ca-certificates-java \\\n    openjdk-21-jdk \\\n    libtbb-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Install Go with architecture detection\nRUN ARCH=$(uname -m) && \\\n    if [ \"$ARCH\" = \"x86_64\" ]; then \\\n        GOARCH=\"amd64\"; \\\n    elif [ \"$ARCH\" = \"aarch64\" ]; then \\\n        GOARCH=\"arm64\"; \\\n    else \\\n        false; \\\n    fi && \\\n    curl -L \"https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz\" -o go.tar.gz && \\\n    tar -C /usr/local -xzf go.tar.gz && \\\n    rm go.tar.gz\nENV PATH=\"/usr/local/go/bin:${PATH}\"\n\n# Install Rust\nADD https://sh.rustup.rs /tmp/rustup.sh\nRUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh\nENV PATH=\"/root/.cargo/bin:${PATH}\"\n\n# Install Node.js and dependencies\nRUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \\\n    apt-get install -y nodejs && \\\n    rm -rf /var/lib/apt/lists/* && \\\n    mkdir -p /npm-install && \\\n    cd /npm-install && \\\n    npm init -y && \\\n    npm install \\\n    jest \\\n    @babel/core@7.25.2 \\\n    @exercism/babel-preset-javascript@0.2.1 \\\n    @exercism/eslint-config-javascript@0.6.0 \\\n    @types/jest@29.5.12 \\\n    @types/node@20.12.12 \\\n    babel-jest@29.6.4 \\\n    core-js@3.37.1 \\\n    eslint@8.49.0\n\n# Download and install conda\nRUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-aarch64.sh' -O miniconda.sh \\\n    && bash miniconda.sh -b -p /opt/miniconda3\n# Add conda to PATH\nENV PATH=/opt/miniconda3/bin:$PATH\n# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)\nRUN conda init --all\nRUN conda config --append channels conda-forge\n\nRUN adduser --disabled-password --gecos 'dog' nonroot\n",
+        "env_dockerfile": "FROM --platform=linux/arm64/v8 pb.base.arm64:latest\n\nCOPY ./setup_env.sh /root/\nRUN chmod +x /root/setup_env.sh\nRUN /bin/bash -c \"source ~/.bashrc && /root/setup_env.sh\"\n\nWORKDIR /testbed/\n\n# Automatically activate the testbed environment\nRUN echo \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed\" > /root/.bashrc\n",
+        "instance_dockerfile": "FROM --platform=linux/arm64/v8 pb.env.arm64.ce9e95520b42abb86d1825:latest\n\nCOPY ./setup_repo.sh /root/\nCOPY ./polyglot /polyglot\nRUN /bin/bash /root/setup_repo.sh\n\nWORKDIR /testbed/\n"
+      }
+    },
+    {
+      "name": "make_test_spec_rust_x86_64",
+      "input": {
+        "instance": {
+          "instance_id": "rust__task-one",
+          "language": "rust",
+          "repo": "polyglot/polyglot-benchmark/rust/exercises/practice/task-one",
+          "base_commit": "abc123",
+          "test_patch": "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+        },
+        "machine": "x86_64"
+      },
+      "output": {
+        "arch": "x86_64",
+        "platform": "linux/x86_64",
+        "base_image_key": "pb.base.x86_64:latest",
+        "env_image_key": "pb.env.x86_64.3bb2f0e92d01ae3d2f2ae7:latest",
+        "instance_image_key": "pb.eval.x86_64.rust__task-one:latest",
+        "container_name": "pb.eval.rust__task-one.r1",
+        "setup_env_script": "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.11  -y\nconda activate testbed\n",
+        "eval_script": "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit diff abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ngit checkout abc123 -- src/y.py && rm -f test_x.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n\nEOF_114329324912\ncargo test -- --include-ignored\ngit checkout abc123 -- src/y.py && rm -f test_x.py\n",
+        "install_repo_script": "#!/bin/bash\nset -euxo pipefail\ncd /polyglot/polyglot-benchmark/rust/exercises/practice/task-one\ngit clone . /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\n",
+        "base_dockerfile": "\nFROM buildpack-deps:jammy\n\n# Install Python 3.11\nRUN apt-get update && apt-get install -y \\\n    software-properties-common \\\n    cmake \\\n    libboost-all-dev \\\n    && add-apt-repository ppa:deadsnakes/ppa \\\n    && apt-get update \\\n    && apt-get install -y \\\n    python3.11 \\\n    python3.11-venv \\\n    python3.11-dev \\\n    python3-pip \\\n    ca-certificates-java \\\n    openjdk-21-jdk \\\n    libtbb-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Install Go with architecture detection\nRUN ARCH=$(uname -m) && \\\n    if [ \"$ARCH\" = \"x86_64\" ]; then \\\n        GOARCH=\"amd64\"; \\\n    elif [ \"$ARCH\" = \"aarch64\" ]; then \\\n        GOARCH=\"arm64\"; \\\n    else \\\n        false; \\\n    fi && \\\n    curl -L \"https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz\" -o go.tar.gz && \\\n    tar -C /usr/local -xzf go.tar.gz && \\\n    rm go.tar.gz\nENV PATH=\"/usr/local/go/bin:${PATH}\"\n\n# Install Rust\nADD https://sh.rustup.rs /tmp/rustup.sh\nRUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh\nENV PATH=\"/root/.cargo/bin:${PATH}\"\n\n# Install Node.js and dependencies\nRUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \\\n    apt-get install -y nodejs && \\\n    rm -rf /var/lib/apt/lists/* && \\\n    mkdir -p /npm-install && \\\n    cd /npm-install && \\\n    npm init -y && \\\n    npm install \\\n    jest \\\n    @babel/core@7.25.2 \\\n    @exercism/babel-preset-javascript@0.2.1 \\\n    @exercism/eslint-config-javascript@0.6.0 \\\n    @types/jest@29.5.12 \\\n    @types/node@20.12.12 \\\n    babel-jest@29.6.4 \\\n    core-js@3.37.1 \\\n    eslint@8.49.0\n\n# Download and install conda\nRUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-x86_64.sh' -O miniconda.sh \\\n    && bash miniconda.sh -b -p /opt/miniconda3\n# Add conda to PATH\nENV PATH=/opt/miniconda3/bin:$PATH\n# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)\nRUN conda init --all\nRUN conda config --append channels conda-forge\n\nRUN adduser --disabled-password --gecos 'dog' nonroot\n",
+        "env_dockerfile": "FROM --platform=linux/x86_64 pb.base.x86_64:latest\n\nCOPY ./setup_env.sh /root/\nRUN chmod +x /root/setup_env.sh\nRUN /bin/bash -c \"source ~/.bashrc && /root/setup_env.sh\"\n\nWORKDIR /testbed/\n\n# Automatically activate the testbed environment\nRUN echo \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed\" > /root/.bashrc\n",
+        "instance_dockerfile": "FROM --platform=linux/x86_64 pb.env.x86_64.3bb2f0e92d01ae3d2f2ae7:latest\n\nCOPY ./setup_repo.sh /root/\nCOPY ./polyglot /polyglot\nRUN /bin/bash /root/setup_repo.sh\n\nWORKDIR /testbed/\n"
+      }
+    },
+    {
+      "name": "make_test_spec_rust_arm64",
+      "input": {
+        "instance": {
+          "instance_id": "rust__task-one",
+          "language": "rust",
+          "repo": "polyglot/polyglot-benchmark/rust/exercises/practice/task-one",
+          "base_commit": "abc123",
+          "test_patch": "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+        },
+        "machine": "arm64"
+      },
+      "output": {
+        "arch": "arm64",
+        "platform": "linux/arm64/v8",
+        "base_image_key": "pb.base.arm64:latest",
+        "env_image_key": "pb.env.arm64.3bb2f0e92d01ae3d2f2ae7:latest",
+        "instance_image_key": "pb.eval.arm64.rust__task-one:latest",
+        "container_name": "pb.eval.rust__task-one.r1",
+        "setup_env_script": "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.11  -y\nconda activate testbed\n",
+        "eval_script": "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit diff abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ngit checkout abc123 -- src/y.py && rm -f test_x.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n\nEOF_114329324912\ncargo test -- --include-ignored\ngit checkout abc123 -- src/y.py && rm -f test_x.py\n",
+        "install_repo_script": "#!/bin/bash\nset -euxo pipefail\ncd /polyglot/polyglot-benchmark/rust/exercises/practice/task-one\ngit clone . /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\n",
+        "base_dockerfile": "\nFROM buildpack-deps:jammy\n\n# Install Python 3.11\nRUN apt-get update && apt-get install -y \\\n    software-properties-common \\\n    cmake \\\n    libboost-all-dev \\\n    && add-apt-repository ppa:deadsnakes/ppa \\\n    && apt-get update \\\n    && apt-get install -y \\\n    python3.11 \\\n    python3.11-venv \\\n    python3.11-dev \\\n    python3-pip \\\n    ca-certificates-java \\\n    openjdk-21-jdk \\\n    libtbb-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Install Go with architecture detection\nRUN ARCH=$(uname -m) && \\\n    if [ \"$ARCH\" = \"x86_64\" ]; then \\\n        GOARCH=\"amd64\"; \\\n    elif [ \"$ARCH\" = \"aarch64\" ]; then \\\n        GOARCH=\"arm64\"; \\\n    else \\\n        false; \\\n    fi && \\\n    curl -L \"https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz\" -o go.tar.gz && \\\n    tar -C /usr/local -xzf go.tar.gz && \\\n    rm go.tar.gz\nENV PATH=\"/usr/local/go/bin:${PATH}\"\n\n# Install Rust\nADD https://sh.rustup.rs /tmp/rustup.sh\nRUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh\nENV PATH=\"/root/.cargo/bin:${PATH}\"\n\n# Install Node.js and dependencies\nRUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \\\n    apt-get install -y nodejs && \\\n    rm -rf /var/lib/apt/lists/* && \\\n    mkdir -p /npm-install && \\\n    cd /npm-install && \\\n    npm init -y && \\\n    npm install \\\n    jest \\\n    @babel/core@7.25.2 \\\n    @exercism/babel-preset-javascript@0.2.1 \\\n    @exercism/eslint-config-javascript@0.6.0 \\\n    @types/jest@29.5.12 \\\n    @types/node@20.12.12 \\\n    babel-jest@29.6.4 \\\n    core-js@3.37.1 \\\n    eslint@8.49.0\n\n# Download and install conda\nRUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-aarch64.sh' -O miniconda.sh \\\n    && bash miniconda.sh -b -p /opt/miniconda3\n# Add conda to PATH\nENV PATH=/opt/miniconda3/bin:$PATH\n# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)\nRUN conda init --all\nRUN conda config --append channels conda-forge\n\nRUN adduser --disabled-password --gecos 'dog' nonroot\n",
+        "env_dockerfile": "FROM --platform=linux/arm64/v8 pb.base.arm64:latest\n\nCOPY ./setup_env.sh /root/\nRUN chmod +x /root/setup_env.sh\nRUN /bin/bash -c \"source ~/.bashrc && /root/setup_env.sh\"\n\nWORKDIR /testbed/\n\n# Automatically activate the testbed environment\nRUN echo \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed\" > /root/.bashrc\n",
+        "instance_dockerfile": "FROM --platform=linux/arm64/v8 pb.env.arm64.3bb2f0e92d01ae3d2f2ae7:latest\n\nCOPY ./setup_repo.sh /root/\nCOPY ./polyglot /polyglot\nRUN /bin/bash /root/setup_repo.sh\n\nWORKDIR /testbed/\n"
+      }
+    },
+    {
+      "name": "make_test_spec_go_x86_64",
+      "input": {
+        "instance": {
+          "instance_id": "go__task-one",
+          "language": "go",
+          "repo": "polyglot/polyglot-benchmark/go/exercises/practice/task-one",
+          "base_commit": "abc123",
+          "test_patch": "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+        },
+        "machine": "x86_64"
+      },
+      "output": {
+        "arch": "x86_64",
+        "platform": "linux/x86_64",
+        "base_image_key": "pb.base.x86_64:latest",
+        "env_image_key": "pb.env.x86_64.3bb2f0e92d01ae3d2f2ae7:latest",
+        "instance_image_key": "pb.eval.x86_64.go__task-one:latest",
+        "container_name": "pb.eval.go__task-one.r1",
+        "setup_env_script": "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.11  -y\nconda activate testbed\n",
+        "eval_script": "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit diff abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ngit checkout abc123 -- src/y.py && rm -f test_x.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n\nEOF_114329324912\ngo test ./...\ngit checkout abc123 -- src/y.py && rm -f test_x.py\n",
+        "install_repo_script": "#!/bin/bash\nset -euxo pipefail\ncd /polyglot/polyglot-benchmark/go/exercises/practice/task-one\ngit clone . /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\n",
+        "base_dockerfile": "\nFROM buildpack-deps:jammy\n\n# Install Python 3.11\nRUN apt-get update && apt-get install -y \\\n    software-properties-common \\\n    cmake \\\n    libboost-all-dev \\\n    && add-apt-repository ppa:deadsnakes/ppa \\\n    && apt-get update \\\n    && apt-get install -y \\\n    python3.11 \\\n    python3.11-venv \\\n    python3.11-dev \\\n    python3-pip \\\n    ca-certificates-java \\\n    openjdk-21-jdk \\\n    libtbb-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Install Go with architecture detection\nRUN ARCH=$(uname -m) && \\\n    if [ \"$ARCH\" = \"x86_64\" ]; then \\\n        GOARCH=\"amd64\"; \\\n    elif [ \"$ARCH\" = \"aarch64\" ]; then \\\n        GOARCH=\"arm64\"; \\\n    else \\\n        false; \\\n    fi && \\\n    curl -L \"https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz\" -o go.tar.gz && \\\n    tar -C /usr/local -xzf go.tar.gz && \\\n    rm go.tar.gz\nENV PATH=\"/usr/local/go/bin:${PATH}\"\n\n# Install Rust\nADD https://sh.rustup.rs /tmp/rustup.sh\nRUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh\nENV PATH=\"/root/.cargo/bin:${PATH}\"\n\n# Install Node.js and dependencies\nRUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \\\n    apt-get install -y nodejs && \\\n    rm -rf /var/lib/apt/lists/* && \\\n    mkdir -p /npm-install && \\\n    cd /npm-install && \\\n    npm init -y && \\\n    npm install \\\n    jest \\\n    @babel/core@7.25.2 \\\n    @exercism/babel-preset-javascript@0.2.1 \\\n    @exercism/eslint-config-javascript@0.6.0 \\\n    @types/jest@29.5.12 \\\n    @types/node@20.12.12 \\\n    babel-jest@29.6.4 \\\n    core-js@3.37.1 \\\n    eslint@8.49.0\n\n# Download and install conda\nRUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-x86_64.sh' -O miniconda.sh \\\n    && bash miniconda.sh -b -p /opt/miniconda3\n# Add conda to PATH\nENV PATH=/opt/miniconda3/bin:$PATH\n# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)\nRUN conda init --all\nRUN conda config --append channels conda-forge\n\nRUN adduser --disabled-password --gecos 'dog' nonroot\n",
+        "env_dockerfile": "FROM --platform=linux/x86_64 pb.base.x86_64:latest\n\nCOPY ./setup_env.sh /root/\nRUN chmod +x /root/setup_env.sh\nRUN /bin/bash -c \"source ~/.bashrc && /root/setup_env.sh\"\n\nWORKDIR /testbed/\n\n# Automatically activate the testbed environment\nRUN echo \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed\" > /root/.bashrc\n",
+        "instance_dockerfile": "FROM --platform=linux/x86_64 pb.env.x86_64.3bb2f0e92d01ae3d2f2ae7:latest\n\nCOPY ./setup_repo.sh /root/\nCOPY ./polyglot /polyglot\nRUN /bin/bash /root/setup_repo.sh\n\nWORKDIR /testbed/\n"
+      }
+    },
+    {
+      "name": "make_test_spec_go_arm64",
+      "input": {
+        "instance": {
+          "instance_id": "go__task-one",
+          "language": "go",
+          "repo": "polyglot/polyglot-benchmark/go/exercises/practice/task-one",
+          "base_commit": "abc123",
+          "test_patch": "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+        },
+        "machine": "arm64"
+      },
+      "output": {
+        "arch": "arm64",
+        "platform": "linux/arm64/v8",
+        "base_image_key": "pb.base.arm64:latest",
+        "env_image_key": "pb.env.arm64.3bb2f0e92d01ae3d2f2ae7:latest",
+        "instance_image_key": "pb.eval.arm64.go__task-one:latest",
+        "container_name": "pb.eval.go__task-one.r1",
+        "setup_env_script": "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.11  -y\nconda activate testbed\n",
+        "eval_script": "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit diff abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ngit checkout abc123 -- src/y.py && rm -f test_x.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n\nEOF_114329324912\ngo test ./...\ngit checkout abc123 -- src/y.py && rm -f test_x.py\n",
+        "install_repo_script": "#!/bin/bash\nset -euxo pipefail\ncd /polyglot/polyglot-benchmark/go/exercises/practice/task-one\ngit clone . /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\n",
+        "base_dockerfile": "\nFROM buildpack-deps:jammy\n\n# Install Python 3.11\nRUN apt-get update && apt-get install -y \\\n    software-properties-common \\\n    cmake \\\n    libboost-all-dev \\\n    && add-apt-repository ppa:deadsnakes/ppa \\\n    && apt-get update \\\n    && apt-get install -y \\\n    python3.11 \\\n    python3.11-venv \\\n    python3.11-dev \\\n    python3-pip \\\n    ca-certificates-java \\\n    openjdk-21-jdk \\\n    libtbb-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Install Go with architecture detection\nRUN ARCH=$(uname -m) && \\\n    if [ \"$ARCH\" = \"x86_64\" ]; then \\\n        GOARCH=\"amd64\"; \\\n    elif [ \"$ARCH\" = \"aarch64\" ]; then \\\n        GOARCH=\"arm64\"; \\\n    else \\\n        false; \\\n    fi && \\\n    curl -L \"https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz\" -o go.tar.gz && \\\n    tar -C /usr/local -xzf go.tar.gz && \\\n    rm go.tar.gz\nENV PATH=\"/usr/local/go/bin:${PATH}\"\n\n# Install Rust\nADD https://sh.rustup.rs /tmp/rustup.sh\nRUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh\nENV PATH=\"/root/.cargo/bin:${PATH}\"\n\n# Install Node.js and dependencies\nRUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \\\n    apt-get install -y nodejs && \\\n    rm -rf /var/lib/apt/lists/* && \\\n    mkdir -p /npm-install && \\\n    cd /npm-install && \\\n    npm init -y && \\\n    npm install \\\n    jest \\\n    @babel/core@7.25.2 \\\n    @exercism/babel-preset-javascript@0.2.1 \\\n    @exercism/eslint-config-javascript@0.6.0 \\\n    @types/jest@29.5.12 \\\n    @types/node@20.12.12 \\\n    babel-jest@29.6.4 \\\n    core-js@3.37.1 \\\n    eslint@8.49.0\n\n# Download and install conda\nRUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-aarch64.sh' -O miniconda.sh \\\n    && bash miniconda.sh -b -p /opt/miniconda3\n# Add conda to PATH\nENV PATH=/opt/miniconda3/bin:$PATH\n# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)\nRUN conda init --all\nRUN conda config --append channels conda-forge\n\nRUN adduser --disabled-password --gecos 'dog' nonroot\n",
+        "env_dockerfile": "FROM --platform=linux/arm64/v8 pb.base.arm64:latest\n\nCOPY ./setup_env.sh /root/\nRUN chmod +x /root/setup_env.sh\nRUN /bin/bash -c \"source ~/.bashrc && /root/setup_env.sh\"\n\nWORKDIR /testbed/\n\n# Automatically activate the testbed environment\nRUN echo \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed\" > /root/.bashrc\n",
+        "instance_dockerfile": "FROM --platform=linux/arm64/v8 pb.env.arm64.3bb2f0e92d01ae3d2f2ae7:latest\n\nCOPY ./setup_repo.sh /root/\nCOPY ./polyglot /polyglot\nRUN /bin/bash /root/setup_repo.sh\n\nWORKDIR /testbed/\n"
+      }
+    },
+    {
+      "name": "make_test_spec_javascript_x86_64",
+      "input": {
+        "instance": {
+          "instance_id": "javascript__task-one",
+          "language": "javascript",
+          "repo": "polyglot/polyglot-benchmark/javascript/exercises/practice/task-one",
+          "base_commit": "abc123",
+          "test_patch": "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+        },
+        "machine": "x86_64"
+      },
+      "output": {
+        "arch": "x86_64",
+        "platform": "linux/x86_64",
+        "base_image_key": "pb.base.x86_64:latest",
+        "env_image_key": "pb.env.x86_64.3bb2f0e92d01ae3d2f2ae7:latest",
+        "instance_image_key": "pb.eval.x86_64.javascript__task-one:latest",
+        "container_name": "pb.eval.javascript__task-one.r1",
+        "setup_env_script": "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.11  -y\nconda activate testbed\n",
+        "eval_script": "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit diff abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ngit checkout abc123 -- src/y.py && rm -f test_x.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n\nEOF_114329324912\nset -e\n[ ! -e node_modules ] && ln -s /npm-install/node_modules .\n[ ! -e package-lock.json ] && ln -s /npm-install/package-lock.json .\nsed -i 's/\\bxtest(/test(/g' *.spec.js\nnpm run test\ngit checkout abc123 -- src/y.py && rm -f test_x.py\n",
+        "install_repo_script": "#!/bin/bash\nset -euxo pipefail\ncd /polyglot/polyglot-benchmark/javascript/exercises/practice/task-one\ngit clone . /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\n",
+        "base_dockerfile": "\nFROM buildpack-deps:jammy\n\n# Install Python 3.11\nRUN apt-get update && apt-get install -y \\\n    software-properties-common \\\n    cmake \\\n    libboost-all-dev \\\n    && add-apt-repository ppa:deadsnakes/ppa \\\n    && apt-get update \\\n    && apt-get install -y \\\n    python3.11 \\\n    python3.11-venv \\\n    python3.11-dev \\\n    python3-pip \\\n    ca-certificates-java \\\n    openjdk-21-jdk \\\n    libtbb-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Install Go with architecture detection\nRUN ARCH=$(uname -m) && \\\n    if [ \"$ARCH\" = \"x86_64\" ]; then \\\n        GOARCH=\"amd64\"; \\\n    elif [ \"$ARCH\" = \"aarch64\" ]; then \\\n        GOARCH=\"arm64\"; \\\n    else \\\n        false; \\\n    fi && \\\n    curl -L \"https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz\" -o go.tar.gz && \\\n    tar -C /usr/local -xzf go.tar.gz && \\\n    rm go.tar.gz\nENV PATH=\"/usr/local/go/bin:${PATH}\"\n\n# Install Rust\nADD https://sh.rustup.rs /tmp/rustup.sh\nRUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh\nENV PATH=\"/root/.cargo/bin:${PATH}\"\n\n# Install Node.js and dependencies\nRUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \\\n    apt-get install -y nodejs && \\\n    rm -rf /var/lib/apt/lists/* && \\\n    mkdir -p /npm-install && \\\n    cd /npm-install && \\\n    npm init -y && \\\n    npm install \\\n    jest \\\n    @babel/core@7.25.2 \\\n    @exercism/babel-preset-javascript@0.2.1 \\\n    @exercism/eslint-config-javascript@0.6.0 \\\n    @types/jest@29.5.12 \\\n    @types/node@20.12.12 \\\n    babel-jest@29.6.4 \\\n    core-js@3.37.1 \\\n    eslint@8.49.0\n\n# Download and install conda\nRUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-x86_64.sh' -O miniconda.sh \\\n    && bash miniconda.sh -b -p /opt/miniconda3\n# Add conda to PATH\nENV PATH=/opt/miniconda3/bin:$PATH\n# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)\nRUN conda init --all\nRUN conda config --append channels conda-forge\n\nRUN adduser --disabled-password --gecos 'dog' nonroot\n",
+        "env_dockerfile": "FROM --platform=linux/x86_64 pb.base.x86_64:latest\n\nCOPY ./setup_env.sh /root/\nRUN chmod +x /root/setup_env.sh\nRUN /bin/bash -c \"source ~/.bashrc && /root/setup_env.sh\"\n\nWORKDIR /testbed/\n\n# Automatically activate the testbed environment\nRUN echo \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed\" > /root/.bashrc\n",
+        "instance_dockerfile": "FROM --platform=linux/x86_64 pb.env.x86_64.3bb2f0e92d01ae3d2f2ae7:latest\n\nCOPY ./setup_repo.sh /root/\nCOPY ./polyglot /polyglot\nRUN /bin/bash /root/setup_repo.sh\n\nWORKDIR /testbed/\n"
+      }
+    },
+    {
+      "name": "make_test_spec_javascript_arm64",
+      "input": {
+        "instance": {
+          "instance_id": "javascript__task-one",
+          "language": "javascript",
+          "repo": "polyglot/polyglot-benchmark/javascript/exercises/practice/task-one",
+          "base_commit": "abc123",
+          "test_patch": "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+        },
+        "machine": "arm64"
+      },
+      "output": {
+        "arch": "arm64",
+        "platform": "linux/arm64/v8",
+        "base_image_key": "pb.base.arm64:latest",
+        "env_image_key": "pb.env.arm64.3bb2f0e92d01ae3d2f2ae7:latest",
+        "instance_image_key": "pb.eval.arm64.javascript__task-one:latest",
+        "container_name": "pb.eval.javascript__task-one.r1",
+        "setup_env_script": "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.11  -y\nconda activate testbed\n",
+        "eval_script": "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit diff abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ngit checkout abc123 -- src/y.py && rm -f test_x.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n\nEOF_114329324912\nset -e\n[ ! -e node_modules ] && ln -s /npm-install/node_modules .\n[ ! -e package-lock.json ] && ln -s /npm-install/package-lock.json .\nsed -i 's/\\bxtest(/test(/g' *.spec.js\nnpm run test\ngit checkout abc123 -- src/y.py && rm -f test_x.py\n",
+        "install_repo_script": "#!/bin/bash\nset -euxo pipefail\ncd /polyglot/polyglot-benchmark/javascript/exercises/practice/task-one\ngit clone . /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\n",
+        "base_dockerfile": "\nFROM buildpack-deps:jammy\n\n# Install Python 3.11\nRUN apt-get update && apt-get install -y \\\n    software-properties-common \\\n    cmake \\\n    libboost-all-dev \\\n    && add-apt-repository ppa:deadsnakes/ppa \\\n    && apt-get update \\\n    && apt-get install -y \\\n    python3.11 \\\n    python3.11-venv \\\n    python3.11-dev \\\n    python3-pip \\\n    ca-certificates-java \\\n    openjdk-21-jdk \\\n    libtbb-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Install Go with architecture detection\nRUN ARCH=$(uname -m) && \\\n    if [ \"$ARCH\" = \"x86_64\" ]; then \\\n        GOARCH=\"amd64\"; \\\n    elif [ \"$ARCH\" = \"aarch64\" ]; then \\\n        GOARCH=\"arm64\"; \\\n    else \\\n        false; \\\n    fi && \\\n    curl -L \"https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz\" -o go.tar.gz && \\\n    tar -C /usr/local -xzf go.tar.gz && \\\n    rm go.tar.gz\nENV PATH=\"/usr/local/go/bin:${PATH}\"\n\n# Install Rust\nADD https://sh.rustup.rs /tmp/rustup.sh\nRUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh\nENV PATH=\"/root/.cargo/bin:${PATH}\"\n\n# Install Node.js and dependencies\nRUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \\\n    apt-get install -y nodejs && \\\n    rm -rf /var/lib/apt/lists/* && \\\n    mkdir -p /npm-install && \\\n    cd /npm-install && \\\n    npm init -y && \\\n    npm install \\\n    jest \\\n    @babel/core@7.25.2 \\\n    @exercism/babel-preset-javascript@0.2.1 \\\n    @exercism/eslint-config-javascript@0.6.0 \\\n    @types/jest@29.5.12 \\\n    @types/node@20.12.12 \\\n    babel-jest@29.6.4 \\\n    core-js@3.37.1 \\\n    eslint@8.49.0\n\n# Download and install conda\nRUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-aarch64.sh' -O miniconda.sh \\\n    && bash miniconda.sh -b -p /opt/miniconda3\n# Add conda to PATH\nENV PATH=/opt/miniconda3/bin:$PATH\n# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)\nRUN conda init --all\nRUN conda config --append channels conda-forge\n\nRUN adduser --disabled-password --gecos 'dog' nonroot\n",
+        "env_dockerfile": "FROM --platform=linux/arm64/v8 pb.base.arm64:latest\n\nCOPY ./setup_env.sh /root/\nRUN chmod +x /root/setup_env.sh\nRUN /bin/bash -c \"source ~/.bashrc && /root/setup_env.sh\"\n\nWORKDIR /testbed/\n\n# Automatically activate the testbed environment\nRUN echo \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed\" > /root/.bashrc\n",
+        "instance_dockerfile": "FROM --platform=linux/arm64/v8 pb.env.arm64.3bb2f0e92d01ae3d2f2ae7:latest\n\nCOPY ./setup_repo.sh /root/\nCOPY ./polyglot /polyglot\nRUN /bin/bash /root/setup_repo.sh\n\nWORKDIR /testbed/\n"
+      }
+    },
+    {
+      "name": "make_test_spec_cpp_x86_64",
+      "input": {
+        "instance": {
+          "instance_id": "cpp__task-one",
+          "language": "cpp",
+          "repo": "polyglot/polyglot-benchmark/cpp/exercises/practice/task-one",
+          "base_commit": "abc123",
+          "test_patch": "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+        },
+        "machine": "x86_64"
+      },
+      "output": {
+        "arch": "x86_64",
+        "platform": "linux/x86_64",
+        "base_image_key": "pb.base.x86_64:latest",
+        "env_image_key": "pb.env.x86_64.3bb2f0e92d01ae3d2f2ae7:latest",
+        "instance_image_key": "pb.eval.x86_64.cpp__task-one:latest",
+        "container_name": "pb.eval.cpp__task-one.r1",
+        "setup_env_script": "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.11  -y\nconda activate testbed\n",
+        "eval_script": "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit diff abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ngit checkout abc123 -- src/y.py && rm -f test_x.py && rm -rf build/\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n\nEOF_114329324912\nset -e\n[ ! -d \"build\" ] && mkdir build\ncd build\ncmake -DEXERCISM_RUN_ALL_TESTS=1 -G \"Unix Makefiles\" ..\nmake\ncd ../\ngit checkout abc123 -- src/y.py && rm -f test_x.py && rm -rf build/\n",
+        "install_repo_script": "#!/bin/bash\nset -euxo pipefail\ncd /polyglot/polyglot-benchmark/cpp/exercises/practice/task-one\ngit clone . /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\n",
+        "base_dockerfile": "\nFROM buildpack-deps:jammy\n\n# Install Python 3.11\nRUN apt-get update && apt-get install -y \\\n    software-properties-common \\\n    cmake \\\n    libboost-all-dev \\\n    && add-apt-repository ppa:deadsnakes/ppa \\\n    && apt-get update \\\n    && apt-get install -y \\\n    python3.11 \\\n    python3.11-venv \\\n    python3.11-dev \\\n    python3-pip \\\n    ca-certificates-java \\\n    openjdk-21-jdk \\\n    libtbb-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Install Go with architecture detection\nRUN ARCH=$(uname -m) && \\\n    if [ \"$ARCH\" = \"x86_64\" ]; then \\\n        GOARCH=\"amd64\"; \\\n    elif [ \"$ARCH\" = \"aarch64\" ]; then \\\n        GOARCH=\"arm64\"; \\\n    else \\\n        false; \\\n    fi && \\\n    curl -L \"https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz\" -o go.tar.gz && \\\n    tar -C /usr/local -xzf go.tar.gz && \\\n    rm go.tar.gz\nENV PATH=\"/usr/local/go/bin:${PATH}\"\n\n# Install Rust\nADD https://sh.rustup.rs /tmp/rustup.sh\nRUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh\nENV PATH=\"/root/.cargo/bin:${PATH}\"\n\n# Install Node.js and dependencies\nRUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \\\n    apt-get install -y nodejs && \\\n    rm -rf /var/lib/apt/lists/* && \\\n    mkdir -p /npm-install && \\\n    cd /npm-install && \\\n    npm init -y && \\\n    npm install \\\n    jest \\\n    @babel/core@7.25.2 \\\n    @exercism/babel-preset-javascript@0.2.1 \\\n    @exercism/eslint-config-javascript@0.6.0 \\\n    @types/jest@29.5.12 \\\n    @types/node@20.12.12 \\\n    babel-jest@29.6.4 \\\n    core-js@3.37.1 \\\n    eslint@8.49.0\n\n# Download and install conda\nRUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-x86_64.sh' -O miniconda.sh \\\n    && bash miniconda.sh -b -p /opt/miniconda3\n# Add conda to PATH\nENV PATH=/opt/miniconda3/bin:$PATH\n# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)\nRUN conda init --all\nRUN conda config --append channels conda-forge\n\nRUN adduser --disabled-password --gecos 'dog' nonroot\n",
+        "env_dockerfile": "FROM --platform=linux/x86_64 pb.base.x86_64:latest\n\nCOPY ./setup_env.sh /root/\nRUN chmod +x /root/setup_env.sh\nRUN /bin/bash -c \"source ~/.bashrc && /root/setup_env.sh\"\n\nWORKDIR /testbed/\n\n# Automatically activate the testbed environment\nRUN echo \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed\" > /root/.bashrc\n",
+        "instance_dockerfile": "FROM --platform=linux/x86_64 pb.env.x86_64.3bb2f0e92d01ae3d2f2ae7:latest\n\nCOPY ./setup_repo.sh /root/\nCOPY ./polyglot /polyglot\nRUN /bin/bash /root/setup_repo.sh\n\nWORKDIR /testbed/\n"
+      }
+    },
+    {
+      "name": "make_test_spec_cpp_arm64",
+      "input": {
+        "instance": {
+          "instance_id": "cpp__task-one",
+          "language": "cpp",
+          "repo": "polyglot/polyglot-benchmark/cpp/exercises/practice/task-one",
+          "base_commit": "abc123",
+          "test_patch": "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+        },
+        "machine": "arm64"
+      },
+      "output": {
+        "arch": "arm64",
+        "platform": "linux/arm64/v8",
+        "base_image_key": "pb.base.arm64:latest",
+        "env_image_key": "pb.env.arm64.3bb2f0e92d01ae3d2f2ae7:latest",
+        "instance_image_key": "pb.eval.arm64.cpp__task-one:latest",
+        "container_name": "pb.eval.cpp__task-one.r1",
+        "setup_env_script": "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.11  -y\nconda activate testbed\n",
+        "eval_script": "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit diff abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ngit checkout abc123 -- src/y.py && rm -f test_x.py && rm -rf build/\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n\nEOF_114329324912\nset -e\n[ ! -d \"build\" ] && mkdir build\ncd build\ncmake -DEXERCISM_RUN_ALL_TESTS=1 -G \"Unix Makefiles\" ..\nmake\ncd ../\ngit checkout abc123 -- src/y.py && rm -f test_x.py && rm -rf build/\n",
+        "install_repo_script": "#!/bin/bash\nset -euxo pipefail\ncd /polyglot/polyglot-benchmark/cpp/exercises/practice/task-one\ngit clone . /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\n",
+        "base_dockerfile": "\nFROM buildpack-deps:jammy\n\n# Install Python 3.11\nRUN apt-get update && apt-get install -y \\\n    software-properties-common \\\n    cmake \\\n    libboost-all-dev \\\n    && add-apt-repository ppa:deadsnakes/ppa \\\n    && apt-get update \\\n    && apt-get install -y \\\n    python3.11 \\\n    python3.11-venv \\\n    python3.11-dev \\\n    python3-pip \\\n    ca-certificates-java \\\n    openjdk-21-jdk \\\n    libtbb-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Install Go with architecture detection\nRUN ARCH=$(uname -m) && \\\n    if [ \"$ARCH\" = \"x86_64\" ]; then \\\n        GOARCH=\"amd64\"; \\\n    elif [ \"$ARCH\" = \"aarch64\" ]; then \\\n        GOARCH=\"arm64\"; \\\n    else \\\n        false; \\\n    fi && \\\n    curl -L \"https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz\" -o go.tar.gz && \\\n    tar -C /usr/local -xzf go.tar.gz && \\\n    rm go.tar.gz\nENV PATH=\"/usr/local/go/bin:${PATH}\"\n\n# Install Rust\nADD https://sh.rustup.rs /tmp/rustup.sh\nRUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh\nENV PATH=\"/root/.cargo/bin:${PATH}\"\n\n# Install Node.js and dependencies\nRUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \\\n    apt-get install -y nodejs && \\\n    rm -rf /var/lib/apt/lists/* && \\\n    mkdir -p /npm-install && \\\n    cd /npm-install && \\\n    npm init -y && \\\n    npm install \\\n    jest \\\n    @babel/core@7.25.2 \\\n    @exercism/babel-preset-javascript@0.2.1 \\\n    @exercism/eslint-config-javascript@0.6.0 \\\n    @types/jest@29.5.12 \\\n    @types/node@20.12.12 \\\n    babel-jest@29.6.4 \\\n    core-js@3.37.1 \\\n    eslint@8.49.0\n\n# Download and install conda\nRUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-aarch64.sh' -O miniconda.sh \\\n    && bash miniconda.sh -b -p /opt/miniconda3\n# Add conda to PATH\nENV PATH=/opt/miniconda3/bin:$PATH\n# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)\nRUN conda init --all\nRUN conda config --append channels conda-forge\n\nRUN adduser --disabled-password --gecos 'dog' nonroot\n",
+        "env_dockerfile": "FROM --platform=linux/arm64/v8 pb.base.arm64:latest\n\nCOPY ./setup_env.sh /root/\nRUN chmod +x /root/setup_env.sh\nRUN /bin/bash -c \"source ~/.bashrc && /root/setup_env.sh\"\n\nWORKDIR /testbed/\n\n# Automatically activate the testbed environment\nRUN echo \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed\" > /root/.bashrc\n",
+        "instance_dockerfile": "FROM --platform=linux/arm64/v8 pb.env.arm64.3bb2f0e92d01ae3d2f2ae7:latest\n\nCOPY ./setup_repo.sh /root/\nCOPY ./polyglot /polyglot\nRUN /bin/bash /root/setup_repo.sh\n\nWORKDIR /testbed/\n"
+      }
+    },
+    {
+      "name": "make_test_spec_java_x86_64",
+      "input": {
+        "instance": {
+          "instance_id": "java__task-one",
+          "language": "java",
+          "repo": "polyglot/polyglot-benchmark/java/exercises/practice/task-one",
+          "base_commit": "abc123",
+          "test_patch": "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+        },
+        "machine": "x86_64"
+      },
+      "output": {
+        "arch": "x86_64",
+        "platform": "linux/x86_64",
+        "base_image_key": "pb.base.x86_64:latest",
+        "env_image_key": "pb.env.x86_64.3bb2f0e92d01ae3d2f2ae7:latest",
+        "instance_image_key": "pb.eval.x86_64.java__task-one:latest",
+        "container_name": "pb.eval.java__task-one.r1",
+        "setup_env_script": "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.11  -y\nconda activate testbed\n",
+        "eval_script": "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit diff abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ngit checkout abc123 -- src/y.py && rm -f test_x.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n\nEOF_114329324912\n./gradlew test\ngit checkout abc123 -- src/y.py && rm -f test_x.py\n",
+        "install_repo_script": "#!/bin/bash\nset -euxo pipefail\ncd /polyglot/polyglot-benchmark/java/exercises/practice/task-one\ngit clone . /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\n",
+        "base_dockerfile": "\nFROM buildpack-deps:jammy\n\n# Install Python 3.11\nRUN apt-get update && apt-get install -y \\\n    software-properties-common \\\n    cmake \\\n    libboost-all-dev \\\n    && add-apt-repository ppa:deadsnakes/ppa \\\n    && apt-get update \\\n    && apt-get install -y \\\n    python3.11 \\\n    python3.11-venv \\\n    python3.11-dev \\\n    python3-pip \\\n    ca-certificates-java \\\n    openjdk-21-jdk \\\n    libtbb-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Install Go with architecture detection\nRUN ARCH=$(uname -m) && \\\n    if [ \"$ARCH\" = \"x86_64\" ]; then \\\n        GOARCH=\"amd64\"; \\\n    elif [ \"$ARCH\" = \"aarch64\" ]; then \\\n        GOARCH=\"arm64\"; \\\n    else \\\n        false; \\\n    fi && \\\n    curl -L \"https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz\" -o go.tar.gz && \\\n    tar -C /usr/local -xzf go.tar.gz && \\\n    rm go.tar.gz\nENV PATH=\"/usr/local/go/bin:${PATH}\"\n\n# Install Rust\nADD https://sh.rustup.rs /tmp/rustup.sh\nRUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh\nENV PATH=\"/root/.cargo/bin:${PATH}\"\n\n# Install Node.js and dependencies\nRUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \\\n    apt-get install -y nodejs && \\\n    rm -rf /var/lib/apt/lists/* && \\\n    mkdir -p /npm-install && \\\n    cd /npm-install && \\\n    npm init -y && \\\n    npm install \\\n    jest \\\n    @babel/core@7.25.2 \\\n    @exercism/babel-preset-javascript@0.2.1 \\\n    @exercism/eslint-config-javascript@0.6.0 \\\n    @types/jest@29.5.12 \\\n    @types/node@20.12.12 \\\n    babel-jest@29.6.4 \\\n    core-js@3.37.1 \\\n    eslint@8.49.0\n\n# Download and install conda\nRUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-x86_64.sh' -O miniconda.sh \\\n    && bash miniconda.sh -b -p /opt/miniconda3\n# Add conda to PATH\nENV PATH=/opt/miniconda3/bin:$PATH\n# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)\nRUN conda init --all\nRUN conda config --append channels conda-forge\n\nRUN adduser --disabled-password --gecos 'dog' nonroot\n",
+        "env_dockerfile": "FROM --platform=linux/x86_64 pb.base.x86_64:latest\n\nCOPY ./setup_env.sh /root/\nRUN chmod +x /root/setup_env.sh\nRUN /bin/bash -c \"source ~/.bashrc && /root/setup_env.sh\"\n\nWORKDIR /testbed/\n\n# Automatically activate the testbed environment\nRUN echo \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed\" > /root/.bashrc\n",
+        "instance_dockerfile": "FROM --platform=linux/x86_64 pb.env.x86_64.3bb2f0e92d01ae3d2f2ae7:latest\n\nCOPY ./setup_repo.sh /root/\nCOPY ./polyglot /polyglot\nRUN /bin/bash /root/setup_repo.sh\n\nWORKDIR /testbed/\n"
+      }
+    },
+    {
+      "name": "make_test_spec_java_arm64",
+      "input": {
+        "instance": {
+          "instance_id": "java__task-one",
+          "language": "java",
+          "repo": "polyglot/polyglot-benchmark/java/exercises/practice/task-one",
+          "base_commit": "abc123",
+          "test_patch": "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+        },
+        "machine": "arm64"
+      },
+      "output": {
+        "arch": "arm64",
+        "platform": "linux/arm64/v8",
+        "base_image_key": "pb.base.arm64:latest",
+        "env_image_key": "pb.env.arm64.3bb2f0e92d01ae3d2f2ae7:latest",
+        "instance_image_key": "pb.eval.arm64.java__task-one:latest",
+        "container_name": "pb.eval.java__task-one.r1",
+        "setup_env_script": "#!/bin/bash\nset -euxo pipefail\nsource /opt/miniconda3/bin/activate\nconda create -n testbed python=3.11  -y\nconda activate testbed\n",
+        "eval_script": "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit diff abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ngit checkout abc123 -- src/y.py && rm -f test_x.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\ndiff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n\nEOF_114329324912\n./gradlew test\ngit checkout abc123 -- src/y.py && rm -f test_x.py\n",
+        "install_repo_script": "#!/bin/bash\nset -euxo pipefail\ncd /polyglot/polyglot-benchmark/java/exercises/practice/task-one\ngit clone . /testbed\nchmod -R 777 /testbed\ncd /testbed\ngit reset --hard abc123\nsource /opt/miniconda3/bin/activate\nconda activate testbed\necho \"Current environment: $CONDA_DEFAULT_ENV\"\n",
+        "base_dockerfile": "\nFROM buildpack-deps:jammy\n\n# Install Python 3.11\nRUN apt-get update && apt-get install -y \\\n    software-properties-common \\\n    cmake \\\n    libboost-all-dev \\\n    && add-apt-repository ppa:deadsnakes/ppa \\\n    && apt-get update \\\n    && apt-get install -y \\\n    python3.11 \\\n    python3.11-venv \\\n    python3.11-dev \\\n    python3-pip \\\n    ca-certificates-java \\\n    openjdk-21-jdk \\\n    libtbb-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Install Go with architecture detection\nRUN ARCH=$(uname -m) && \\\n    if [ \"$ARCH\" = \"x86_64\" ]; then \\\n        GOARCH=\"amd64\"; \\\n    elif [ \"$ARCH\" = \"aarch64\" ]; then \\\n        GOARCH=\"arm64\"; \\\n    else \\\n        false; \\\n    fi && \\\n    curl -L \"https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz\" -o go.tar.gz && \\\n    tar -C /usr/local -xzf go.tar.gz && \\\n    rm go.tar.gz\nENV PATH=\"/usr/local/go/bin:${PATH}\"\n\n# Install Rust\nADD https://sh.rustup.rs /tmp/rustup.sh\nRUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh\nENV PATH=\"/root/.cargo/bin:${PATH}\"\n\n# Install Node.js and dependencies\nRUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \\\n    apt-get install -y nodejs && \\\n    rm -rf /var/lib/apt/lists/* && \\\n    mkdir -p /npm-install && \\\n    cd /npm-install && \\\n    npm init -y && \\\n    npm install \\\n    jest \\\n    @babel/core@7.25.2 \\\n    @exercism/babel-preset-javascript@0.2.1 \\\n    @exercism/eslint-config-javascript@0.6.0 \\\n    @types/jest@29.5.12 \\\n    @types/node@20.12.12 \\\n    babel-jest@29.6.4 \\\n    core-js@3.37.1 \\\n    eslint@8.49.0\n\n# Download and install conda\nRUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-aarch64.sh' -O miniconda.sh \\\n    && bash miniconda.sh -b -p /opt/miniconda3\n# Add conda to PATH\nENV PATH=/opt/miniconda3/bin:$PATH\n# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)\nRUN conda init --all\nRUN conda config --append channels conda-forge\n\nRUN adduser --disabled-password --gecos 'dog' nonroot\n",
+        "env_dockerfile": "FROM --platform=linux/arm64/v8 pb.base.arm64:latest\n\nCOPY ./setup_env.sh /root/\nRUN chmod +x /root/setup_env.sh\nRUN /bin/bash -c \"source ~/.bashrc && /root/setup_env.sh\"\n\nWORKDIR /testbed/\n\n# Automatically activate the testbed environment\nRUN echo \"source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed\" > /root/.bashrc\n",
+        "instance_dockerfile": "FROM --platform=linux/arm64/v8 pb.env.arm64.3bb2f0e92d01ae3d2f2ae7:latest\n\nCOPY ./setup_repo.sh /root/\nCOPY ./polyglot /polyglot\nRUN /bin/bash /root/setup_repo.sh\n\nWORKDIR /testbed/\n"
+      }
+    }
+  ]
+}

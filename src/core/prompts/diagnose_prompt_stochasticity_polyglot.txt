@@ -1,0 +1,27 @@
+Since the coding agent is stochastic, it may not produce the correct patch for the given problem statement on the first try. 
+Take into account the agent's stochastic nature and provide a solution to handle such cases. 
+For example, one solution could be to ask the agent to try multiple times and select the best patch according to the test results. Scale the reflection times is also a good idea.
+Giving previous attempts and test results as context to the agent may also help.
+The tests for tasks are not provided in the repo, and the agent needs workflow design to implement them.
+Agent's own tests that validate the solution may not cover all the cases that will be checked by the private tests during official scoring. So the quality of implemented tests are crucial.
+
+Please analyze the log below to identify how we can improve the testing process and multiple solution attempts.
+
+# Agent Running Log
+----- Agent Running Log Start -----
+{md_log}
+----- Agent Running Log End -----
+
+Respond precisely in the following format including the JSON start and end markers:
+
+```json
+<JSON>
+```
+
+In <JSON>, provide a JSON response with the following fields:
+- "potential_improvements": Identify potential improvements to the coding agent's system. All necessary dependencies and environment setup have already been handled, so do not focus on these aspects.
+- "improvement_proposal": Choose ONE high-impact improvement from the identified potential improvements and describe it in detail. This should be a focused and comprehensive plan to enhance the agent's overall coding ability.
+- "implementation_suggestion": Referring to the coding agent's summary and implementation, think critically about what feature could be added or improved to best implement the proposed improvement.
+- "problem_description": Phrase the improvement proposal and implementation suggestion as a GitHub issue description. It should clearly describe the feature so that a software engineer viewing the issue and the repository can implement it.
+
+Your response will be automatically parsed, so ensure that the string response is precisely in the correct format. Do NOT include the `<JSON>` tag in your output.

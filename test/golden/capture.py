@@ -1002,6 +1002,95 @@ def capture_task_order():
     )
 
 
+def capture_testrepo_prompt():
+    from prompts.testrepo_prompt import get_test_command, get_test_description
+
+    scripts = {
+        "pytest": "#!/bin/bash\nset -uxo pipefail\ncd /testbed\ngit checkout abc tests/test_a.py\npytest -rA tests/test_a.py tests/test_b.py\ngit checkout abc tests/test_a.py\n",
+        "django": "#!/bin/bash\ncd /testbed\n./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 admin_views.tests auth_tests.test_views\ngit checkout abc tests/admin_views/tests.py\n",
+        "sympy": "#!/bin/bash\ncd /testbed\nPYTHONWARNINGS='ignore::UserWarning,ignore::SyntaxWarning' bin/test -C --verbose sympy/core/tests/test_basic.py\ngit checkout abc sympy/core/tests/test_basic.py\n",
+        "no_paths": "#!/bin/bash\ntox -e py39\ntrue\n",
+    }
+    cases = []
+    for name, script in scripts.items():
+        cases.append({"name": f"get_test_command_{name}", "input": script, "output": list(get_test_command(script))})
+        cases.append(
+            {"name": f"get_test_description_swe_{name}", "input": script, "output": get_test_description(eval_script=script, swerepo=True)}
+        )
+    cmd = "set -e\n[ ! -d \"build\" ] && mkdir build\ncd build\nmake"
+    cases.append({"name": "get_test_description_polyglot", "input": cmd, "output": get_test_description(cmd, polyglot=True)})
+    cases.append({"name": "get_test_description_hgm", "input": "", "output": get_test_description(swerepo=False)})
+    write(
+        "agent",
+        "testrepo_prompt",
+        "prompts/testrepo_prompt.py: get_test_command, get_test_description",
+        cases,
+    )
+
+
+def capture_polyglot_specs():
+    import platform
+
+    from polyglot import test_spec as ts
+
+    test_patch = (
+        "diff --git a/test_x.py b/test_x.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_x.py\n@@ -0,0 +1 @@\n+t\n"
+        "diff --git a/src/y.py b/src/y.py\n--- a/src/y.py\n+++ b/src/y.py\n@@ -1 +1 @@\n-a\n+b\n"
+    )
+    real = platform.machine
+    cases = []
+    try:
+        for lang in ("python", "rust", "go", "javascript", "cpp", "java"):
+            for machine in ("x86_64", "arm64"):
+                platform.machine = lambda m=machine: m
+                inst = {
+                    "instance_id": f"{lang}__task-one",
+                    "language": lang,
+                    "repo": f"polyglot/polyglot-benchmark/{lang}/exercises/practice/task-one",
+                    "base_commit": "abc123",
+                    "test_patch": test_patch,
+                }
+                spec = ts.make_test_spec(inst)
+                cases.append(
+                    {
+                        "name": f"make_test_spec_{lang}_{machine}",
+                        "input": {"instance": inst, "machine": machine},
+                        "output": {
+                            "arch": spec.arch,
+                            "platform": spec.platform,
+                            "base_image_key": spec.base_image_key,
+                            "env_image_key": spec.env_image_key,
+                            "instance_image_key": spec.instance_image_key,
+                            "container_name": spec.get_instance_container_name("r1"),
+                            "setup_env_script": spec.setup_env_script,
+                            "eval_script": spec.eval_script,
+                            "install_repo_script": spec.install_repo_script,
+                            "base_dockerfile": spec.base_dockerfile,
+                            "env_dockerfile": spec.env_dockerfile,
+                            "instance_dockerfile": spec.instance_dockerfile,
+                        },
+                    }
+                )
+    finally:
+        platform.machine = real
+    write(
+        "bench",
+        "polyglot_specs",
+        "polyglot/test_spec.py: make_test_spec; polyglot/dockerfiles.py",
+        cases,
+    )
+
+
+def capture_py_shuffle():
+    cases = []
+    for seed, n in ((42, 10), (0, 1000), (7, 33)):
+        items = list(range(n))
+        random.seed(seed)
+        random.shuffle(items)
+        cases.append({"name": f"seed_{seed}_n_{n}", "input": {"seed": seed, "n": n}, "output": items})
+    write("bench", "py_shuffle", "random.seed(int); random.shuffle", cases)
+
+
 def main():
     capture_config()
     capture_tree()
@@ -1018,6 +1107,9 @@ def main():
     capture_tools()
     capture_dockerignore()
     capture_task_order()
+    capture_testrepo_prompt()
+    capture_polyglot_specs()
+    capture_py_shuffle()
 
 
 if __name__ == "__main__":
