@@ -6,57 +6,104 @@ use serde_json::json;
 
 use crate::common::cases;
 
+fn spec_values(case: &serde_json::Value) -> serde_json::Value {
+    let input = &case["input"];
+    let spec = make_test_spec(&input["instance"], input["machine"].as_str().unwrap());
+    json!({
+        "arch": spec.arch,
+        "platform": spec.platform(),
+        "base_image_key": spec.base_image_key(),
+        "env_image_key": spec.env_image_key(),
+        "instance_image_key": spec.instance_image_key(),
+        "container_name": spec.container_name("r1"),
+        "setup_env_script": spec.setup_env_script(),
+        "eval_script": spec.eval_script(),
+        "install_repo_script": spec.install_repo_script(),
+        "base_dockerfile": spec.base_dockerfile(),
+        "env_dockerfile": spec.env_dockerfile(),
+        "instance_dockerfile": spec.instance_dockerfile(),
+    })
+}
+
+fn spec_mismatches(
+    languages: bool,
+    got: impl Fn(&serde_json::Value) -> serde_json::Value,
+) -> Vec<String> {
+    cases("polyglot_specs")
+        .iter()
+        .filter(|case| case["input"]["language"].is_string() == languages)
+        .flat_map(|case| {
+            let actual = got(case);
+            case["output"]
+                .as_object()
+                .unwrap()
+                .iter()
+                .filter(|(key, value)| &actual[key.as_str()] != *value)
+                .map(|(key, _)| format!("{} {key}", case["name"]))
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+#[test]
+fn language_scripts_match_the_python() {
+    let found = spec_mismatches(true, |case| {
+        let language = case["input"]["language"].as_str().unwrap();
+        json!({
+            "eval_script": get_eval_script(test_commands(language)),
+            "test_cmd": test_cmd(language),
+        })
+    });
+    assert_eq!(found, Vec::<String>::new());
+}
+
 #[test]
 fn specs_match_the_python() {
-    for case in cases("polyglot_specs") {
-        let name = case["name"].as_str().unwrap();
-        let want = &case["output"];
-        if let Some(language) = case["input"]["language"].as_str() {
-            assert_eq!(
-                get_eval_script(test_commands(language)),
-                want["eval_script"],
-                "{name}"
-            );
-            assert_eq!(test_cmd(language), want["test_cmd"], "{name}");
-            continue;
-        }
-        let input = &case["input"];
-        let spec = make_test_spec(&input["instance"], input["machine"].as_str().unwrap());
-        let got = json!({
-            "arch": spec.arch,
-            "platform": spec.platform(),
-            "base_image_key": spec.base_image_key(),
-            "env_image_key": spec.env_image_key(),
-            "instance_image_key": spec.instance_image_key(),
-            "container_name": spec.container_name("r1"),
-            "setup_env_script": spec.setup_env_script(),
-            "eval_script": spec.eval_script(),
-            "install_repo_script": spec.install_repo_script(),
-            "base_dockerfile": spec.base_dockerfile(),
-            "env_dockerfile": spec.env_dockerfile(),
-            "instance_dockerfile": spec.instance_dockerfile(),
-        });
-        for (key, value) in want.as_object().unwrap() {
-            assert_eq!(&got[key], value, "{name} {key}");
-        }
-    }
+    assert_eq!(spec_mismatches(false, spec_values), Vec::<String>::new());
 }
 
 #[test]
 fn every_language_has_test_commands() {
-    for language in LANGUAGES {
-        assert!(!test_commands(language).is_empty(), "{language}");
-    }
+    let missing: Vec<&str> = LANGUAGES
+        .iter()
+        .copied()
+        .filter(|language| test_commands(language).is_empty())
+        .collect();
+    assert_eq!(missing, Vec::<&str>::new());
+}
+
+#[test]
+fn an_unknown_language_has_no_test_commands() {
     assert!(test_commands("cobol").is_empty());
+}
+
+#[test]
+fn an_unknown_language_has_no_test_command() {
     assert_eq!(test_cmd("cobol"), "");
 }
 
 #[test]
-fn machines_map_to_the_two_architectures() {
+fn aarch64_is_arm64() {
     assert_eq!(arch_for("aarch64"), "arm64");
+}
+
+#[test]
+fn arm64_is_arm64() {
     assert_eq!(arch_for("arm64"), "arm64");
+}
+
+#[test]
+fn x86_64_is_x86_64() {
     assert_eq!(arch_for("x86_64"), "x86_64");
+}
+
+#[test]
+fn other_machines_are_x86_64() {
     assert_eq!(arch_for("riscv64"), "x86_64");
+}
+
+#[test]
+fn the_host_architecture_follows_the_build_target() {
     assert_eq!(host_arch(), arch_for(std::env::consts::ARCH));
 }
 
@@ -72,8 +119,12 @@ fn reset_line(test_patch: &str) -> String {
 }
 
 #[test]
-fn only_well_formed_new_file_headers_count_as_added() {
+fn an_empty_test_patch_resets_nothing() {
     assert_eq!(reset_line(""), "true");
+}
+
+#[test]
+fn only_well_formed_new_file_headers_count_as_added() {
     let cases = [
         ("diff --git a/x b/x\nnew file mode 100644\n", "rm -f x"),
         ("diff --git a/x b/y\nnew file mode 100644\n", "true"),
@@ -84,35 +135,77 @@ fn only_well_formed_new_file_headers_count_as_added() {
         ("diff --git a/x b/x\nindex 1..2\n", "true"),
         ("x --- a/m.go\n--- a/n.go\n", "git checkout c -- m.go n.go"),
     ];
-    for (patch, want) in cases {
-        assert_eq!(reset_line(patch), want, "{patch:?}");
-    }
+    let wrong: Vec<String> = cases
+        .iter()
+        .filter(|(patch, want)| reset_line(patch) != *want)
+        .map(|(patch, _)| format!("{patch:?}"))
+        .collect();
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+fn arm_spec() -> TestSpec {
+    make_test_spec(&json!({"instance_id": "rust__a"}), "arm64")
 }
 
 #[test]
 fn container_names_without_a_run_id_have_no_suffix() {
-    let spec = make_test_spec(&json!({"instance_id": "rust__a"}), "arm64");
-    assert_eq!(spec.container_name(""), "pb.eval.rust__a");
-    assert_eq!(spec.platform(), "linux/arm64/v8");
+    assert_eq!(arm_spec().container_name(""), "pb.eval.rust__a");
 }
 
 #[test]
-fn a_namespace_renames_every_image_and_container() {
-    let spec = TestSpec {
+fn arm64_specs_use_the_v8_platform() {
+    assert_eq!(arm_spec().platform(), "linux/arm64/v8");
+}
+
+fn renamed() -> TestSpec {
+    TestSpec {
         namespace: "fake".to_owned(),
-        ..make_test_spec(&json!({"instance_id": "rust__a"}), "arm64")
-    };
-    assert_eq!(spec.base_image_key(), "fake.base.arm64:latest");
-    assert!(spec.env_image_key().starts_with("fake.env.arm64."));
-    assert_eq!(spec.instance_image_key(), "fake.eval.arm64.rust__a:latest");
-    assert_eq!(spec.container_name(""), "fake.eval.rust__a");
-    assert_eq!(spec.container_name("r"), "fake.eval.rust__a.r");
+        ..arm_spec()
+    }
+}
+
+#[test]
+fn a_namespace_renames_the_base_image() {
+    assert_eq!(renamed().base_image_key(), "fake.base.arm64:latest");
+}
+
+#[test]
+fn a_namespace_renames_the_env_image() {
+    assert!(renamed().env_image_key().starts_with("fake.env.arm64."));
+}
+
+#[test]
+fn a_namespace_renames_the_instance_image() {
+    assert_eq!(
+        renamed().instance_image_key(),
+        "fake.eval.arm64.rust__a:latest"
+    );
+}
+
+#[test]
+fn a_namespace_renames_the_container() {
+    assert_eq!(renamed().container_name(""), "fake.eval.rust__a");
+}
+
+#[test]
+fn a_namespace_renames_the_container_of_a_run() {
+    assert_eq!(renamed().container_name("r"), "fake.eval.rust__a.r");
+}
+
+#[test]
+fn a_namespace_renames_the_env_dockerfile_base() {
     assert!(
-        spec.env_dockerfile()
+        renamed()
+            .env_dockerfile()
             .starts_with("FROM --platform=linux/arm64/v8 fake.base.arm64:latest\n")
     );
+}
+
+#[test]
+fn a_namespace_renames_the_instance_dockerfile_base() {
     assert!(
-        spec.instance_dockerfile()
+        renamed()
+            .instance_dockerfile()
             .starts_with("FROM --platform=linux/arm64/v8 fake.env.arm64.")
     );
 }

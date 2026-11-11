@@ -16,15 +16,26 @@ fn container_names_follow_swebench() {
     );
 }
 
-#[test]
-fn a_missing_interpreter_is_an_error() {
-    let swebench = Swebench {
+fn missing() -> Swebench {
+    Swebench {
         python: "hgm-no-such-python".to_owned(),
-    };
-    assert!(swebench.specs(&[serde_json::json!({})]).is_err());
-    assert!(swebench.prepare_images("d", &["x"], 1).is_err());
+    }
+}
+
+#[test]
+fn specs_without_an_interpreter_are_an_error() {
+    assert!(missing().specs(&[serde_json::json!({})]).is_err());
+}
+
+#[test]
+fn preparing_images_without_an_interpreter_is_an_error() {
+    assert!(missing().prepare_images("d", &["x"], 1).is_err());
+}
+
+#[test]
+fn preparing_no_images_needs_no_interpreter() {
     let none: [&str; 0] = [];
-    assert!(swebench.prepare_images("d", &none, 1).is_ok());
+    assert!(missing().prepare_images("d", &none, 1).is_ok());
 }
 
 #[test]
@@ -33,5 +44,9 @@ fn errors_say_what_failed() {
         hgm_bench::swebench::Error::from(std::io::Error::other("x")).to_string(),
         "running swebench: x"
     );
+}
+
+#[test]
+fn the_environment_always_names_an_interpreter() {
     assert!(!Swebench::from_env().python.is_empty());
 }

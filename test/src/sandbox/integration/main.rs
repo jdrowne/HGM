@@ -11,11 +11,10 @@ pub const BASE_IMAGE: &str = "busybox:latest";
 
 pub fn docker() -> Docker {
     let docker = Docker::default();
-    assert!(
-        docker.available(),
-        "the integration tier needs a running Docker daemon"
-    );
     docker
+        .available()
+        .then_some(docker)
+        .expect("the integration tier needs a running Docker daemon")
 }
 
 pub fn unique(prefix: &str) -> String {

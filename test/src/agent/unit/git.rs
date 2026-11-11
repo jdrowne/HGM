@@ -11,11 +11,9 @@ fn git(dir: &Path, args: &[&str]) -> String {
         .args(args)
         .output()
         .unwrap();
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    if !out.status.success() {
+        panic!("{}", String::from_utf8_lossy(&out.stderr));
+    }
     String::from_utf8(out.stdout).unwrap()
 }
 
@@ -40,8 +38,15 @@ fn a_clean_repo_has_an_empty_diff() {
     assert_eq!(diff_versus_commit(tmp.path(), &commit).unwrap(), "");
 }
 
-#[test]
-fn tracked_changes_come_first_then_each_untracked_file() {
+struct Changed {
+    tmp: tempfile::TempDir,
+    commit: String,
+    before: String,
+    after: String,
+    diff: String,
+}
+
+fn changed() -> Changed {
     let (tmp, commit) = repo();
     let dir = tmp.path();
     fs::write(dir.join("tracked.txt"), "two\n").unwrap();
@@ -51,20 +56,74 @@ fn tracked_changes_come_first_then_each_untracked_file() {
     fs::write(dir.join("ignored.txt"), "skip\n").unwrap();
     let before = git(dir, &["status", "--porcelain"]);
     let diff = diff_versus_commit(dir, &commit).unwrap();
-    assert_eq!(git(dir, &["status", "--porcelain"]), before);
-    let tracked = git(dir, &["diff", &commit]);
-    assert!(diff.starts_with(&tracked), "{diff}");
-    let rest = &diff[tracked.len()..];
+    let after = git(dir, &["status", "--porcelain"]);
+    Changed {
+        commit,
+        before,
+        after,
+        diff,
+        tmp,
+    }
+}
+
+impl Changed {
+    fn tracked(&self) -> String {
+        git(self.tmp.path(), &["diff", &self.commit])
+    }
+
+    fn untracked(&self) -> String {
+        let tracked = self.tracked();
+        self.diff
+            .strip_prefix(tracked.as_str())
+            .unwrap_or_default()
+            .to_owned()
+    }
+}
+
+#[test]
+fn diffing_leaves_the_repo_status_alone() {
+    let changed = changed();
+    assert_eq!(changed.after, changed.before);
+}
+
+#[test]
+fn tracked_changes_come_first() {
+    let changed = changed();
+    assert!(
+        changed.diff.starts_with(&changed.tracked()),
+        "{}",
+        changed.diff
+    );
+}
+
+#[test]
+fn untracked_files_follow_in_path_order() {
+    let rest = changed().untracked();
     let new = rest.find("diff --git a/new.txt b/new.txt\n").unwrap();
     let deep = rest
         .find("diff --git a/sub/deep.txt b/sub/deep.txt\n")
         .unwrap();
-    assert!(new < deep, "{diff}");
+    assert!(new < deep, "{rest}");
+}
+
+#[test]
+fn an_untracked_file_is_diffed_as_new() {
+    let rest = changed().untracked();
     assert!(
         rest.contains("+++ b/new.txt\n@@ -0,0 +1 @@\n+fresh\n"),
-        "{diff}"
+        "{rest}"
     );
-    assert!(rest.contains("+deep\n"), "{diff}");
+}
+
+#[test]
+fn untracked_files_in_subdirectories_are_diffed() {
+    let rest = changed().untracked();
+    assert!(rest.contains("+deep\n"), "{rest}");
+}
+
+#[test]
+fn ignored_files_are_left_out_of_the_diff() {
+    let diff = changed().diff;
     assert!(!diff.contains("skip"), "{diff}");
 }
 

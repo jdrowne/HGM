@@ -9,31 +9,52 @@ mod testrepo;
 mod tools;
 mod withtools;
 
+use serde_json::Value;
+
 #[test]
 fn crate_is_linked() {
     assert_eq!(hgm_agent::CRATE_NAME, "hgm-agent");
 }
 
-#[test]
-fn golden_fixtures_load() {
-    let dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
-        .join("../../test/src/agent/unit/fixtures");
-    let mut n = 0;
-    for entry in std::fs::read_dir(&dir).expect("fixtures dir") {
+fn fixture_docs() -> Vec<(String, Value)> {
+    let mut docs = Vec::new();
+    for entry in std::fs::read_dir(common::fixture_dir()).expect("fixtures dir") {
         let path = entry.unwrap().path();
         if path.extension().is_some_and(|e| e == "json") {
             let text = std::fs::read_to_string(&path).unwrap();
-            let doc: serde_json::Value =
+            let doc: Value =
                 serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let cases = doc["cases"].as_array().expect("cases array");
-            assert!(!cases.is_empty(), "{}", path.display());
-            assert!(
-                cases.iter().all(|c| c["name"].is_string()),
-                "{}",
-                path.display()
-            );
-            n += 1;
+            docs.push((path.display().to_string(), doc));
         }
     }
-    assert!(n > 0, "no fixtures in {}", dir.display());
+    docs
+}
+
+fn fixture_cases(doc: &Value) -> &Vec<Value> {
+    doc["cases"].as_array().expect("cases array")
+}
+
+#[test]
+fn golden_fixtures_exist() {
+    assert!(!fixture_docs().is_empty());
+}
+
+#[test]
+fn every_golden_fixture_has_cases() {
+    let empty: Vec<String> = fixture_docs()
+        .into_iter()
+        .filter(|(_, doc)| fixture_cases(doc).is_empty())
+        .map(|(path, _)| path)
+        .collect();
+    assert_eq!(empty, Vec::<String>::new());
+}
+
+#[test]
+fn every_golden_fixture_case_is_named() {
+    let unnamed: Vec<String> = fixture_docs()
+        .into_iter()
+        .filter(|(_, doc)| !fixture_cases(doc).iter().all(|c| c["name"].is_string()))
+        .map(|(path, _)| path)
+        .collect();
+    assert_eq!(unnamed, Vec::<String>::new());
 }

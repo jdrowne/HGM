@@ -15,6 +15,7 @@ use hgm_sandbox::Docker;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use serde_json::{Value, json};
+use tempfile::TempDir;
 
 use crate::common::{DIAGNOSIS, node, performance, read_json, reply, serve};
 
@@ -38,20 +39,40 @@ fn context_error_log(out: &Path, commit: &str, id: &str) {
     fs::write(dir.join(format!("{id}.md")), format!("{line}\n{line}\n")).unwrap();
 }
 
+fn entries(commit: &str, perf: Value, polyglot: bool) -> BTreeSet<String> {
+    let tmp = tempfile::tempdir().unwrap();
+    node(tmp.path(), commit, None, perf);
+    outcomes(tmp.path(), commit, polyglot)
+}
+
 #[test]
 fn polyglot_entries_prefer_unsolved_tasks() {
-    let tmp = tempfile::tempdir().unwrap();
-    let out = tmp.path();
-    node(out, "a", None, performance(&["r"], &["u"], &["e"]));
-    assert_eq!(outcomes(out, "a", true), set(&["e", "u"]));
-    node(out, "b", None, performance(&["r"], &[], &[]));
-    assert_eq!(outcomes(out, "b", true), set(&["r"]));
-    node(out, "c", None, performance(&[], &[], &[]));
     assert_eq!(
-        outcomes(out, "c", true),
+        entries("a", performance(&["r"], &["u"], &["e"]), true),
+        set(&["e", "u"])
+    );
+}
+
+#[test]
+fn polyglot_entries_fall_back_to_solved_tasks() {
+    assert_eq!(
+        entries("b", performance(&["r"], &[], &[]), true),
+        set(&["r"])
+    );
+}
+
+#[test]
+fn polyglot_entries_fail_without_any_tasks() {
+    assert_eq!(
+        entries("c", performance(&[], &[], &[]), true),
         set(&["error: Failed to choose an entry for self-improvement based on c."])
     );
-    let e = choose_entry(out, "missing", true, &mut StdRng::seed_from_u64(0)).unwrap_err();
+}
+
+#[test]
+fn a_missing_polyglot_parent_is_not_eligible() {
+    let tmp = tempfile::tempdir().unwrap();
+    let e = choose_entry(tmp.path(), "missing", true, &mut StdRng::seed_from_u64(0)).unwrap_err();
     assert!(
         e.starts_with("missing not eligible for being a parent: "),
         "{e}"
@@ -73,21 +94,42 @@ fn swe_entries_mix_special_prompts_with_unresolved_tasks() {
             "u"
         ])
     );
+}
+
+#[test]
+fn swe_entries_of_a_fully_solved_parent_are_stochasticity_or_solved_tasks() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = tmp.path();
     node(out, "b", None, performance(&["r"], &[], &[]));
     fs::create_dir_all(out.join("b/predictions")).unwrap();
     assert_eq!(outcomes(out, "b", false), set(&[SOLVE_STOCHASTICITY, "r"]));
-    node(out, "c", None, performance(&[], &[], &[]));
+}
+
+#[test]
+fn swe_entries_of_a_parent_without_tasks_keep_the_special_prompts() {
     assert_eq!(
-        outcomes(out, "c", false),
+        entries("c", performance(&[], &[], &[]), false),
         set(&[
             SOLVE_EMPTY_PATCHES,
             SOLVE_STOCHASTICITY,
             "error: Failed to choose an entry for self-improvement based on c."
         ])
     );
-    node(out, "d", None, performance(&["r"], &["u"], &[]));
-    let found = outcomes(out, "d", false);
+}
+
+fn entries_without_predictions() -> BTreeSet<String> {
+    entries("d", performance(&["r"], &["u"], &[]), false)
+}
+
+#[test]
+fn swe_entries_without_predictions_can_pick_stochasticity() {
+    let found = entries_without_predictions();
     assert!(found.contains(SOLVE_STOCHASTICITY), "{found:?}");
+}
+
+#[test]
+fn swe_entries_without_predictions_can_fail() {
+    let found = entries_without_predictions();
     assert!(found.iter().any(|o| o.starts_with("error: ")), "{found:?}");
 }
 
@@ -111,8 +153,13 @@ fn input<'a>(entry_id: &'a str, root: &'a Path, dataset: &'a [Value]) -> Diagnos
     }
 }
 
-#[test]
-fn a_diagnosis_is_retried_until_it_parses() {
+struct Retried {
+    statement: String,
+    requests: usize,
+    log: String,
+}
+
+fn retried_diagnosis() -> Retried {
     let tmp = tempfile::tempdir().unwrap();
     let log_path = tmp.path().join("log");
     let log = Log::to_file(&log_path).unwrap();
@@ -130,22 +177,50 @@ fn a_diagnosis_is_retried_until_it_parses() {
     )
     .unwrap()
     .unwrap();
+    let requests = seen.lock().unwrap().len();
+    Retried {
+        statement,
+        requests,
+        log: fs::read_to_string(&log_path).unwrap(),
+    }
+}
+
+#[test]
+fn a_retried_diagnosis_states_the_problem() {
+    let statement = retried_diagnosis().statement;
     assert!(statement.contains("broken"), "{statement}");
+}
+
+#[test]
+fn a_retried_diagnosis_states_the_suggestion() {
+    let statement = retried_diagnosis().statement;
     assert!(statement.contains("do it"), "{statement}");
-    assert_eq!(seen.lock().unwrap().len(), 3);
-    let text = fs::read_to_string(&log_path).unwrap();
+}
+
+#[test]
+fn a_diagnosis_is_retried_until_it_parses() {
+    assert_eq!(retried_diagnosis().requests, 3);
+}
+
+#[test]
+fn a_failed_diagnosis_request_is_logged() {
+    let text = retried_diagnosis().log;
     assert!(
         text.contains("Error with get_response_from_llm: "),
         "{text}"
     );
+}
+
+#[test]
+fn an_unparsable_diagnosis_is_logged() {
+    let text = retried_diagnosis().log;
     assert!(
         text.contains("Error while diagnosing the problem: empty response json"),
         "{text}"
     );
 }
 
-#[test]
-fn a_diagnosis_gives_up_after_three_attempts() {
+fn abandoned_diagnosis() -> (Option<String>, usize) {
     let tmp = tempfile::tempdir().unwrap();
     let (base, seen) = serve(vec![
         reply("```json\n{\"problem_description\": \"x\"}\n```"),
@@ -161,39 +236,42 @@ fn a_diagnosis_gives_up_after_three_attempts() {
         &Log::discard(),
     )
     .unwrap();
-    assert_eq!(statement, None);
-    assert_eq!(seen.lock().unwrap().len(), 3);
+    let requests = seen.lock().unwrap().len();
+    (statement, requests)
 }
 
 #[test]
-fn a_diagnosis_prompt_that_cannot_be_built_is_an_error() {
+fn a_diagnosis_gives_up_with_no_statement() {
+    assert_eq!(abandoned_diagnosis().0, None);
+}
+
+#[test]
+fn a_diagnosis_gives_up_after_three_attempts() {
+    assert_eq!(abandoned_diagnosis().1, 3);
+}
+
+fn unbuildable_diagnosis(polyglot: bool) -> Result<Option<String>, String> {
     let tmp = tempfile::tempdir().unwrap();
-    let unused = client("http://127.0.0.1:9/v1".into());
-    let mut rng = StdRng::seed_from_u64(0);
-    assert!(
-        diagnose_problem(
-            &input("task", tmp.path(), &[]),
-            false,
-            &unused,
-            &mut rng,
-            &Log::discard()
-        )
-        .is_err()
-    );
-    assert!(
-        diagnose_problem(
-            &input("task", tmp.path(), &[]),
-            true,
-            &unused,
-            &mut rng,
-            &Log::discard()
-        )
-        .is_err()
-    );
+    diagnose_problem(
+        &input("task", tmp.path(), &[]),
+        polyglot,
+        &client("http://127.0.0.1:9/v1".into()),
+        &mut StdRng::seed_from_u64(0),
+        &Log::discard(),
+    )
 }
 
 #[test]
-fn polyglot_diagnoses_read_the_task_logs() {
+fn a_swe_diagnosis_prompt_that_cannot_be_built_is_an_error() {
+    assert!(unbuildable_diagnosis(false).is_err());
+}
+
+#[test]
+fn a_polyglot_diagnosis_prompt_that_cannot_be_built_is_an_error() {
+    assert!(unbuildable_diagnosis(true).is_err());
+}
+
+fn polyglot_diagnosis() -> (Option<String>, usize) {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     fs::create_dir_all(root.join("c/predictions/c_0")).unwrap();
@@ -212,8 +290,18 @@ fn polyglot_diagnoses_read_the_task_logs() {
         &Log::discard(),
     )
     .unwrap();
-    assert!(statement.unwrap().contains("broken"));
-    assert_eq!(seen.lock().unwrap().len(), 1);
+    let requests = seen.lock().unwrap().len();
+    (statement, requests)
+}
+
+#[test]
+fn polyglot_diagnoses_read_the_task_logs() {
+    assert!(polyglot_diagnosis().0.unwrap().contains("broken"));
+}
+
+#[test]
+fn a_polyglot_diagnosis_takes_one_request() {
+    assert_eq!(polyglot_diagnosis().1, 1);
 }
 
 #[test]
@@ -238,19 +326,21 @@ fn improver(out: &Path, docker: Docker, dataset: Result<Vec<Value>, String>) -> 
     }
 }
 
-fn only_run_dir(out: &Path) -> PathBuf {
-    let dirs: Vec<PathBuf> = fs::read_dir(out)
+fn run_dirs(out: &Path) -> Vec<PathBuf> {
+    fs::read_dir(out)
         .unwrap()
         .flatten()
         .map(|e| e.path())
         .filter(|p| p.join("self_improve.log").exists())
-        .collect();
-    assert_eq!(dirs.len(), 1, "{dirs:?}");
-    dirs[0].clone()
+        .collect()
 }
 
-#[test]
-fn a_child_fails_when_its_dataset_or_docker_is_missing() {
+fn only_run_dir(out: &Path) -> PathBuf {
+    let [dir]: [PathBuf; 1] = run_dirs(out).try_into().unwrap();
+    dir
+}
+
+fn child_without_data() -> (TempDir, PathBuf, String) {
     let tmp = tempfile::tempdir().unwrap();
     let out = tmp.path().join("a");
     fs::create_dir_all(&out).unwrap();
@@ -259,19 +349,51 @@ fn a_child_fails_when_its_dataset_or_docker_is_missing() {
         Docker::new("hgm-no-such-docker-program"),
         Err("no dataset".into()),
     );
-    assert_eq!(no_data.sample_child("p"), FAILED);
+    let commit = no_data.sample_child("p");
+    (tmp, out, commit)
+}
+
+#[test]
+fn a_child_fails_when_its_dataset_is_missing() {
+    assert_eq!(child_without_data().2, FAILED);
+}
+
+#[test]
+fn a_failed_child_leaves_one_run_directory() {
+    let (_tmp, out, _) = child_without_data();
+    assert_eq!(run_dirs(&out).len(), 1);
+}
+
+#[test]
+fn a_failed_child_records_its_parent() {
+    let (_tmp, out, _) = child_without_data();
+    let metadata = read_json(&only_run_dir(&out).join("metadata.json"));
+    assert_eq!(metadata["parent_commit"], "p");
+}
+
+#[test]
+fn a_failed_child_records_its_run_id() {
+    let (_tmp, out, _) = child_without_data();
     let run_dir = only_run_dir(&out);
     let metadata = read_json(&run_dir.join("metadata.json"));
-    assert_eq!(metadata["parent_commit"], "p");
     assert_eq!(
         metadata["run_id"],
         run_dir.file_name().unwrap().to_str().unwrap()
     );
+}
+
+#[test]
+fn a_child_without_data_logs_the_dataset_error() {
+    let (_tmp, out, _) = child_without_data();
     assert!(
-        fs::read_to_string(run_dir.join("self_improve.log"))
+        fs::read_to_string(only_run_dir(&out).join("self_improve.log"))
             .unwrap()
             .contains("Error while sampling a child: no dataset")
     );
+}
+
+fn child_without_docker() -> (TempDir, PathBuf, String) {
+    let tmp = tempfile::tempdir().unwrap();
     let out = tmp.path().join("b");
     fs::create_dir_all(&out).unwrap();
     let no_docker = improver(
@@ -279,7 +401,18 @@ fn a_child_fails_when_its_dataset_or_docker_is_missing() {
         Docker::new("hgm-no-such-docker-program"),
         Ok(Vec::new()),
     );
-    assert_eq!(no_docker.sample_child("p"), FAILED);
+    let commit = no_docker.sample_child("p");
+    (tmp, out, commit)
+}
+
+#[test]
+fn a_child_fails_when_docker_is_missing() {
+    assert_eq!(child_without_docker().2, FAILED);
+}
+
+#[test]
+fn a_child_without_docker_still_saves_its_metadata() {
+    let (_tmp, out, _) = child_without_docker();
     assert!(only_run_dir(&out).join("metadata.json").is_file());
 }
 
@@ -297,8 +430,7 @@ fn a_child_fails_when_its_run_directory_cannot_be_made() {
 }
 
 #[cfg(unix)]
-#[test]
-fn a_child_whose_metadata_cannot_be_saved_still_fails_cleanly() {
+fn child_with_unsavable_metadata() -> (TempDir, String) {
     use std::os::unix::fs::PermissionsExt;
     let tmp = tempfile::tempdir().unwrap();
     let out = tmp.path();
@@ -310,7 +442,20 @@ fn a_child_whose_metadata_cannot_be_saved_still_fails_cleanly() {
     .unwrap();
     fs::set_permissions(&docker, fs::Permissions::from_mode(0o755)).unwrap();
     let improver = improver(out, Docker::new(docker.to_string_lossy()), Ok(Vec::new()));
-    assert_eq!(improver.sample_child("p"), FAILED);
-    let log = fs::read_to_string(only_run_dir(out).join("self_improve.log")).unwrap();
+    let commit = improver.sample_child("p");
+    (tmp, commit)
+}
+
+#[cfg(unix)]
+#[test]
+fn a_child_whose_metadata_cannot_be_saved_still_fails_cleanly() {
+    assert_eq!(child_with_unsavable_metadata().1, FAILED);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_child_whose_metadata_cannot_be_saved_logs_the_error() {
+    let (tmp, _) = child_with_unsavable_metadata();
+    let log = fs::read_to_string(only_run_dir(tmp.path()).join("self_improve.log")).unwrap();
     assert!(log.contains("Error saving metadata: "), "{log}");
 }

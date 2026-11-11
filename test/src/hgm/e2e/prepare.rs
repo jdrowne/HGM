@@ -39,7 +39,9 @@ fn git(dir: &Path, args: &[&str]) -> String {
         .args(args)
         .output()
         .unwrap();
-    assert!(out.status.success(), "{args:?}: {out:?}");
+    if !out.status.success() {
+        panic!("{args:?}: {out:?}");
+    }
     String::from_utf8(out.stdout).unwrap()
 }
 
@@ -77,16 +79,19 @@ fn stdout(out: &Output) -> String {
     String::from_utf8_lossy(&out.stdout).into_owned()
 }
 
-fn prepared(out: &Output) -> String {
-    assert_eq!(out.status.code(), Some(1), "{out:?}");
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("init_evaluated_tasks.json"), "{out:?}");
-    stdout(out)
+fn stderr(out: &Output) -> String {
+    String::from_utf8_lossy(&out.stderr).into_owned()
 }
 
-fn failure(out: &Output) -> String {
-    assert_eq!(out.status.code(), Some(1), "{out:?}");
-    String::from_utf8_lossy(&out.stderr).into_owned()
+fn stopped_at_the_missing_run(out: &Output) -> Vec<String> {
+    let mut wrong = Vec::new();
+    if out.status.code() != Some(1) {
+        wrong.push(format!("status {:?}", out.status.code()));
+    }
+    if !stderr(out).contains("init_evaluated_tasks.json") {
+        wrong.push(stderr(out));
+    }
+    wrong
 }
 
 fn solution(files: &[&str]) -> Value {
@@ -214,11 +219,117 @@ fn practice(bench: &Path, task: &str) -> std::path::PathBuf {
     bench.join(task.replacen('/', "/exercises/practice/", 1))
 }
 
-fn check_first_commits(bench: &Path, commits: &Value) {
-    let base = |id: &str| commits[id][0].as_str().unwrap().to_owned();
-    let hello = practice(bench, "python/hello");
+struct Stage {
+    tmp: tempfile::TempDir,
+    out: Output,
+}
+
+impl Stage {
+    fn root(&self) -> &Path {
+        self.tmp.path()
+    }
+
+    fn bench(&self) -> std::path::PathBuf {
+        self.root().join(BENCH)
+    }
+
+    fn log(&self) -> String {
+        stdout(&self.out)
+    }
+
+    fn commits_text(&self) -> String {
+        fs::read_to_string(self.bench().join(COMMITS)).unwrap()
+    }
+
+    fn commits(&self) -> Value {
+        serde_json::from_str(&self.commits_text()).unwrap()
+    }
+
+    fn dataset_text(&self) -> String {
+        fs::read_to_string(self.root().join(DATASET)).unwrap()
+    }
+
+    fn entries(&self) -> Value {
+        serde_json::from_str(&self.dataset_text()).unwrap()
+    }
+
+    fn base_tree(&self, task: &str) -> Vec<String> {
+        let id = task.replacen('/', "__", 1);
+        let base = self.commits()[&id][0].as_str().unwrap().to_owned();
+        tree(&practice(&self.bench(), task), &base)
+    }
+
+    fn then(self, change: impl FnOnce(&Path), repo: Option<&str>, path: Option<&str>) -> Stage {
+        change(self.root());
+        let path = path.map(|name| {
+            let dir = self.root().join(name);
+            fs::create_dir_all(&dir).unwrap();
+            dir
+        });
+        let out = prepare_with(self.root(), repo, path.as_deref());
+        Stage { out, ..self }
+    }
+}
+
+fn first() -> Stage {
+    let tmp = tempfile::tempdir().unwrap();
+    let bench = tmp.path().join(BENCH);
+    hello(&bench);
+    languages(&bench);
+    broken(&bench);
+    let out = prepare(tmp.path(), "unused");
+    Stage { tmp, out }
+}
+
+#[test]
+fn a_first_polyglot_preparation_stops_at_the_missing_run() {
     assert_eq!(
-        tree(&hello, &base("python__hello")),
+        stopped_at_the_missing_run(&first().out),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn a_polyglot_run_registers_each_exercise_and_writes_the_dataset() {
+    let log = first().log();
+    let expected = [
+        format!("Found polyglot-benchmark at {}\n", native(BENCH)),
+        "Initializing git repositories for 10 practice directories...\n".to_owned(),
+        format!("Error initializing git in {}: git add gone.go failed: ", under("go/exercises/practice/missing")),
+        "Saved commit hashes to ".to_owned(),
+        format!("{}\n", under(COMMITS)),
+        format!("Error processing {}: Problem statement cannot be empty\n", under("go/exercises/practice/emptydocs")),
+        format!("Error processing {}: 'go__missing'\n", under("go/exercises/practice/missing")),
+        format!("Error processing {}: ", under("rust/exercises/practice/badtest")),
+        format!("Error processing {}: ", under("rust/exercises/practice/baddoc")),
+        format!("Error processing {}: ", under("rust/exercises/practice/badexample")),
+        "Generated metadata for 4 tasks\nMetadata written to polyglot/polyglot_benchmark_metadata.json\n".to_owned(),
+    ];
+    let missing: Vec<String> = expected
+        .into_iter()
+        .filter(|line| !log.contains(line.as_str()))
+        .collect();
+    assert_eq!(missing, Vec::<String>::new(), "{log}");
+}
+
+#[test]
+fn the_commits_file_is_pretty_printed_in_key_order() {
+    let text = first().commits_text();
+    assert!(
+        text.starts_with("{\n  \"cpp__two-fer\": [\n    \""),
+        "{text}"
+    );
+}
+
+#[test]
+fn every_initialized_exercise_has_its_commits() {
+    assert_eq!(first().commits().as_object().unwrap().len(), 9);
+}
+
+#[test]
+fn the_python_base_commit_holds_only_the_starting_files() {
+    assert_eq!(
+        first().base_tree("python/hello"),
         [
             ".docs/instructions.md",
             ".docs/introduction.md",
@@ -226,9 +337,12 @@ fn check_first_commits(bench: &Path, commits: &Value) {
             "hello.py"
         ]
     );
-    let fer = practice(bench, "cpp/two-fer");
+}
+
+#[test]
+fn the_cpp_base_commit_holds_only_the_starting_files() {
     assert_eq!(
-        tree(&fer, &base("cpp__two-fer")),
+        first().base_tree("cpp/two-fer"),
         [
             ".docs/instructions.md",
             "CMakeLists.txt",
@@ -237,15 +351,28 @@ fn check_first_commits(bench: &Path, commits: &Value) {
             "two_fer.h"
         ]
     );
+}
+
+#[test]
+fn the_cpp_base_commit_names_the_exercise_in_cmake() {
+    let stage = first();
+    let base = stage.commits()["cpp__two-fer"][0]
+        .as_str()
+        .unwrap()
+        .to_owned();
     assert_eq!(
         git(
-            &fer,
-            &["show", &format!("{}:CMakeLists.txt", base("cpp__two-fer"))]
+            &practice(&stage.bench(), "cpp/two-fer"),
+            &["show", &format!("{base}:CMakeLists.txt")]
         ),
         format!("project(x)\n    set(exercise \"two-fer\")\n{MARKER}\n")
     );
+}
+
+#[test]
+fn the_java_base_commit_holds_only_the_starting_files() {
     assert_eq!(
-        tree(&practice(bench, "java/bob"), &base("java__bob")),
+        first().base_tree("java/bob"),
         [
             ".docs/instructions.md",
             "build.gradle",
@@ -254,11 +381,12 @@ fn check_first_commits(bench: &Path, commits: &Value) {
             "src/main/java/Bob.java"
         ]
     );
+}
+
+#[test]
+fn the_javascript_base_commit_holds_only_the_starting_files() {
     assert_eq!(
-        tree(
-            &practice(bench, "javascript/leap"),
-            &base("javascript__leap")
-        ),
+        first().base_tree("javascript/leap"),
         [
             ".docs/instructions.md",
             ".eslintrc",
@@ -266,14 +394,54 @@ fn check_first_commits(bench: &Path, commits: &Value) {
             "package.json"
         ]
     );
+}
+
+#[test]
+fn the_test_commit_adds_the_rest_of_the_exercise() {
+    let stage = first();
+    let test = stage.commits()["python__hello"][1]
+        .as_str()
+        .unwrap()
+        .to_owned();
     assert_eq!(
-        tree(&hello, commits["python__hello"][1].as_str().unwrap()).len(),
+        tree(&practice(&stage.bench(), "python/hello"), &test).len(),
         7
     );
 }
 
-fn check_hello(entry: &Value, commits: &Value) {
-    let keys: Vec<&String> = entry.as_object().unwrap().keys().collect();
+#[test]
+fn the_dataset_escapes_non_ascii_text() {
+    assert!(
+        first()
+            .dataset_text()
+            .contains("\"blurb\": \"Say h\\u00e9llo\"")
+    );
+}
+
+#[test]
+fn the_dataset_lists_the_good_exercises_in_order() {
+    let entries = first().entries();
+    let ids: Vec<&str> = entries
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["instance_id"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        ids,
+        [
+            "cpp__two-fer",
+            "java__bob",
+            "javascript__leap",
+            "python__hello"
+        ]
+    );
+}
+
+#[test]
+fn a_dataset_entry_keeps_the_python_key_order() {
+    let entries = first().entries();
+    let keys: Vec<&String> = entries[3].as_object().unwrap().keys().collect();
     assert_eq!(
         keys,
         [
@@ -295,10 +463,13 @@ fn check_hello(entry: &Value, commits: &Value) {
             "repo"
         ]
     );
-    check_hello_fields(entry, commits);
 }
 
-fn check_hello_fields(entry: &Value, commits: &Value) {
+#[test]
+fn a_dataset_entry_describes_its_exercise() {
+    let stage = first();
+    let commits = stage.commits();
+    let entry = &stage.entries()[3];
     let expected = [
         ("instance_id", json!("python__hello")),
         ("language", json!("python")),
@@ -318,87 +489,81 @@ fn check_hello_fields(entry: &Value, commits: &Value) {
         ),
         ("repo", json!(under("python/exercises/practice/hello"))),
     ];
-    for (key, value) in expected {
-        assert_eq!(entry[key], value, "{key}");
-    }
-    assert_eq!(
-        entry["files"]["test"],
-        json!(["hello_test.py", "absent_test.py"])
-    );
-    let patch = entry["test_patch"].as_str().unwrap();
-    assert!(patch.contains("+++ b/hello_test.py"), "{patch}");
-    assert!(patch.contains("+++ b/.meta/example.py"), "{patch}");
+    let wrong: Vec<String> = expected
+        .into_iter()
+        .filter(|(key, value)| entry[*key] != *value)
+        .map(|(key, value)| format!("{key}: {} != {value}", entry[key]))
+        .collect();
+    assert_eq!(wrong, Vec::<String>::new());
 }
 
 #[test]
-fn a_polyglot_run_registers_each_exercise_and_writes_the_dataset() {
-    let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path();
-    let bench = root.join(BENCH);
-    hello(&bench);
-    languages(&bench);
-    broken(&bench);
-    let log = prepared(&prepare(root, "unused"));
-    for line in [
-        format!("Found polyglot-benchmark at {}\n", native(BENCH)),
-        "Initializing git repositories for 10 practice directories...\n".to_owned(),
-        format!("Error initializing git in {}: git add gone.go failed: ", under("go/exercises/practice/missing")),
-        "Saved commit hashes to ".to_owned(),
-        format!("{}\n", under(COMMITS)),
-        format!("Error processing {}: Problem statement cannot be empty\n", under("go/exercises/practice/emptydocs")),
-        format!("Error processing {}: 'go__missing'\n", under("go/exercises/practice/missing")),
-        format!("Error processing {}: ", under("rust/exercises/practice/badtest")),
-        format!("Error processing {}: ", under("rust/exercises/practice/baddoc")),
-        format!("Error processing {}: ", under("rust/exercises/practice/badexample")),
-        "Generated metadata for 4 tasks\nMetadata written to polyglot/polyglot_benchmark_metadata.json\n".to_owned(),
-    ] {
-        assert!(log.contains(&line), "{line}\n---\n{log}");
-    }
-    let commits_text = fs::read_to_string(bench.join("polyglot_benchmark_commits.json")).unwrap();
-    assert!(
-        commits_text.starts_with("{\n  \"cpp__two-fer\": [\n    \""),
-        "{commits_text}"
-    );
-    let commits: Value = serde_json::from_str(&commits_text).unwrap();
-    assert_eq!(commits.as_object().unwrap().len(), 9);
-    check_first_commits(&bench, &commits);
-    let dataset = root.join("polyglot/polyglot_benchmark_metadata.json");
-    let text = fs::read_to_string(&dataset).unwrap();
-    assert!(text.contains("\"blurb\": \"Say h\\u00e9llo\""), "{text}");
-    let entries: Value = serde_json::from_str(&text).unwrap();
-    let ids: Vec<&str> = entries
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|e| e["instance_id"].as_str().unwrap())
-        .collect();
+fn a_dataset_entry_keeps_the_configured_test_files() {
     assert_eq!(
-        ids,
-        [
-            "cpp__two-fer",
-            "java__bob",
-            "javascript__leap",
-            "python__hello"
-        ]
+        first().entries()[3]["files"]["test"],
+        json!(["hello_test.py", "absent_test.py"])
     );
-    check_hello(&entries[3], &commits);
-    assert_eq!(entries[0]["reference_tests"], "### two_fer_test.cpp\nc\n\n");
-    assert_eq!(entries[1]["reference_tests"], "");
-
-    let again = prepared(&prepare_with(root, None, None));
-    assert!(again.contains("All practice directories already initialized with git\n"));
-    assert_eq!(fs::read_to_string(&dataset).unwrap(), text);
-    check_later_runs(root, &dataset);
-
-    let commits_path = bench.join("polyglot_benchmark_commits.json");
-    fs::write(&commits_path, "{").unwrap();
-    assert!(failure(&prepare(root, "unused")).contains("polyglot_benchmark_commits.json: "));
-    fs::remove_file(&commits_path).unwrap();
-    let e = failure(&prepare(root, "unused"));
-    assert!(e.starts_with("hgm: Commits file not found: "), "{e}");
 }
 
-fn check_later_runs(root: &Path, dataset: &Path) {
+fn hello_patch() -> String {
+    first().entries()[3]["test_patch"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+#[test]
+fn the_test_patch_adds_the_tests() {
+    assert!(hello_patch().contains("+++ b/hello_test.py"));
+}
+
+#[test]
+fn the_test_patch_adds_the_example_answer() {
+    assert!(hello_patch().contains("+++ b/.meta/example.py"));
+}
+
+#[test]
+fn reference_tests_are_read_from_the_test_files() {
+    assert_eq!(
+        first().entries()[0]["reference_tests"],
+        "### two_fer_test.cpp\nc\n\n"
+    );
+}
+
+#[test]
+fn an_exercise_without_test_files_has_no_reference_tests() {
+    assert_eq!(first().entries()[1]["reference_tests"], "");
+}
+
+fn again() -> Stage {
+    first().then(|_| {}, None, None)
+}
+
+#[test]
+fn a_second_preparation_stops_at_the_missing_run() {
+    assert_eq!(
+        stopped_at_the_missing_run(&again().out),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn a_second_preparation_finds_the_repositories_ready() {
+    assert!(
+        again()
+            .log()
+            .contains("All practice directories already initialized with git\n")
+    );
+}
+
+#[test]
+fn a_second_preparation_writes_the_same_dataset() {
+    let stage = first();
+    let text = stage.dataset_text();
+    assert_eq!(stage.then(|_| {}, None, None).dataset_text(), text);
+}
+
+fn reconfigure(root: &Path) {
     let bench = root.join(BENCH);
     fs::write(practice(&bench, "java/bob").join(".meta/config.json"), "{}").unwrap();
     fs::write(
@@ -406,48 +571,122 @@ fn check_later_runs(root: &Path, dataset: &Path) {
         "{",
     )
     .unwrap();
-    let log = prepared(&prepare(root, "unused"));
-    assert!(
-        log.contains(&format!(
-            "Error processing {}: ",
-            under("javascript/exercises/practice/leap")
-        )),
-        "{log}"
-    );
-    assert!(log.contains("Generated metadata for 3 tasks\n"), "{log}");
-    let entries: Value = serde_json::from_str(&fs::read_to_string(dataset).unwrap()).unwrap();
-    assert_eq!(entries[1]["instance_id"], "java__bob");
-    assert_eq!(entries[1]["files"], json!({}));
-    assert_eq!(entries[1]["reference_tests"], "");
+}
 
-    let nowhere = root.join("no-git");
-    fs::create_dir(&nowhere).unwrap();
-    let log = prepared(&prepare_with(root, Some("unused"), Some(&nowhere)));
-    assert!(
-        log.contains(&format!(
-            "Error processing {}: ",
-            under("python/exercises/practice/hello")
-        )),
-        "{log}"
-    );
-    assert!(log.contains("Generated metadata for 0 tasks\n"), "{log}");
+fn later() -> Stage {
+    again().then(reconfigure, Some("unused"), None)
 }
 
 #[test]
-fn a_polyglot_run_clones_the_benchmark_when_it_is_missing() {
-    let tmp = tempfile::tempdir().unwrap();
-    let source = tmp.path().join("source");
-    hello(&source);
+fn a_later_preparation_stops_at_the_missing_run() {
+    assert_eq!(
+        stopped_at_the_missing_run(&later().out),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn a_later_preparation_reports_a_broken_config() {
+    assert!(later().log().contains(&format!(
+        "Error processing {}: ",
+        under("javascript/exercises/practice/leap")
+    )));
+}
+
+#[test]
+fn a_later_preparation_drops_the_broken_exercise() {
+    assert!(later().log().contains("Generated metadata for 3 tasks\n"));
+}
+
+#[test]
+fn a_later_preparation_keeps_an_exercise_with_an_empty_config() {
+    assert_eq!(later().entries()[1]["instance_id"], "java__bob");
+}
+
+#[test]
+fn an_empty_config_lists_no_files() {
+    assert_eq!(later().entries()[1]["files"], json!({}));
+}
+
+#[test]
+fn an_empty_config_has_no_reference_tests() {
+    assert_eq!(later().entries()[1]["reference_tests"], "");
+}
+
+fn gitless() -> Stage {
+    later().then(|_| {}, Some("unused"), Some("no-git"))
+}
+
+#[test]
+fn a_preparation_without_git_stops_at_the_missing_run() {
+    assert_eq!(
+        stopped_at_the_missing_run(&gitless().out),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn a_preparation_without_git_reports_each_exercise() {
+    assert!(gitless().log().contains(&format!(
+        "Error processing {}: ",
+        under("python/exercises/practice/hello")
+    )));
+}
+
+#[test]
+fn a_preparation_without_git_writes_no_entries() {
+    assert!(gitless().log().contains("Generated metadata for 0 tasks\n"));
+}
+
+fn corrupt_commits() -> Stage {
+    later().then(
+        |root| fs::write(root.join(BENCH).join(COMMITS), "{").unwrap(),
+        Some("unused"),
+        None,
+    )
+}
+
+#[test]
+fn a_corrupt_commits_file_fails_the_run() {
+    assert_eq!(corrupt_commits().out.status.code(), Some(1));
+}
+
+#[test]
+fn a_corrupt_commits_file_is_named() {
+    assert!(stderr(&corrupt_commits().out).contains("polyglot_benchmark_commits.json: "));
+}
+
+fn lost_commits() -> Stage {
+    later().then(
+        |root| fs::remove_file(root.join(BENCH).join(COMMITS)).unwrap(),
+        Some("unused"),
+        None,
+    )
+}
+
+#[test]
+fn a_lost_commits_file_fails_the_run() {
+    assert_eq!(lost_commits().out.status.code(), Some(1));
+}
+
+#[test]
+fn a_lost_commits_file_is_reported() {
+    let e = stderr(&lost_commits().out);
+    assert!(e.starts_with("hgm: Commits file not found: "), "{e}");
+}
+
+fn source_repo(source: &Path) {
+    hello(source);
     exercise(
-        &source,
+        source,
         "cpp/nocmake",
         &solution(&["a.cpp"]),
         &[("a.cpp", "a"), (".docs/instructions.md", "N")],
     );
-    git(&source, &["init", "-q"]);
-    git(&source, &["add", "."]);
+    git(source, &["init", "-q"]);
+    git(source, &["add", "."]);
     git(
-        &source,
+        source,
         &[
             "-c",
             "user.name=hgm",
@@ -458,42 +697,102 @@ fn a_polyglot_run_clones_the_benchmark_when_it_is_missing() {
             "benchmark",
         ],
     );
+}
+
+fn cloned() -> Output {
+    let tmp = tempfile::tempdir().unwrap();
+    let source = tmp.path().join("source");
+    source_repo(&source);
     let root = tmp.path().join("root");
     fs::create_dir(&root).unwrap();
-    let log = prepared(&prepare(&root, &source.to_string_lossy()));
-    assert!(
-        log.starts_with(&format!(
-            "Cloning polyglot-benchmark repository to {} ...\n",
-            native(BENCH)
-        )),
-        "{log}"
-    );
-    assert!(log.contains("Generated metadata for 1 tasks\n"), "{log}");
-    assert!(
-        log.contains(&format!(
-            "Error initializing git in {}: ",
-            under("cpp/exercises/practice/nocmake")
-        )),
-        "{log}"
-    );
-
-    let empty = tmp.path().join("empty");
-    fs::create_dir(&empty).unwrap();
-    let e = failure(&prepare(
-        &empty,
-        &tmp.path().join("nowhere").to_string_lossy(),
-    ));
-    assert!(e.starts_with("hgm: git clone "), "{e}");
-    let no_git = tmp.path().join("no-git");
-    fs::create_dir(&no_git).unwrap();
-    let e = failure(&prepare_with(&empty, Some("unused"), Some(&no_git)));
-    assert!(e.starts_with("hgm: "), "{e}");
+    prepare(&root, &source.to_string_lossy())
 }
 
 #[test]
-fn a_polyglot_run_stops_on_a_bad_exercise_config_or_an_unwritable_output() {
+fn a_cloning_preparation_stops_at_the_missing_run() {
+    assert_eq!(stopped_at_the_missing_run(&cloned()), Vec::<String>::new());
+}
+
+#[test]
+fn a_polyglot_run_clones_the_benchmark_when_it_is_missing() {
+    assert!(stdout(&cloned()).starts_with(&format!(
+        "Cloning polyglot-benchmark repository to {} ...\n",
+        native(BENCH)
+    )));
+}
+
+#[test]
+fn a_cloned_benchmark_is_prepared() {
+    assert!(stdout(&cloned()).contains("Generated metadata for 1 tasks\n"));
+}
+
+#[test]
+fn a_cpp_exercise_without_cmake_cannot_be_initialized() {
+    assert!(stdout(&cloned()).contains(&format!(
+        "Error initializing git in {}: ",
+        under("cpp/exercises/practice/nocmake")
+    )));
+}
+
+fn clone_failure(path: Option<&str>) -> Output {
     let tmp = tempfile::tempdir().unwrap();
-    for (name, config, expected) in [
+    let empty = tmp.path().join("empty");
+    fs::create_dir(&empty).unwrap();
+    let path = path.map(|name| {
+        let dir = tmp.path().join(name);
+        fs::create_dir(&dir).unwrap();
+        dir
+    });
+    let repo = tmp.path().join("nowhere");
+    prepare_with(&empty, Some(&repo.to_string_lossy()), path.as_deref())
+}
+
+#[test]
+fn a_failing_clone_fails_the_run() {
+    assert_eq!(clone_failure(None).status.code(), Some(1));
+}
+
+#[test]
+fn a_failing_clone_is_reported() {
+    let e = stderr(&clone_failure(None));
+    assert!(e.starts_with("hgm: git clone "), "{e}");
+}
+
+#[test]
+fn a_clone_without_git_fails_the_run() {
+    assert_eq!(clone_failure(Some("no-git")).status.code(), Some(1));
+}
+
+#[test]
+fn a_clone_without_git_is_reported() {
+    let e = stderr(&clone_failure(Some("no-git")));
+    assert!(e.starts_with("hgm: "), "{e}");
+}
+
+fn stop(name: &str, prepare_root: impl FnOnce(&Path), expected: &str) -> Option<String> {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join(name);
+    prepare_root(&root);
+    let out = prepare(&root, "unused");
+    let e = stderr(&out);
+    if out.status.code() == Some(1) && e.contains(expected) {
+        None
+    } else {
+        Some(format!("{name}: {:?} {e}", out.status.code()))
+    }
+}
+
+fn config(root: &Path, config: Option<&str>) {
+    let dir = practice(&root.join(BENCH), "go/x");
+    fs::create_dir_all(dir.join(".meta")).unwrap();
+    if let Some(config) = config {
+        fs::write(dir.join(".meta/config.json"), config).unwrap();
+    }
+}
+
+#[test]
+fn a_polyglot_run_stops_on_a_bad_exercise_config() {
+    let wrong: Vec<String> = [
         ("invalid", Some("{"), "config.json: "),
         ("absent", None, "Config file not found: "),
         (
@@ -501,24 +800,30 @@ fn a_polyglot_run_stops_on_a_bad_exercise_config_or_an_unwritable_output() {
             Some("{\"files\": {}}"),
             "No solution files found in config for ",
         ),
-    ] {
-        let root = tmp.path().join(name);
-        let dir = practice(&root.join(BENCH), "go/x");
-        fs::create_dir_all(dir.join(".meta")).unwrap();
-        if let Some(config) = config {
-            fs::write(dir.join(".meta/config.json"), config).unwrap();
-        }
-        let e = failure(&prepare(&root, "unused"));
-        assert!(e.contains(expected), "{name}: {e}");
-    }
-    for (blocked, shown) in [
+    ]
+    .into_iter()
+    .filter_map(|(name, text, expected)| stop(name, |root| config(root, text), expected))
+    .collect();
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
+fn a_polyglot_run_stops_on_an_unwritable_output() {
+    let wrong: Vec<String> = [
         (DATASET.to_owned(), DATASET.to_owned()),
         (format!("{BENCH}/{COMMITS}"), under(COMMITS)),
-    ] {
-        let root = tmp.path().join(blocked.replace('/', "_"));
-        hello(&root.join(BENCH));
-        fs::create_dir_all(root.join(&blocked)).unwrap();
-        let e = failure(&prepare(&root, "unused"));
-        assert!(e.contains(&format!("{shown}: ")), "{blocked}: {e}");
-    }
+    ]
+    .into_iter()
+    .filter_map(|(blocked, shown)| {
+        stop(
+            &blocked.replace('/', "_"),
+            |root| {
+                hello(&root.join(BENCH));
+                fs::create_dir_all(root.join(&blocked)).unwrap();
+            },
+            &format!("{shown}: "),
+        )
+    })
+    .collect();
+    assert_eq!(wrong, Vec::<String>::new());
 }

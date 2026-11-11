@@ -1,8 +1,9 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use hgm::best::{Belief, beliefs, best_belief, check_epsilon, export, pick, quantile};
 use serde_json::{Value, json};
+use tempfile::TempDir;
 
 fn node(commit: &str, mean: Value, evals: u64) -> Value {
     json!({"commit_id": commit, "id": 1, "parent_id": 0, "mean_utility": mean, "num_evals": evals})
@@ -13,86 +14,158 @@ fn close(a: f64, b: f64) -> bool {
 }
 
 #[test]
-fn the_quantile_is_taken_from_the_beta_posterior() {
+fn the_quantile_of_a_flat_prior_at_one_percent_is_one_percent() {
     assert!(close(quantile(0, 0, 0.01), 0.01));
-    assert!(close(quantile(0, 0, 0.5), 0.5));
-    assert!(close(quantile(1, 1, 0.25), 0.5));
-    assert!(close(quantile(0, 1, 0.75), 0.5));
-    assert!(quantile(80, 100, 0.01) < 0.8);
-    assert!(quantile(80, 100, 0.99) > 0.8);
 }
 
 #[test]
-fn evidence_outweighs_a_lucky_streak_at_a_low_quantile() {
-    let record = json!({"n_task_evals": 103, "nodes": [
+fn the_quantile_of_a_flat_prior_at_half_is_half() {
+    assert!(close(quantile(0, 0, 0.5), 0.5));
+}
+
+#[test]
+fn the_quarter_quantile_after_one_success_is_half() {
+    assert!(close(quantile(1, 1, 0.25), 0.5));
+}
+
+#[test]
+fn the_three_quarter_quantile_after_one_failure_is_half() {
+    assert!(close(quantile(0, 1, 0.75), 0.5));
+}
+
+#[test]
+fn a_low_quantile_sits_below_the_observed_rate() {
+    assert!(quantile(80, 100, 0.01) < 0.8);
+}
+
+#[test]
+fn a_high_quantile_sits_above_the_observed_rate() {
+    assert!(quantile(80, 100, 0.99) > 0.8);
+}
+
+fn streak_record() -> Value {
+    json!({"n_task_evals": 103, "nodes": [
         node("lucky", json!(1.0), 3),
         node("steady", json!(0.8), 100),
         node("untested", json!("Infinity"), 0),
-    ]});
-    let all = beliefs(&record, 0.01).unwrap();
+    ]})
+}
+
+#[test]
+fn beliefs_count_successes_from_the_mean_utility() {
+    let all = beliefs(&streak_record(), 0.01).unwrap();
     assert_eq!(
         all.iter()
             .map(|b| (b.commit_id.as_str(), b.successes, b.evals))
             .collect::<Vec<_>>(),
         [("lucky", 3, 3), ("steady", 80, 100), ("untested", 0, 0)]
     );
-    assert_eq!(best_belief(&record, 0.01).unwrap().commit_id, "steady");
-    assert_eq!(best_belief(&record, 0.9).unwrap().commit_id, "lucky");
 }
 
 #[test]
-fn ties_keep_the_earliest_agent_and_odd_means_count_as_no_successes() {
-    let record = json!({"nodes": [
+fn evidence_outweighs_a_lucky_streak_at_a_low_quantile() {
+    assert_eq!(
+        best_belief(&streak_record(), 0.01).unwrap().commit_id,
+        "steady"
+    );
+}
+
+#[test]
+fn a_lucky_streak_wins_at_a_high_quantile() {
+    assert_eq!(
+        best_belief(&streak_record(), 0.9).unwrap().commit_id,
+        "lucky"
+    );
+}
+
+fn tie_record() -> Value {
+    json!({"nodes": [
         node("first", json!(0.5), 2),
         node("second", json!(0.5), 2),
         node("negative", json!(-1.0), 2),
         node("huge", json!(7.0), 2),
-    ]});
-    let all = beliefs(&record, 0.5).unwrap();
-    assert_eq!(all[2].successes, 0);
-    assert_eq!(all[3].successes, 0);
+    ]})
+}
+
+#[test]
+fn a_negative_mean_counts_as_no_successes() {
+    assert_eq!(beliefs(&tie_record(), 0.5).unwrap()[2].successes, 0);
+}
+
+#[test]
+fn a_mean_above_one_counts_as_no_successes() {
+    assert_eq!(beliefs(&tie_record(), 0.5).unwrap()[3].successes, 0);
+}
+
+#[test]
+fn ties_keep_the_earliest_agent() {
     let Belief {
         commit_id,
         successes,
         evals,
-        quantile,
-    } = best_belief(&record, 0.5).unwrap();
+        ..
+    } = best_belief(&tie_record(), 0.5).unwrap();
     assert_eq!((commit_id.as_str(), successes, evals), ("first", 1, 2));
+}
+
+#[test]
+fn the_best_belief_carries_its_quantile() {
+    let Belief { quantile, .. } = best_belief(&tie_record(), 0.5).unwrap();
     assert!(close(quantile, 0.5));
 }
 
 #[test]
-fn bad_records_and_epsilons_are_errors() {
+fn epsilons_outside_the_open_unit_interval_are_errors() {
     let ok = json!({"nodes": [node("a", json!(0.0), 1)]});
-    for epsilon in [0.0, 1.0, -0.5, 2.0, f64::NAN] {
-        assert!(
+    let rejected: Vec<bool> = [0.0, 1.0, -0.5, 2.0, f64::NAN]
+        .into_iter()
+        .map(|epsilon| {
             beliefs(&ok, epsilon)
                 .unwrap_err()
-                .starts_with("epsilon must be between 0 and 1"),
-            "{epsilon}"
-        );
-    }
+                .starts_with("epsilon must be between 0 and 1")
+        })
+        .collect();
+    assert_eq!(rejected, [true; 5]);
+}
+
+#[test]
+fn a_record_without_nodes_is_an_error() {
     assert_eq!(
         beliefs(&json!({}), 0.5).unwrap_err(),
         "record has no nodes list"
     );
+}
+
+#[test]
+fn a_node_without_a_commit_id_is_an_error() {
     assert_eq!(
         beliefs(&json!({"nodes": [{"num_evals": 1}]}), 0.5).unwrap_err(),
         "node has no commit_id"
     );
+}
+
+#[test]
+fn a_node_without_num_evals_is_an_error() {
     assert_eq!(
         beliefs(&json!({"nodes": [{"commit_id": "c"}]}), 0.5).unwrap_err(),
         "node c has no num_evals"
     );
+}
+
+#[test]
+fn a_record_listing_no_agents_has_no_best_belief() {
     assert_eq!(
         best_belief(&json!({"nodes": []}), 0.5).unwrap_err(),
         "the record lists no agents"
     );
-    assert!(best_belief(&json!({}), 0.5).is_err());
 }
 
 #[test]
-fn pick_reads_the_last_record_of_a_run() {
+fn a_record_without_nodes_has_no_best_belief() {
+    assert!(best_belief(&json!({}), 0.5).is_err());
+}
+
+fn two_record_run() -> (TempDir, PathBuf) {
     let tmp = tempfile::tempdir().unwrap();
     let run = tmp.path().join("run");
     fs::create_dir_all(&run).unwrap();
@@ -103,14 +176,38 @@ fn pick_reads_the_last_record_of_a_run() {
         format!("{first:#}\n{last:#}\n"),
     )
     .unwrap();
+    (tmp, run)
+}
+
+#[test]
+fn pick_reads_the_last_record_of_a_run() {
+    let (_tmp, run) = two_record_run();
     assert_eq!(pick(&run, 0.01).unwrap().commit_id, "c");
+}
+
+#[test]
+fn pick_rejects_a_bad_epsilon() {
+    let (_tmp, run) = two_record_run();
     assert!(pick(&run, 0.0).is_err());
+}
+
+#[test]
+fn pick_on_a_missing_run_names_the_metadata_file() {
+    let (tmp, _run) = two_record_run();
     assert!(
         pick(&tmp.path().join("missing"), 0.01)
             .unwrap_err()
             .contains("hgm_metadata.jsonl")
     );
+}
+
+#[test]
+fn check_epsilon_accepts_a_half() {
     assert!(check_epsilon(0.5).is_ok());
+}
+
+#[test]
+fn check_epsilon_rejects_one() {
     assert!(check_epsilon(1.0).is_err());
 }
 
@@ -130,8 +227,7 @@ fn version(run: &Path, commit: &str, parent: &str, patch: Option<&str>) {
 const FIRST: &str = "--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1,2 @@\n seed\n+one\n";
 const SECOND: &str = "--- a/lib.rs\n+++ b/lib.rs\n@@ -1,2 +1,3 @@\n seed\n one\n+two\n";
 
-#[test]
-fn export_replays_the_patch_chain_onto_the_seed() {
+fn exported_chain() -> (TempDir, PathBuf) {
     let tmp = tempfile::tempdir().unwrap();
     let run = tmp.path().join("run");
     let seed = run.join("initial/src");
@@ -144,30 +240,75 @@ fn export_replays_the_patch_chain_onto_the_seed() {
     fs::create_dir_all(&dest).unwrap();
     fs::write(dest.join("stale"), "").unwrap();
     export(&run, "c2", &dest).unwrap();
+    (tmp, dest)
+}
+
+#[test]
+fn export_replays_the_patch_chain_onto_the_seed() {
+    let (_tmp, dest) = exported_chain();
     assert_eq!(
         fs::read_to_string(dest.join("lib.rs")).unwrap(),
         "seed\none\ntwo\n"
     );
+}
+
+#[test]
+fn export_keeps_untouched_seed_files() {
+    let (_tmp, dest) = exported_chain();
     assert_eq!(fs::read_to_string(dest.join("sub/keep.txt")).unwrap(), "k");
+}
+
+#[test]
+fn export_clears_stale_files_from_the_destination() {
+    let (_tmp, dest) = exported_chain();
     assert!(!dest.join("stale").exists());
+}
+
+#[test]
+fn export_leaves_no_git_directory() {
+    let (_tmp, dest) = exported_chain();
     assert!(!dest.join(".git").exists());
-    export(&run, "initial", &dest).unwrap();
+}
+
+#[test]
+fn export_of_the_initial_agent_over_an_earlier_export_is_the_seed() {
+    let (tmp, dest) = exported_chain();
+    export(&tmp.path().join("run"), "initial", &dest).unwrap();
     assert_eq!(fs::read_to_string(dest.join("lib.rs")).unwrap(), "seed\n");
 }
 
 #[test]
-fn export_fails_without_a_seed_or_on_a_patch_that_does_not_apply() {
+fn export_fails_without_a_seed() {
     let tmp = tempfile::tempdir().unwrap();
     let run = tmp.path().join("run");
-    let dest = run.join("best_agent");
     assert!(
-        export(&run, "initial", &dest)
+        export(&run, "initial", &run.join("best_agent"))
             .unwrap_err()
             .contains("the seed source is missing")
     );
+}
+
+fn mismatched_seed_run() -> (TempDir, PathBuf) {
+    let tmp = tempfile::tempdir().unwrap();
+    let run = tmp.path().join("run");
     fs::create_dir_all(run.join("initial/src")).unwrap();
     fs::write(run.join("initial/src/lib.rs"), "other\n").unwrap();
     version(&run, "c1", "initial", Some(FIRST));
-    assert!(export(&run, "c1", &dest).unwrap_err().contains("git apply"));
-    assert!(export(&run, "missing", &dest).is_err());
+    (tmp, run)
+}
+
+#[test]
+fn export_fails_on_a_patch_that_does_not_apply() {
+    let (_tmp, run) = mismatched_seed_run();
+    assert!(
+        export(&run, "c1", &run.join("best_agent"))
+            .unwrap_err()
+            .contains("git apply")
+    );
+}
+
+#[test]
+fn export_fails_for_an_unknown_commit() {
+    let (_tmp, run) = mismatched_seed_run();
+    assert!(export(&run, "missing", &run.join("best_agent")).is_err());
 }

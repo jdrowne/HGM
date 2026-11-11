@@ -8,24 +8,43 @@ use crate::common::{Seen, cases, content, ok, refused, serve};
 
 #[test]
 fn extract_json_matches_the_python() {
-    for case in cases("extract_json") {
-        let got = extract_json_between_markers(case["input"].as_str().unwrap());
-        assert_eq!(
-            got.unwrap_or(Value::Null),
-            case["output"],
-            "{}",
-            case["name"]
-        );
-    }
+    let mismatches: Vec<String> = cases("extract_json")
+        .iter()
+        .filter_map(|case| {
+            let got = extract_json_between_markers(case["input"].as_str().unwrap())
+                .unwrap_or(Value::Null);
+            (got != case["output"]).then(|| format!("{}: {got}", case["name"]))
+        })
+        .collect();
+    assert_eq!(mismatches, Vec::<String>::new());
 }
 
 #[test]
-fn clients_follow_the_model_name() {
+fn gpt_names_use_openai() {
     assert_eq!(create_client("gpt-5").provider, Provider::OpenAi);
+}
+
+#[test]
+fn o_names_use_openai() {
     assert_eq!(create_client("o3").provider, Provider::OpenAi);
-    let vllm = create_client("vllm-host1:qwen");
-    assert_eq!(vllm.provider, Provider::Vllm);
-    assert!(vllm.base_url.ends_with(":8000/v1"));
+}
+
+#[test]
+fn vllm_names_use_vllm() {
+    assert_eq!(create_client("vllm-host1:qwen").provider, Provider::Vllm);
+}
+
+#[test]
+fn vllm_clients_talk_to_port_8000() {
+    assert!(
+        create_client("vllm-host1:qwen")
+            .base_url
+            .ends_with(":8000/v1")
+    );
+}
+
+#[test]
+fn other_names_use_openrouter() {
     assert_eq!(
         create_client("anthropic/claude-sonnet-4").provider,
         Provider::OpenRouter
@@ -45,39 +64,79 @@ fn body(seen: &Seen, i: usize) -> Value {
     serde_json::from_str(&seen.lock().unwrap()[i].body).unwrap()
 }
 
-#[test]
-fn o_models_fold_the_system_message_into_the_user_turn() {
+fn ask_o3() -> (String, Vec<Value>, Seen) {
     let (base, seen) = serve(vec![content("hi")]);
     let c = client(Provider::OpenAi, "o3", &format!("{base}/"), Some("k"));
     let history = [message("assistant", "before")];
     let (text, history) = get_response_from_llm("msg", &c, "sys ", &history, 0.5).unwrap();
-    assert_eq!(text, "hi");
+    (text, history, seen)
+}
+
+#[test]
+fn o_models_return_the_reply() {
+    assert_eq!(ask_o3().0, "hi");
+}
+
+#[test]
+fn o_models_fold_the_system_message_into_the_user_turn() {
     assert_eq!(
-        history,
+        ask_o3().1,
         [
             message("assistant", "before"),
             message("user", "sys msg"),
             message("assistant", "hi")
         ]
     );
-    let request = seen.lock().unwrap()[0].clone();
-    assert_eq!(request.line, "POST /v1/chat/completions HTTP/1.1\r\n");
-    assert_eq!(request.authorization.as_deref(), Some("Bearer k"));
+}
+
+#[test]
+fn o_models_post_to_chat_completions() {
+    let (_, _, seen) = ask_o3();
+    assert_eq!(
+        seen.lock().unwrap()[0].line,
+        "POST /v1/chat/completions HTTP/1.1\r\n"
+    );
+}
+
+#[test]
+fn o_models_send_the_api_key() {
+    let (_, _, seen) = ask_o3();
+    assert_eq!(
+        seen.lock().unwrap()[0].authorization.as_deref(),
+        Some("Bearer k")
+    );
+}
+
+#[test]
+fn o_models_send_a_fixed_temperature_and_a_seed() {
+    let (_, _, seen) = ask_o3();
     assert_eq!(
         body(&seen, 0),
         json!({"model": "o3", "messages": [message("assistant", "before"), message("user", "sys msg")], "temperature": 1, "n": 1, "seed": 0})
     );
 }
 
-#[test]
-fn gpt_models_send_a_system_message_and_a_seed() {
+fn ask_gpt() -> (String, Seen) {
     let (base, seen) = serve(vec![content("hey")]);
     let c = client(Provider::OpenAi, "GPT-5", &base, None);
     let (text, _) = get_response_from_llm("msg", &c, "sys", &[], 0.5).unwrap();
-    assert_eq!(text, "hey");
-    assert_eq!(seen.lock().unwrap()[0].authorization, None);
+    (text, seen)
+}
+
+#[test]
+fn gpt_models_return_the_reply() {
+    assert_eq!(ask_gpt().0, "hey");
+}
+
+#[test]
+fn a_client_without_a_key_sends_no_authorization() {
+    assert_eq!(ask_gpt().1.lock().unwrap()[0].authorization, None);
+}
+
+#[test]
+fn gpt_models_send_a_system_message_and_a_seed() {
     assert_eq!(
-        body(&seen, 0),
+        body(&ask_gpt().1, 0),
         json!({"model": "GPT-5", "messages": [message("system", "sys"), message("user", "msg")], "n": 1, "stop": null, "seed": 0})
     );
 }
@@ -93,15 +152,36 @@ fn other_models_send_temperature_and_max_tokens() {
     );
 }
 
-#[test]
-fn vllm_asks_the_server_which_model_it_serves() {
+fn ask_vllm() -> Seen {
     let (base, seen) = serve(vec![ok(json!({"data": [{"id": "served"}]})), content("ok")]);
     let c = client(Provider::Vllm, "vllm-host:x", &base, Some("dummy"));
     get_response_from_llm("msg", &c, "sys", &[], 0.0).unwrap();
-    let requests = seen.lock().unwrap().clone();
-    assert_eq!(requests[0].line, "GET /v1/models HTTP/1.1\r\n");
-    assert_eq!(requests[0].authorization.as_deref(), Some("Bearer dummy"));
-    assert_eq!(body(&seen, 1)["model"], "served");
+    seen
+}
+
+#[test]
+fn vllm_asks_the_server_which_model_it_serves() {
+    assert_eq!(
+        ask_vllm().lock().unwrap()[0].line,
+        "GET /v1/models HTTP/1.1\r\n"
+    );
+}
+
+#[test]
+fn vllm_sends_the_key_when_listing_models() {
+    assert_eq!(
+        ask_vllm().lock().unwrap()[0].authorization.as_deref(),
+        Some("Bearer dummy")
+    );
+}
+
+#[test]
+fn vllm_asks_for_the_served_model() {
+    assert_eq!(body(&ask_vllm(), 1)["model"], "served");
+}
+
+#[test]
+fn vllm_serving_no_model_is_a_response_error() {
     let (base, _) = serve(vec![ok(json!({"data": []}))]);
     let c = client(Provider::Vllm, "vllm-host:x", &base, None);
     let e = get_response_from_llm("msg", &c, "sys", &[], 0.0).unwrap_err();
@@ -110,17 +190,26 @@ fn vllm_asks_the_server_which_model_it_serves() {
 
 #[test]
 fn every_model_family_reports_a_failing_server() {
-    for (provider, model) in [
+    let reports: Vec<String> = [
         (Provider::OpenAi, "o3"),
         (Provider::OpenAi, "gpt-5"),
         (Provider::OpenRouter, "m"),
         (Provider::Vllm, "vllm-h:m"),
-    ] {
+    ]
+    .into_iter()
+    .map(|(provider, model)| {
         let (base, _) = serve(vec![(500, b"down".to_vec())]);
         let c = client(provider, model, &base, None);
-        let e = get_response_from_llm("msg", &c, "sys", &[], 0.0).unwrap_err();
-        assert_eq!(e.to_string(), "Error code: 500 - down", "{model}");
-    }
+        get_response_from_llm("msg", &c, "sys", &[], 0.0)
+            .unwrap_err()
+            .to_string()
+    })
+    .collect();
+    assert_eq!(reports, vec!["Error code: 500 - down"; 4]);
+}
+
+#[test]
+fn vllm_reports_a_server_failing_after_listing_models() {
     let (base, _) = serve(vec![
         ok(json!({"data": [{"id": "m"}]})),
         (503, b"busy".to_vec()),
@@ -132,24 +221,49 @@ fn every_model_family_reports_a_failing_server() {
     ));
 }
 
+fn reply(response: (u16, Vec<u8>)) -> Result<String, Error> {
+    let (base, _) = serve(vec![response]);
+    client(Provider::OpenRouter, "m", &base, None).chat(&json!({}))
+}
+
 #[test]
-fn malformed_replies_and_dead_servers_are_errors() {
-    let (base, _) = serve(vec![
-        (200, b"not json".to_vec()),
-        (200, vec![0xff]),
-        ok(json!({"choices": []})),
-    ]);
-    let c = client(Provider::OpenRouter, "m", &base, None);
-    let e = c.chat(&json!({})).unwrap_err();
+fn a_reply_that_is_not_json_is_quoted_in_the_error() {
+    let e = reply((200, b"not json".to_vec())).unwrap_err().to_string();
     assert!(
-        e.to_string().starts_with("unexpected response: ") && e.to_string().ends_with(": not json"),
+        e.strip_prefix("unexpected response: ")
+            .is_some_and(|rest| rest.ends_with(": not json")),
         "{e}"
     );
-    assert!(matches!(c.chat(&json!({})), Err(Error::Http(_))));
-    assert!(matches!(c.chat(&json!({})), Err(Error::Response(_))));
-    let dead = client(Provider::OpenRouter, "m", &refused(), None);
-    assert!(matches!(dead.post("p", &json!({})), Err(Error::Http(_))));
-    let e = dead.get("p").unwrap_err();
-    assert!(matches!(e, Error::Http(_)));
-    assert!(!e.to_string().is_empty());
+}
+
+#[test]
+fn a_reply_that_is_not_text_is_an_http_error() {
+    assert!(matches!(reply((200, vec![0xff])), Err(Error::Http(_))));
+}
+
+#[test]
+fn a_reply_without_choices_is_a_response_error() {
+    assert!(matches!(
+        reply(ok(json!({"choices": []}))),
+        Err(Error::Response(_))
+    ));
+}
+
+fn dead() -> Client {
+    client(Provider::OpenRouter, "m", &refused(), None)
+}
+
+#[test]
+fn posting_to_a_dead_server_is_an_http_error() {
+    assert!(matches!(dead().post("p", &json!({})), Err(Error::Http(_))));
+}
+
+#[test]
+fn getting_from_a_dead_server_is_an_http_error() {
+    assert!(matches!(dead().get("p"), Err(Error::Http(_))));
+}
+
+#[test]
+fn an_http_error_says_what_went_wrong() {
+    assert!(!dead().get("p").unwrap_err().to_string().is_empty());
 }

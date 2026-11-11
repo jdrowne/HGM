@@ -97,7 +97,9 @@ fn git(dir: &Path, args: &[&str]) {
         .args(args)
         .output()
         .unwrap();
-    assert!(out.status.success(), "{out:?}");
+    if !out.status.success() {
+        panic!("{out:?}");
+    }
 }
 
 fn repo(root: &Path) -> std::path::PathBuf {
@@ -114,8 +116,26 @@ fn stderr(out: &Output) -> String {
     String::from_utf8_lossy(&out.stderr).into_owned()
 }
 
-#[test]
-fn the_agent_edits_the_repo_and_writes_its_patch_and_chat_log() {
+struct Ran {
+    tmp: tempfile::TempDir,
+    out: Output,
+    seen: Seen,
+}
+
+impl Ran {
+    fn patch(&self) -> String {
+        fs::read_to_string(self.tmp.path().join("model_patch.diff")).unwrap()
+    }
+
+    fn instruction(&self) -> String {
+        self.seen.lock().unwrap()[0]["messages"][1]["content"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    }
+}
+
+fn edited() -> Ran {
     let tmp = tempfile::tempdir().unwrap();
     let repo = repo(tmp.path());
     let (base, seen) = serve();
@@ -131,26 +151,62 @@ fn the_agent_edits_the_repo_and_writes_its_patch_and_chat_log() {
         .args(["--model", "vllm-x", "--test_description", "run it"])
         .output()
         .unwrap();
-    assert!(out.status.success(), "{}", stderr(&out));
-    let patch = fs::read_to_string(tmp.path().join("model_patch.diff")).unwrap();
+    Ran { tmp, out, seen }
+}
+
+fn chat_log(ran: &Ran) -> String {
+    fs::read_to_string(ran.tmp.path().join("logs/chat.md")).unwrap()
+}
+
+#[test]
+fn the_agent_succeeds() {
+    let ran = edited();
+    assert!(ran.out.status.success(), "{}", stderr(&ran.out));
+}
+
+#[test]
+fn the_agent_writes_its_patch() {
+    let patch = edited().patch();
     assert!(patch.contains("+++ b/added.txt"), "{patch}");
-    let chat = fs::read_to_string(tmp.path().join("logs/chat.md")).unwrap();
+}
+
+#[test]
+fn the_chat_log_starts_with_the_instruction() {
+    let chat = chat_log(&edited());
     assert!(
         chat.starts_with(
             "\n========== User Instruction ==========\nI have uploaded a Python code repository"
         ),
         "{chat}"
     );
-    assert!(chat.contains("Tool Used: bash\n"), "{chat}");
-    let seen = seen.lock().unwrap();
-    assert_eq!(seen.len(), 2);
-    let instruction = seen[0]["messages"][1]["content"].as_str().unwrap();
-    assert!(instruction.contains("<test_description>\nrun it\n</test_description>"));
-    assert_eq!(seen[0]["model"], "served");
 }
 
 #[test]
-fn polyglot_runs_use_their_own_instruction_and_relative_paths() {
+fn the_chat_log_records_the_tool_used() {
+    let chat = chat_log(&edited());
+    assert!(chat.contains("Tool Used: bash\n"), "{chat}");
+}
+
+#[test]
+fn the_agent_asks_the_model_twice() {
+    assert_eq!(edited().seen.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn the_instruction_carries_the_test_description() {
+    assert!(
+        edited()
+            .instruction()
+            .contains("<test_description>\nrun it\n</test_description>")
+    );
+}
+
+#[test]
+fn the_agent_asks_for_the_served_model() {
+    assert_eq!(edited().seen.lock().unwrap()[0]["model"], "served");
+}
+
+fn polyglot() -> Ran {
     let tmp = tempfile::tempdir().unwrap();
     let repo = repo(tmp.path());
     let (base, seen) = serve();
@@ -164,17 +220,41 @@ fn polyglot_runs_use_their_own_instruction_and_relative_paths() {
         .args(["--polyglot", "--language", "rust", "--model", "vllm-x"])
         .output()
         .unwrap();
-    assert!(out.status.success(), "{}", stderr(&out));
-    assert!(tmp.path().join("chat.md").is_file());
-    let patch = fs::read_to_string(tmp.path().join("model_patch.diff")).unwrap();
+    Ran { tmp, out, seen }
+}
+
+#[test]
+fn a_polyglot_run_succeeds() {
+    let ran = polyglot();
+    assert!(ran.out.status.success(), "{}", stderr(&ran.out));
+}
+
+#[test]
+fn a_polyglot_chat_log_lands_relative_to_the_working_directory() {
+    assert!(polyglot().tmp.path().join("chat.md").is_file());
+}
+
+#[test]
+fn a_polyglot_patch_lands_relative_to_the_working_directory() {
+    let patch = polyglot().patch();
     assert!(patch.contains("+++ b/added.txt"), "{patch}");
-    let instruction = seen.lock().unwrap()[0]["messages"][1]["content"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    assert!(instruction.starts_with("I have uploaded a code repository in the directory "));
+}
+
+#[test]
+fn a_polyglot_instruction_opens_with_the_code_repository() {
     assert!(
-        instruction.ends_with("Then make edits to the code files to complete the instruction.")
+        polyglot()
+            .instruction()
+            .starts_with("I have uploaded a code repository in the directory ")
+    );
+}
+
+#[test]
+fn a_polyglot_instruction_ends_with_the_edit_request() {
+    assert!(
+        polyglot()
+            .instruction()
+            .ends_with("Then make edits to the code files to complete the instruction.")
     );
 }
 
@@ -198,41 +278,95 @@ fn failing(tmp: &Path, chat: &Path, outdir: &Path) -> Command {
     cmd
 }
 
-#[test]
-fn unwritable_outputs_and_a_missing_git_fail_the_agent() {
+fn with_file() -> (tempfile::TempDir, std::path::PathBuf) {
     let tmp = tempfile::tempdir().unwrap();
     let file = tmp.path().join("file");
     fs::write(&file, "").unwrap();
-    let out = failing(tmp.path(), &file.join("chat.md"), tmp.path())
+    (tmp, file)
+}
+
+fn unwritable_chat() -> Output {
+    let (tmp, file) = with_file();
+    failing(tmp.path(), &file.join("chat.md"), tmp.path())
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn an_unwritable_chat_log_fails_the_agent() {
+    assert_eq!(unwritable_chat().status.code(), Some(1));
+}
+
+#[test]
+fn an_unwritable_chat_log_is_reported() {
+    assert!(stderr(&unwritable_chat()).starts_with("hgm-agent: "));
+}
+
+fn unwritable_outdir() -> (tempfile::TempDir, Output) {
+    let (tmp, file) = with_file();
+    let out = failing(tmp.path(), &tmp.path().join("chat.md"), &file)
         .output()
         .unwrap();
-    assert_eq!(out.status.code(), Some(1));
-    assert!(stderr(&out).starts_with("hgm-agent: "));
-    let chat = tmp.path().join("chat.md");
-    let out = failing(tmp.path(), &chat, &file).output().unwrap();
+    (tmp, out)
+}
+
+#[test]
+fn an_unwritable_outdir_fails_the_agent() {
+    let (_tmp, out) = unwritable_outdir();
     assert_eq!(out.status.code(), Some(1), "{}", stderr(&out));
+}
+
+#[test]
+fn an_unreachable_model_is_logged_in_the_chat() {
+    let (tmp, _) = unwritable_outdir();
     assert!(
-        fs::read_to_string(&chat)
+        fs::read_to_string(tmp.path().join("chat.md"))
             .unwrap()
             .contains("Error in chat_with_agent_open_router: ")
     );
-    let out = failing(tmp.path(), &chat, tmp.path())
+}
+
+fn without_git() -> Output {
+    let tmp = tempfile::tempdir().unwrap();
+    failing(tmp.path(), &tmp.path().join("chat.md"), tmp.path())
         .env("PATH", "")
         .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(1));
-    assert!(stderr(&out).starts_with("hgm-agent: "));
+        .unwrap()
+}
+
+#[test]
+fn a_missing_git_fails_the_agent() {
+    assert_eq!(without_git().status.code(), Some(1));
+}
+
+#[test]
+fn a_missing_git_is_reported() {
+    assert!(stderr(&without_git()).starts_with("hgm-agent: "));
 }
 
 #[test]
 fn the_agent_without_its_required_flags_exits_with_usage_status() {
-    let out = agent().output().unwrap();
-    assert_eq!(out.status.code(), Some(2));
-    assert!(stderr(&out).contains("--problem_statement"));
-    let out = agent().arg("--version").output().unwrap();
-    assert!(out.status.success());
+    assert_eq!(agent().output().unwrap().status.code(), Some(2));
+}
+
+#[test]
+fn the_usage_names_the_required_flags() {
+    assert!(stderr(&agent().output().unwrap()).contains("--problem_statement"));
+}
+
+fn version() -> Output {
+    agent().arg("--version").output().unwrap()
+}
+
+#[test]
+fn the_version_flag_succeeds() {
+    assert!(version().status.success());
+}
+
+#[test]
+fn the_version_names_the_agent() {
     assert!(
-        String::from_utf8(out.stdout)
+        String::from_utf8(version().stdout)
             .unwrap()
             .starts_with("hgm-agent ")
     );

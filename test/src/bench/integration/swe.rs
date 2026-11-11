@@ -51,7 +51,9 @@ fn image() {
         .stdout(std::process::Stdio::null())
         .status()
         .unwrap();
-    assert!(status.success());
+    if !status.success() {
+        panic!("building {IMAGE} failed");
+    }
 }
 
 fn script(dir: &Path, name: &str, body: &str) -> String {
@@ -121,40 +123,124 @@ fn read(path: &Path) -> Value {
     serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap()
 }
 
-#[test]
-fn a_full_run_writes_predictions_and_copies_logs_back() {
+const TASKS: [&str; 3] = ["astropy__astropy-12907", "django__django-11099", "absent"];
+
+struct Full {
+    tmp: tempfile::TempDir,
+    h: Harness,
+    pred: PathBuf,
+    dirs: Vec<PathBuf>,
+}
+
+impl Full {
+    fn root(&self) -> &Path {
+        self.tmp.path()
+    }
+
+    fn per_task<T>(&self, pick: impl Fn(&Path, &str) -> T) -> Vec<T> {
+        TASKS[..2]
+            .iter()
+            .map(|id| pick(&self.dirs[0], id))
+            .collect()
+    }
+
+    fn again(&self) -> Vec<PathBuf> {
+        self.h
+            .harness(&TASKS[..1], &agent_run(self.root()), &self.pred)
+            .unwrap()
+    }
+}
+
+fn full() -> Full {
     image();
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     cache_rows(root);
     let h = harness(root, swebench(root, "exit 0", &spec_line(IMAGE)));
-    let run = agent_run(root);
     let pred = root.join("pred");
-    let tasks = ["astropy__astropy-12907", "django__django-11099", "absent"];
-    let dirs = h.harness(&tasks, &run, &pred).unwrap();
-    assert_eq!(dirs, [pred.join("agent_1")]);
-    for id in &tasks[..2] {
-        let p = read(&dirs[0].join(format!("{id}.json")));
-        assert_eq!(p["model_name_or_path"], "agent_1");
-        assert_eq!(p["model_patch"], "base\n");
-        assert_eq!(
-            p["proposed_model_patches"],
-            json!([format!("proposal {id}\n")])
-        );
-        assert_eq!(
-            fs::read_to_string(dirs[0].join(format!("{id}.md"))).unwrap(),
-            format!("chat {id}\n")
-        );
-        assert_eq!(
-            fs::read_to_string(dirs[0].join(format!("{id}_1.md"))).unwrap(),
-            format!("more {id}\n")
-        );
-    }
-    assert!(!dirs[0].join("sympy__sympy-20590.json").exists());
-    let again = h.harness(&tasks[..1], &agent_run(root), &pred).unwrap();
-    assert_eq!(again, [pred.join("agent_2")]);
+    let dirs = h.harness(&TASKS, &agent_run(root), &pred).unwrap();
+    Full { tmp, h, pred, dirs }
+}
+
+fn prediction(dir: &Path, id: &str) -> Value {
+    read(&dir.join(format!("{id}.json")))
+}
+
+fn text(path: PathBuf) -> String {
+    fs::read_to_string(path).unwrap()
+}
+
+#[test]
+fn a_full_run_writes_one_prediction_directory() {
+    let f = full();
+    assert_eq!(f.dirs, [f.pred.join("agent_1")]);
+}
+
+#[test]
+fn predictions_name_the_run() {
     assert_eq!(
-        read(&again[0].join("astropy__astropy-12907.json"))["model_patch"],
+        full().per_task(|dir, id| prediction(dir, id)["model_name_or_path"].clone()),
+        ["agent_1", "agent_1"]
+    );
+}
+
+#[test]
+fn predictions_carry_the_model_patch() {
+    assert_eq!(
+        full().per_task(|dir, id| prediction(dir, id)["model_patch"].clone()),
+        ["base\n", "base\n"]
+    );
+}
+
+#[test]
+fn predictions_carry_the_proposed_patches() {
+    assert_eq!(
+        full().per_task(|dir, id| prediction(dir, id)["proposed_model_patches"].clone()),
+        TASKS[..2]
+            .iter()
+            .map(|id| json!([format!("proposal {id}\n")]))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn chat_logs_are_copied_back() {
+    assert_eq!(
+        full().per_task(|dir, id| text(dir.join(format!("{id}.md")))),
+        TASKS[..2]
+            .iter()
+            .map(|id| format!("chat {id}\n"))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn extra_chat_logs_are_copied_back() {
+    assert_eq!(
+        full().per_task(|dir, id| text(dir.join(format!("{id}_1.md")))),
+        TASKS[..2]
+            .iter()
+            .map(|id| format!("more {id}\n"))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn tasks_not_asked_for_are_not_run() {
+    assert!(!full().dirs[0].join("sympy__sympy-20590.json").exists());
+}
+
+#[test]
+fn a_second_run_takes_the_next_name() {
+    let f = full();
+    assert_eq!(f.again(), [f.pred.join("agent_2")]);
+}
+
+#[test]
+fn a_second_run_writes_its_own_predictions() {
+    let f = full();
+    assert_eq!(
+        read(&f.again()[0].join("astropy__astropy-12907.json"))["model_patch"],
         "base\n"
     );
 }
@@ -181,33 +267,72 @@ fn evaluate(h: &Harness, specs: &[TestSpec], out: &Path, run: &Run) -> Vec<Entry
     h.evaluate(&entries, specs, out, run)
 }
 
-fn assert_failed_with_an_empty_patch(results: &[EntryResult], out: &Path) {
-    for r in results {
-        assert!(r.error.is_some(), "{r:?}");
-        let p = read(&out.join(format!("{}.json", r.instance_id)));
-        assert_eq!(p["model_patch"], "", "{r:?}");
-        assert_eq!(p["proposed_model_patches"], json!([]));
-    }
+fn errored(results: &[EntryResult]) -> Vec<String> {
+    results
+        .iter()
+        .filter(|r| r.error.is_none())
+        .map(|r| r.instance_id.clone())
+        .collect()
 }
 
-#[test]
-fn each_failing_step_leaves_an_empty_prediction() {
-    image();
-    let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path();
-    let h = harness(root, swebench(root, "exit 0", "exit 0"));
+fn patched(results: &[EntryResult], out: &Path) -> Vec<String> {
+    results
+        .iter()
+        .filter(|r| read(&out.join(format!("{}.json", r.instance_id)))["model_patch"] != "")
+        .map(|r| r.instance_id.clone())
+        .collect()
+}
+
+fn proposed(results: &[EntryResult], out: &Path) -> Vec<String> {
+    results
+        .iter()
+        .filter(|r| {
+            read(&out.join(format!("{}.json", r.instance_id)))["proposed_model_patches"]
+                != json!([])
+        })
+        .map(|r| r.instance_id.clone())
+        .collect()
+}
+
+struct Evaluated {
+    _tmp: tempfile::TempDir,
+    out: PathBuf,
+    results: Vec<EntryResult>,
+}
+
+fn steps() -> [TestSpec; 6] {
     let mode = |m: &str| format!("echo {m} > /mode");
-    let specs = [
+    [
         spec("evalfail", "exit 3", IMAGE),
         spec("agentfail", &mode("fail"), IMAGE),
         spec("nohgm", &mode("nohgm"), IMAGE),
         spec("nochat", &mode("nochat"), IMAGE),
         spec("nopatch", &mode("nopatch"), IMAGE),
         spec("noimage", "true", "hgm-no-such-image:never"),
-    ];
+    ]
+}
+
+fn failing_steps() -> Evaluated {
+    image();
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let h = harness(root, swebench(root, "exit 0", "exit 0"));
     let out = root.join("out");
-    let results = evaluate(&h, &specs, &out, &agent_run(root));
-    assert_eq!(results.len(), specs.len());
+    let results = evaluate(&h, &steps(), &out, &agent_run(root));
+    Evaluated {
+        _tmp: tmp,
+        out,
+        results,
+    }
+}
+
+#[test]
+fn every_entry_gets_a_result() {
+    assert_eq!(failing_steps().results.len(), steps().len());
+}
+
+#[test]
+fn each_failing_step_reports_why() {
     let expected = [
         "Script failed with exit code 3",
         "Script failed with exit code 1",
@@ -216,17 +341,34 @@ fn each_failing_step_leaves_an_empty_prediction() {
         "Script failed with exit code 1",
         "`docker run -d --name sweb.eval.noimage.",
     ];
-    for (r, text) in results.iter().zip(expected) {
-        assert!(
-            r.error.as_deref().is_some_and(|e| e.starts_with(text)),
-            "{r:?}"
-        );
-    }
-    assert_failed_with_an_empty_patch(&results, &out);
+    let wrong: Vec<String> = failing_steps()
+        .results
+        .iter()
+        .zip(expected)
+        .filter(|(r, text)| !r.error.as_deref().is_some_and(|e| e.starts_with(text)))
+        .map(|(r, _)| format!("{r:?}"))
+        .collect();
+    assert_eq!(wrong, Vec::<String>::new());
 }
 
 #[test]
-fn a_missing_agent_fails_setup() {
+fn each_failing_step_is_an_error() {
+    assert_eq!(errored(&failing_steps().results), Vec::<String>::new());
+}
+
+#[test]
+fn each_failing_step_leaves_an_empty_patch() {
+    let e = failing_steps();
+    assert_eq!(patched(&e.results, &e.out), Vec::<String>::new());
+}
+
+#[test]
+fn each_failing_step_leaves_no_proposals() {
+    let e = failing_steps();
+    assert_eq!(proposed(&e.results, &e.out), Vec::<String>::new());
+}
+
+fn without_agent() -> Evaluated {
     image();
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
@@ -237,11 +379,31 @@ fn a_missing_agent_fails_setup() {
         ..agent_run(root)
     };
     let results = evaluate(&h, &[spec("noagent", "true", IMAGE)], &out, &empty);
-    assert_failed_with_an_empty_patch(&results, &out);
+    Evaluated {
+        _tmp: tmp,
+        out,
+        results,
+    }
 }
 
 #[test]
-fn existing_predictions_are_skipped_and_unwritable_outputs_are_reported() {
+fn a_missing_agent_fails_setup() {
+    assert_eq!(errored(&without_agent().results), Vec::<String>::new());
+}
+
+#[test]
+fn a_missing_agent_leaves_an_empty_patch() {
+    let e = without_agent();
+    assert_eq!(patched(&e.results, &e.out), Vec::<String>::new());
+}
+
+#[test]
+fn a_missing_agent_leaves_no_proposals() {
+    let e = without_agent();
+    assert_eq!(proposed(&e.results, &e.out), Vec::<String>::new());
+}
+
+fn with_blocked_outputs() -> Evaluated {
     image();
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
@@ -259,22 +421,49 @@ fn existing_predictions_are_skipped_and_unwritable_outputs_are_reported() {
         spec("noeval", "true", IMAGE),
     ];
     let results = evaluate(&h, &specs, &out, &agent_run(root));
-    assert_eq!(results[0].error, None);
-    assert_eq!(fs::read_to_string(out.join("done.json")).unwrap(), "{}");
+    Evaluated {
+        _tmp: tmp,
+        out,
+        results,
+    }
+}
+
+#[test]
+fn an_existing_prediction_is_not_an_error() {
+    assert_eq!(with_blocked_outputs().results[0].error, None);
+}
+
+#[test]
+fn an_existing_prediction_is_left_alone() {
+    let e = with_blocked_outputs();
+    assert_eq!(text(e.out.join("done.json")), "{}");
+}
+
+#[test]
+fn an_unwritable_prediction_is_reported() {
+    let e = with_blocked_outputs();
     assert!(
-        results[1]
+        e.results[1]
             .error
             .as_deref()
             .is_some_and(|e| e.contains("No such file")),
         "{:?}",
-        results[1]
+        e.results[1]
     );
-    assert!(results[2].error.is_some());
-    assert_eq!(read(&out.join("noeval.json"))["model_patch"], "");
 }
 
 #[test]
-fn a_docker_that_cannot_start_fails_every_entry() {
+fn an_unwritable_eval_script_is_an_error() {
+    assert!(with_blocked_outputs().results[2].error.is_some());
+}
+
+#[test]
+fn an_unwritable_eval_script_leaves_an_empty_patch() {
+    let e = with_blocked_outputs();
+    assert_eq!(read(&e.out.join("noeval.json"))["model_patch"], "");
+}
+
+fn without_docker() -> Evaluated {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     let h = Harness {
@@ -283,44 +472,71 @@ fn a_docker_that_cannot_start_fails_every_entry() {
     };
     let out = root.join("out");
     let results = evaluate(&h, &[spec("a", "true", IMAGE)], &out, &agent_run(root));
-    assert_failed_with_an_empty_patch(&results, &out);
+    Evaluated {
+        _tmp: tmp,
+        out,
+        results,
+    }
 }
 
 #[test]
-fn the_harness_stops_at_the_first_failing_stage() {
+fn a_docker_that_cannot_start_fails_every_entry() {
+    assert_eq!(errored(&without_docker().results), Vec::<String>::new());
+}
+
+#[test]
+fn a_docker_that_cannot_start_leaves_empty_patches() {
+    let e = without_docker();
+    assert_eq!(patched(&e.results, &e.out), Vec::<String>::new());
+}
+
+#[test]
+fn a_docker_that_cannot_start_leaves_no_proposals() {
+    let e = without_docker();
+    assert_eq!(proposed(&e.results, &e.out), Vec::<String>::new());
+}
+
+fn staged(cached: bool, prepare: &str, specs: &str, pred: &str) -> bool {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    let tasks = ["astropy__astropy-12907"];
-    let r = agent_run(root);
-    let ok = swebench(root, "exit 0", &spec_line(IMAGE));
-    assert!(
-        harness(root, ok.clone())
-            .harness(&tasks, &r, &root.join("pred"))
-            .is_err()
-    );
-    cache_rows(root);
+    if cached {
+        cache_rows(root);
+    }
     fs::write(root.join("file"), "").unwrap();
-    assert!(
-        harness(root, ok.clone())
-            .harness(&tasks, &r, &root.join("file/pred"))
-            .is_err()
-    );
-    let failing = tempfile::tempdir().unwrap();
-    let prepare = swebench(failing.path(), "exit 1", &spec_line(IMAGE));
-    assert!(
-        harness(root, prepare)
-            .harness(&tasks, &r, &root.join("pred"))
-            .is_err()
-    );
-    let garbled = tempfile::tempdir().unwrap();
-    let specs = swebench(garbled.path(), "exit 0", "echo nope");
-    assert!(
-        harness(root, specs)
-            .harness(&tasks, &r, &root.join("pred"))
-            .is_err()
-    );
-    let pred = root.join("blocked");
-    fs::create_dir_all(&pred).unwrap();
-    fs::write(pred.join("agent_1"), "").unwrap();
-    assert!(harness(root, ok).harness(&tasks, &r, &pred).is_err());
+    let blocked = root.join("blocked");
+    fs::create_dir_all(&blocked).unwrap();
+    fs::write(blocked.join("agent_1"), "").unwrap();
+    let python = tempfile::tempdir().unwrap();
+    harness(root, swebench(python.path(), prepare, specs))
+        .harness(
+            &["astropy__astropy-12907"],
+            &agent_run(root),
+            &root.join(pred),
+        )
+        .is_err()
+}
+
+#[test]
+fn a_dataset_that_cannot_load_stops_the_harness() {
+    assert!(staged(false, "exit 0", &spec_line(IMAGE), "pred"));
+}
+
+#[test]
+fn an_unwritable_prediction_folder_stops_the_harness() {
+    assert!(staged(true, "exit 0", &spec_line(IMAGE), "file/pred"));
+}
+
+#[test]
+fn a_failing_image_preparation_stops_the_harness() {
+    assert!(staged(true, "exit 1", &spec_line(IMAGE), "pred"));
+}
+
+#[test]
+fn garbled_specs_stop_the_harness() {
+    assert!(staged(true, "exit 0", "echo nope", "pred"));
+}
+
+#[test]
+fn a_blocked_run_folder_stops_the_harness() {
+    assert!(staged(true, "exit 0", &spec_line(IMAGE), "blocked"));
 }

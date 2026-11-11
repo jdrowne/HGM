@@ -22,7 +22,12 @@ fn expected_rows() -> Value {
 #[test]
 fn parquet_rows_match_the_datasets_package() {
     let rows = read_parquet(&parquet_fixture()).unwrap();
-    assert_eq!(Value::Array(rows.clone()), expected_rows());
+    assert_eq!(Value::Array(rows), expected_rows());
+}
+
+#[test]
+fn instance_ids_are_read_from_the_rows() {
+    let rows = read_parquet(&parquet_fixture()).unwrap();
     assert_eq!(
         instance_ids(&rows),
         [
@@ -69,8 +74,14 @@ fn serve(routes: Vec<(String, Vec<u8>)>) -> (String, Arc<Mutex<Vec<String>>>) {
     (base, seen)
 }
 
-#[test]
-fn load_downloads_each_split_file_once_and_then_reads_the_cache() {
+struct Loaded {
+    tmp: tempfile::TempDir,
+    first: Vec<Value>,
+    second: Vec<Value>,
+    seen: Arc<Mutex<Vec<String>>>,
+}
+
+fn loaded_twice() -> Loaded {
     let name = "org/set";
     let listing = r#"[{"path":"data/train-00000-of-00001.parquet"},{"path":"data/test-00000-of-00001.parquet"},{"path":"data/test.json"}]"#;
     let (endpoint, seen) = serve(vec![
@@ -84,20 +95,48 @@ fn load_downloads_each_split_file_once_and_then_reads_the_cache() {
         ),
     ]);
     let tmp = tempfile::tempdir().unwrap();
-    let hub = Hub {
-        endpoint,
-        cache_dir: tmp.path().to_path_buf(),
-    };
+    let hub = hub(&endpoint, tmp.path());
     let first = hub.load(name, "test").unwrap();
     let second = hub.load(name, "test").unwrap();
-    assert_eq!(Value::Array(first), expected_rows());
-    assert_eq!(Value::Array(second), expected_rows());
-    assert_eq!(seen.lock().unwrap().len(), 2);
+    Loaded {
+        tmp,
+        first,
+        second,
+        seen,
+    }
+}
+
+#[test]
+fn load_reads_the_split_rows() {
+    assert_eq!(Value::Array(loaded_twice().first), expected_rows());
+}
+
+#[test]
+fn load_reads_the_same_rows_from_the_cache() {
+    assert_eq!(Value::Array(loaded_twice().second), expected_rows());
+}
+
+#[test]
+fn load_downloads_each_split_file_once() {
+    assert_eq!(loaded_twice().seen.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn load_caches_the_split_file() {
     assert!(
-        tmp.path()
+        loaded_twice()
+            .tmp
+            .path()
             .join("org/set/test/test-00000-of-00001.parquet")
             .is_file()
     );
+}
+
+fn hub(endpoint: &str, cache_dir: &std::path::Path) -> Hub {
+    Hub {
+        endpoint: endpoint.to_owned(),
+        cache_dir: cache_dir.to_path_buf(),
+    }
 }
 
 #[test]
@@ -107,21 +146,10 @@ fn load_reports_a_split_without_files() {
         br#"[{"path":"data/train-00000-of-00001.parquet"}]"#.to_vec(),
     )]);
     let tmp = tempfile::tempdir().unwrap();
-    let hub = Hub {
-        endpoint,
-        cache_dir: tmp.path().to_path_buf(),
-    };
     assert!(matches!(
-        hub.load("org/set", "test"),
+        hub(&endpoint, tmp.path()).load("org/set", "test"),
         Err(Error::NoFiles { .. })
     ));
-}
-
-fn hub(endpoint: &str, cache_dir: &std::path::Path) -> Hub {
-    Hub {
-        endpoint: endpoint.to_owned(),
-        cache_dir: cache_dir.to_path_buf(),
-    }
 }
 
 const LISTING_PATH: &str = "/api/datasets/org/set/tree/main/data";
@@ -136,15 +164,25 @@ fn every_column_type_reads_like_the_datasets_package() {
 }
 
 #[test]
-fn files_that_are_missing_or_not_parquet_are_errors() {
+fn a_missing_file_is_an_io_error() {
     let tmp = tempfile::tempdir().unwrap();
     assert!(matches!(
         read_parquet(&tmp.path().join("missing")),
         Err(Error::Io(_))
     ));
+}
+
+#[test]
+fn a_file_that_is_not_parquet_is_a_parquet_error() {
+    let tmp = tempfile::tempdir().unwrap();
     let junk = tmp.path().join("junk.parquet");
     fs::write(&junk, "not parquet").unwrap();
     assert!(matches!(read_parquet(&junk), Err(Error::Parquet(_))));
+}
+
+#[test]
+fn a_corrupt_parquet_file_is_a_parquet_error() {
+    let tmp = tempfile::tempdir().unwrap();
     let mut bytes = fs::read(parquet_fixture()).unwrap();
     let end = bytes.len() / 2;
     for b in &mut bytes[4..end] {
@@ -155,86 +193,118 @@ fn files_that_are_missing_or_not_parquet_are_errors() {
     assert!(matches!(read_parquet(&corrupt), Err(Error::Parquet(_))));
 }
 
+fn from(pairs: &'static [(&'static str, &'static str)]) -> Hub {
+    Hub::from_vars(move |key: &str| {
+        pairs
+            .iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, v)| OsString::from(v))
+    })
+}
+
 #[test]
-fn the_hub_comes_from_the_environment() {
-    let vars = |pairs: &'static [(&'static str, &'static str)]| {
-        move |key: &str| {
-            pairs
-                .iter()
-                .find(|(k, _)| *k == key)
-                .map(|(_, v)| OsString::from(v))
-        }
-    };
-    let default = Hub::from_vars(vars(&[]));
+fn the_hub_defaults_to_hugging_face_and_a_local_cache() {
     assert_eq!(
-        default,
+        from(&[]),
         hub(
             "https://huggingface.co",
             &PathBuf::from("./.cache/hgm/datasets")
         )
     );
-    let set = Hub::from_vars(vars(&[
-        ("HGM_HF_ENDPOINT", "http://e"),
-        ("HGM_DATA_DIR", "/d"),
-    ]));
-    assert_eq!(set, hub("http://e", &PathBuf::from("/d")));
+}
+
+#[test]
+fn the_hub_comes_from_the_environment() {
     assert_eq!(
-        Hub::from_vars(vars(&[("HOME", "/h")])).cache_dir,
+        from(&[("HGM_HF_ENDPOINT", "http://e"), ("HGM_DATA_DIR", "/d")]),
+        hub("http://e", &PathBuf::from("/d"))
+    );
+}
+
+#[test]
+fn the_cache_defaults_under_home() {
+    assert_eq!(
+        from(&[("HOME", "/h")]).cache_dir,
         PathBuf::from("/h/.cache/hgm/datasets")
     );
+}
+
+#[test]
+fn the_cache_defaults_under_the_user_profile() {
     assert_eq!(
-        Hub::from_vars(vars(&[("USERPROFILE", "/u")])).cache_dir,
+        from(&[("USERPROFILE", "/u")]).cache_dir,
         PathBuf::from("/u/.cache/hgm/datasets")
     );
+}
+
+#[test]
+fn from_env_reads_the_process_environment() {
     assert_eq!(Hub::from_env(), Hub::from_vars(|k| std::env::var_os(k)));
 }
 
 #[test]
 fn errors_say_what_failed() {
-    let cases = [
-        (Error::from(std::io::Error::other("disk")), "disk"),
-        (Error::Http("h".into()), "downloading the dataset: h"),
-        (Error::Parquet("p".into()), "reading the dataset: p"),
-        (
-            Error::NoFiles {
-                name: "n".into(),
-                split: "s".into(),
-            },
+    let actual: Vec<String> = [
+        Error::from(std::io::Error::other("disk")),
+        Error::Http("h".into()),
+        Error::Parquet("p".into()),
+        Error::NoFiles {
+            name: "n".into(),
+            split: "s".into(),
+        },
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect();
+    assert_eq!(
+        actual,
+        [
+            "disk",
+            "downloading the dataset: h",
+            "reading the dataset: p",
             "dataset n has no parquet files for split s",
-        ),
-    ];
-    for (e, text) in cases {
-        assert_eq!(e.to_string(), text);
-    }
+        ]
+    );
+}
+
+fn load_with(routes: Vec<(String, Vec<u8>)>) -> Result<Vec<Value>, Error> {
+    let tmp = tempfile::tempdir().unwrap();
+    let (endpoint, _) = serve(routes);
+    hub(&endpoint, tmp.path()).load("org/set", "test")
 }
 
 #[test]
-fn http_failures_are_errors() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (endpoint, _) = serve(vec![]);
+fn a_missing_listing_is_an_http_error() {
+    assert!(matches!(load_with(vec![]), Err(Error::Http(_))));
+}
+
+#[test]
+fn a_listing_that_is_not_json_is_an_http_error() {
     assert!(matches!(
-        hub(&endpoint, tmp.path()).load("org/set", "test"),
+        load_with(vec![(LISTING_PATH.to_owned(), b"not json".to_vec())]),
         Err(Error::Http(_))
     ));
-    let (endpoint, _) = serve(vec![(LISTING_PATH.to_owned(), b"not json".to_vec())]);
+}
+
+#[test]
+fn a_missing_split_file_is_an_http_error() {
     assert!(matches!(
-        hub(&endpoint, tmp.path()).load("org/set", "test"),
+        load_with(vec![(LISTING_PATH.to_owned(), LISTING.to_vec())]),
         Err(Error::Http(_))
     ));
-    let (endpoint, _) = serve(vec![(LISTING_PATH.to_owned(), LISTING.to_vec())]);
+}
+
+#[test]
+fn a_cut_short_download_is_an_http_error() {
     assert!(matches!(
-        hub(&endpoint, tmp.path()).load("org/set", "test"),
-        Err(Error::Http(_))
-    ));
-    let (endpoint, _) = serve(vec![
-        (LISTING_PATH.to_owned(), LISTING.to_vec()),
-        (
-            FILE_PATH.to_owned(),
-            b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\nshort".to_vec(),
-        ),
-    ]);
-    assert!(matches!(
-        hub(&endpoint, tmp.path()).load("org/set", "test"),
+        load_with(vec![
+            (LISTING_PATH.to_owned(), LISTING.to_vec()),
+            (
+                FILE_PATH.to_owned(),
+                b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\nshort"
+                    .to_vec(),
+            ),
+        ]),
         Err(Error::Http(_))
     ));
 }
@@ -246,8 +316,15 @@ fn routes() -> Vec<(String, Vec<u8>)> {
     ]
 }
 
+fn blocked_by(entry: &str) -> Result<Vec<Value>, Error> {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(tmp.path().join("org/set/test").join(entry)).unwrap();
+    let (endpoint, _) = serve(routes());
+    hub(&endpoint, tmp.path()).load("org/set", "test")
+}
+
 #[test]
-fn an_unusable_cache_is_an_error() {
+fn a_cache_that_is_a_file_is_an_io_error() {
     let tmp = tempfile::tempdir().unwrap();
     fs::write(tmp.path().join("file"), "").unwrap();
     let (endpoint, _) = serve(routes());
@@ -255,44 +332,54 @@ fn an_unusable_cache_is_an_error() {
         hub(&endpoint, &tmp.path().join("file")).load("org/set", "test"),
         Err(Error::Io(_))
     ));
-    let dir = tmp.path().join("org/set/test");
-    fs::create_dir_all(dir.join("test-0.partial")).unwrap();
-    let (endpoint, _) = serve(routes());
+}
+
+#[test]
+fn a_blocked_partial_download_is_an_io_error() {
+    assert!(matches!(blocked_by("test-0.partial"), Err(Error::Io(_))));
+}
+
+#[test]
+fn a_blocked_split_file_is_an_io_error() {
     assert!(matches!(
-        hub(&endpoint, tmp.path()).load("org/set", "test"),
-        Err(Error::Io(_))
-    ));
-    fs::remove_dir(dir.join("test-0.partial")).unwrap();
-    fs::create_dir_all(dir.join("test-0.parquet/inner")).unwrap();
-    let (endpoint, _) = serve(routes());
-    assert!(matches!(
-        hub(&endpoint, tmp.path()).load("org/set", "test"),
-        Err(Error::Io(_))
-    ));
-    fs::remove_dir_all(dir.join("test-0.parquet")).unwrap();
-    fs::create_dir_all(dir.join("files.json")).unwrap();
-    let (endpoint, _) = serve(routes());
-    assert!(matches!(
-        hub(&endpoint, tmp.path()).load("org/set", "test"),
+        blocked_by("test-0.parquet/inner"),
         Err(Error::Io(_))
     ));
 }
 
 #[test]
-fn a_stale_or_broken_listing_is_fetched_again_and_a_corrupt_file_is_an_error() {
+fn a_blocked_listing_cache_is_an_io_error() {
+    assert!(matches!(blocked_by("files.json"), Err(Error::Io(_))));
+}
+
+fn stale_requests(listing: &str) -> usize {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path().join("org/set/test");
     fs::create_dir_all(&dir).unwrap();
-    for listing in ["not json", "[]", r#"["gone.parquet"]"#] {
-        fs::write(dir.join("files.json"), listing).unwrap();
-        let (endpoint, seen) = serve(routes());
-        assert_eq!(
-            Value::Array(hub(&endpoint, tmp.path()).load("org/set", "test").unwrap()),
-            expected_rows()
-        );
-        assert_eq!(seen.lock().unwrap().len(), 2, "{listing}");
+    fs::write(dir.join("files.json"), listing).unwrap();
+    let (endpoint, seen) = serve(routes());
+    let rows = hub(&endpoint, tmp.path()).load("org/set", "test").unwrap();
+    if Value::Array(rows) != expected_rows() {
+        return usize::MAX;
     }
-    fs::write(dir.join("test-0.parquet"), "junk").unwrap();
+    seen.lock().unwrap().len()
+}
+
+#[test]
+fn a_stale_or_broken_listing_is_fetched_again() {
+    let counts: Vec<usize> = ["not json", "[]", r#"["gone.parquet"]"#]
+        .into_iter()
+        .map(stale_requests)
+        .collect();
+    assert_eq!(counts, [2, 2, 2]);
+}
+
+#[test]
+fn a_corrupt_cached_file_is_an_error() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (endpoint, _) = serve(routes());
+    hub(&endpoint, tmp.path()).load("org/set", "test").unwrap();
+    fs::write(tmp.path().join("org/set/test/test-0.parquet"), "junk").unwrap();
     let (endpoint, _) = serve(vec![]);
     assert!(matches!(
         hub(&endpoint, tmp.path()).load("org/set", "test"),

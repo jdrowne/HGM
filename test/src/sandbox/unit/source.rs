@@ -1,9 +1,11 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use hgm_core::log::Log;
 use hgm_core::pyjson;
-use hgm_sandbox::source::{copy_filtered, image_name_for, initial_metadata, prepare_initial_agent};
+use hgm_sandbox::source::{
+    CopyReport, copy_filtered, image_name_for, initial_metadata, prepare_initial_agent,
+};
 use hgm_sandbox::{Docker, Error};
 
 #[test]
@@ -43,89 +45,191 @@ fn tree() -> tempfile::TempDir {
     dir
 }
 
-#[test]
-fn copy_skips_ignored_files() {
+fn copied() -> (tempfile::TempDir, PathBuf, CopyReport) {
     let dir = tree();
     let dest = dir.path().join("out/initial/src");
     let report = copy_filtered(&dir.path().join("repo"), &dest).unwrap();
-    assert_eq!(report.patterns, 3);
-    assert_eq!(report.copied, ["Dockerfile", "main.py", "pkg/mod.py"]);
-    assert_eq!(
-        fs::read_to_string(dest.join("pkg/mod.py")).unwrap(),
-        "x = 1\n"
-    );
-    assert!(!dest.join("logs").exists());
+    (dir, dest, report)
 }
 
-#[test]
-fn prepare_writes_metadata_once() {
+fn prepared() -> (tempfile::TempDir, PathBuf, PathBuf) {
     let dir = tree();
     let dest = dir.path().join("out/initial/src");
     let meta = dir.path().join("out/initial/metadata.json");
     prepare_initial_agent(&dir.path().join("repo"), &dest, None, &Log::discard()).unwrap();
+    (dir, dest, meta)
+}
+
+fn broken_dockerignore() -> (tempfile::TempDir, PathBuf) {
+    let dir = tree();
+    let src = dir.path().join("repo");
+    fs::write(src.join(".dockerignore"), "!\n").unwrap();
+    (dir, src)
+}
+
+#[test]
+fn copy_counts_the_dockerignore_patterns() {
+    let (_dir, _dest, report) = copied();
+    assert_eq!(report.patterns, 3);
+}
+
+#[test]
+fn copy_skips_ignored_files() {
+    let (_dir, _dest, report) = copied();
+    assert_eq!(report.copied, ["Dockerfile", "main.py", "pkg/mod.py"]);
+}
+
+#[test]
+fn copy_keeps_file_contents() {
+    let (_dir, dest, _report) = copied();
+    assert_eq!(
+        fs::read_to_string(dest.join("pkg/mod.py")).unwrap(),
+        "x = 1\n"
+    );
+}
+
+#[test]
+fn copy_leaves_ignored_directories_out() {
+    let (_dir, dest, _report) = copied();
+    assert!(!dest.join("logs").exists());
+}
+
+#[test]
+fn prepare_writes_the_initial_metadata() {
+    let (_dir, _dest, meta) = prepared();
     assert_eq!(
         fs::read_to_string(&meta).unwrap(),
         pyjson::dumps(&initial_metadata(), None)
     );
+}
+
+#[test]
+fn prepare_keeps_existing_metadata() {
+    let (dir, dest, meta) = prepared();
     fs::write(&meta, "{}").unwrap();
     prepare_initial_agent(&dir.path().join("repo"), &dest, None, &Log::discard()).unwrap();
     assert_eq!(fs::read_to_string(&meta).unwrap(), "{}");
 }
 
 #[test]
-fn an_unusable_source_or_destination_is_an_error() {
+fn copying_below_a_file_is_an_error() {
     let dir = tree();
-    let src = dir.path().join("repo");
     let blocker = dir.path().join("file");
     fs::write(&blocker, "").unwrap();
-    assert!(copy_filtered(&src, &blocker.join("dest")).is_err());
+    assert!(copy_filtered(&dir.path().join("repo"), &blocker.join("dest")).is_err());
+}
+
+#[test]
+fn copying_a_file_onto_a_directory_is_an_error() {
+    let dir = tree();
     let clash = dir.path().join("clash");
     fs::create_dir_all(clash.join("main.py")).unwrap();
-    assert!(copy_filtered(&src, &clash).is_err());
+    assert!(copy_filtered(&dir.path().join("repo"), &clash).is_err());
+}
+
+#[test]
+fn copying_a_directory_onto_a_file_is_an_error() {
+    let dir = tree();
     let clash = dir.path().join("clash2");
     fs::create_dir_all(&clash).unwrap();
     fs::write(clash.join("pkg"), "").unwrap();
-    assert!(copy_filtered(&src, &clash).is_err());
-    fs::write(src.join(".dockerignore"), "!\n").unwrap();
+    assert!(copy_filtered(&dir.path().join("repo"), &clash).is_err());
+}
+
+#[test]
+fn copying_with_an_invalid_dockerignore_is_an_error() {
+    let (dir, src) = broken_dockerignore();
     assert!(copy_filtered(&src, &dir.path().join("d")).is_err());
+}
+
+#[test]
+fn preparing_with_an_invalid_dockerignore_is_an_error() {
+    let (dir, src) = broken_dockerignore();
     assert!(prepare_initial_agent(&src, &dir.path().join("d"), None, &Log::discard()).is_err());
+}
+
+#[test]
+fn copying_with_an_unreadable_dockerignore_is_an_error() {
+    let dir = tree();
+    let src = dir.path().join("repo");
     fs::remove_file(src.join(".dockerignore")).unwrap();
     fs::create_dir(src.join(".dockerignore")).unwrap();
     assert!(copy_filtered(&src, &dir.path().join("d")).is_err());
 }
 
 #[test]
-fn building_needs_a_parent_folder_a_dockerfile_and_docker() {
+fn building_needs_a_parent_folder() {
+    let dir = tree();
+    let docker = Docker::new("hgm-no-such-docker-program");
+    let r = prepare_initial_agent(
+        &dir.path().join("repo"),
+        Path::new(""),
+        Some(&docker),
+        &Log::discard(),
+    );
+    assert!(matches!(r, Err(Error::NotFound(_))), "{r:?}");
+}
+
+#[test]
+fn an_empty_path_has_no_image_name() {
+    assert_eq!(image_name_for(Path::new("")), None);
+}
+
+#[test]
+fn the_root_has_no_image_name() {
+    assert_eq!(image_name_for(Path::new("/")), None);
+}
+
+#[test]
+fn building_needs_docker() {
+    let dir = tree();
+    let docker = Docker::new("hgm-no-such-docker-program");
+    let r = prepare_initial_agent(
+        &dir.path().join("repo"),
+        &dir.path().join("out/initial/src"),
+        Some(&docker),
+        &Log::discard(),
+    );
+    assert!(matches!(r, Err(Error::Io(_))), "{r:?}");
+}
+
+#[test]
+fn building_needs_a_dockerfile() {
     let dir = tree();
     let src = dir.path().join("repo");
-    let docker = Docker::new("hgm-no-such-docker-program");
-    let log = Log::discard();
-    let r = prepare_initial_agent(&src, Path::new(""), Some(&docker), &log);
-    assert!(matches!(r, Err(Error::NotFound(_))), "{r:?}");
-    assert_eq!(image_name_for(Path::new("")), None);
-    assert_eq!(image_name_for(Path::new("/")), None);
-    let dest = dir.path().join("out/initial/src");
-    assert!(matches!(
-        prepare_initial_agent(&src, &dest, Some(&docker), &log),
-        Err(Error::Io(_))
-    ));
     fs::write(src.join(".dockerignore"), "").unwrap();
     fs::remove_file(src.join("Dockerfile")).unwrap();
-    assert!(matches!(
-        prepare_initial_agent(&src, &dest, Some(&docker), &log),
-        Err(Error::Io(_))
-    ));
+    let docker = Docker::new("hgm-no-such-docker-program");
+    let r = prepare_initial_agent(
+        &src,
+        &dir.path().join("out/initial/src"),
+        Some(&docker),
+        &Log::discard(),
+    );
+    assert!(matches!(r, Err(Error::Io(_))), "{r:?}");
 }
 
 #[cfg(unix)]
-#[test]
-fn dangling_links_are_skipped_and_an_unwritable_metadata_file_is_an_error() {
+fn dangling() -> (tempfile::TempDir, PathBuf, PathBuf, CopyReport) {
     let dir = tree();
     let src = dir.path().join("repo");
     std::os::unix::fs::symlink(dir.path().join("nowhere"), src.join("dangling")).unwrap();
     let dest = dir.path().join("out/initial/src");
     let report = copy_filtered(&src, &dest).unwrap();
+    (dir, src, dest, report)
+}
+
+#[cfg(unix)]
+#[test]
+fn dangling_links_are_skipped() {
+    let (_dir, _src, _dest, report) = dangling();
     assert!(!report.copied.contains(&"dangling".to_owned()));
+}
+
+#[cfg(unix)]
+#[test]
+fn an_unwritable_metadata_file_is_an_error() {
+    let (dir, src, dest, _report) = dangling();
     std::os::unix::fs::symlink(
         dir.path().join("no/dir/m.json"),
         dir.path().join("out/initial/metadata.json"),

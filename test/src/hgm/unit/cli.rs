@@ -10,20 +10,26 @@ fn run_args(args: &[&str]) -> Cli {
 
 #[test]
 fn hgm_takes_no_sub_commands_or_positional_arguments() {
-    for argv in [
+    let rejected: Vec<bool> = [
         &["hgm", "run"][..],
         &["hgm", "best"],
         &["hgm", "evaluate"],
         &["hgm", "prepare-polyglot"],
-    ] {
-        assert!(Cli::try_parse_from(argv).is_err(), "{argv:?}");
-    }
+    ]
+    .into_iter()
+    .map(|argv| Cli::try_parse_from(argv).is_err())
+    .collect();
+    assert_eq!(rejected, [true; 4]);
+}
+
+#[test]
+fn the_config_file_defaults_to_config_yaml() {
+    assert_eq!(run_args(&[]).config.to_str(), Some("config.yaml"));
 }
 
 #[test]
 fn defaults_override_only_the_initial_agent_name() {
     let args = run_args(&[]);
-    assert_eq!(args.config.to_str(), Some("config.yaml"));
     let set: Vec<_> = args
         .overrides()
         .into_iter()
@@ -107,24 +113,33 @@ fn every_flag_becomes_an_override() {
     );
 }
 
+fn value(args: &[&str], key: &str) -> Option<hgm_core::config::OverrideValue> {
+    run_args(args)
+        .overrides()
+        .into_iter()
+        .find(|(k, _)| *k == key)
+        .unwrap()
+        .1
+}
+
 #[test]
-fn the_last_of_a_flag_and_its_negation_wins() {
-    let value = |args: &[&str], key: &str| {
-        run_args(args)
-            .overrides()
-            .into_iter()
-            .find(|(k, _)| *k == key)
-            .unwrap()
-            .1
-    };
+fn a_negation_after_the_flag_wins() {
     assert_eq!(
         value(&["--polyglot", "--no_polyglot"], "evaluation.polyglot"),
         Some(Bool(false))
     );
+}
+
+#[test]
+fn a_flag_after_its_negation_wins() {
     assert_eq!(
         value(&["--no_polyglot", "--polyglot"], "evaluation.polyglot"),
         Some(Bool(true))
     );
+}
+
+#[test]
+fn a_lone_negation_sets_the_override_false() {
     assert_eq!(
         value(&["--no_cool_down"], "optimization.cool_down"),
         Some(Bool(false))
@@ -132,26 +147,67 @@ fn the_last_of_a_flag_and_its_negation_wins() {
 }
 
 #[test]
-fn the_pick_and_holdout_flags_are_not_config_overrides() {
-    let args = run_args(&[]);
-    assert_eq!(args.epsilon, 0.01);
-    assert_eq!(args.holdout_split, None);
-    assert_eq!(args.holdout_tasks, None);
-    let args = run_args(&[
+fn the_epsilon_defaults_to_one_percent() {
+    assert_eq!(run_args(&[]).epsilon, 0.01);
+}
+
+#[test]
+fn the_holdout_split_defaults_to_none() {
+    assert_eq!(run_args(&[]).holdout_split, None);
+}
+
+#[test]
+fn the_holdout_task_count_defaults_to_none() {
+    assert_eq!(run_args(&[]).holdout_tasks, None);
+}
+
+fn pick_and_holdout_args() -> Cli {
+    run_args(&[
         "--epsilon",
         "0.05",
         "--holdout_split",
         "Lite",
         "--holdout_tasks",
         "3",
-    ]);
-    assert_eq!(args.epsilon, 0.05);
-    assert_eq!(args.holdout_split.as_deref(), Some("Lite"));
-    assert_eq!(args.holdout_tasks, Some(3));
+    ])
+}
+
+#[test]
+fn the_epsilon_flag_sets_the_epsilon() {
+    assert_eq!(pick_and_holdout_args().epsilon, 0.05);
+}
+
+#[test]
+fn the_holdout_split_flag_sets_the_split() {
     assert_eq!(
-        args.overrides().iter().filter(|(_, v)| v.is_some()).count(),
+        pick_and_holdout_args().holdout_split.as_deref(),
+        Some("Lite")
+    );
+}
+
+#[test]
+fn the_holdout_tasks_flag_sets_the_task_count() {
+    assert_eq!(pick_and_holdout_args().holdout_tasks, Some(3));
+}
+
+#[test]
+fn the_pick_and_holdout_flags_are_not_config_overrides() {
+    assert_eq!(
+        pick_and_holdout_args()
+            .overrides()
+            .iter()
+            .filter(|(_, v)| v.is_some())
+            .count(),
         1
     );
+}
+
+#[test]
+fn the_default_cli_has_a_one_percent_epsilon() {
     assert_eq!(Cli::default().epsilon, 0.01);
+}
+
+#[test]
+fn the_default_cli_names_the_default_agent() {
     assert_eq!(Cli::default().initial_agent_name, "default_agent");
 }

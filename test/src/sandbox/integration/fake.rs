@@ -55,23 +55,41 @@ fn a_container_that_will_not_be_removed_is_an_error() {
     );
 }
 
-#[test]
-fn a_failed_docker_cp_is_an_error_both_ways() {
-    let (dir, docker, src) = fake(
+fn failing_cp() -> (tempfile::TempDir, Docker, PathBuf) {
+    fake(
         r#"case "$1" in exec) exit 0;; *) exit 1;; esac"#,
         "if \"%1\"==\"exec\" exit /b 0\r\nexit /b 1",
-    );
-    let c = docker.container("c");
-    let log = Log::discard();
+    )
+}
+
+#[test]
+fn a_failed_docker_cp_in_is_a_command_error() {
+    let (_dir, docker, src) = failing_cp();
     assert!(matches!(
-        c.copy_in(&src, "/x", &log),
+        docker.container("c").copy_in(&src, "/x", &Log::discard()),
         Err(Error::Command { .. })
     ));
+}
+
+#[test]
+fn a_failed_docker_cp_out_is_a_command_error() {
+    let (dir, docker, _) = failing_cp();
+    assert!(matches!(
+        docker
+            .container("c")
+            .copy_out("/x", &dir.path().join("out/f"), &Log::discard()),
+        Err(Error::Command { .. })
+    ));
+}
+
+#[test]
+fn a_failed_docker_cp_out_still_creates_the_destination_folder() {
+    let (dir, docker, _) = failing_cp();
     let dest = dir.path().join("out/f");
-    assert!(matches!(
-        c.copy_out("/x", &dest, &log),
-        Err(Error::Command { .. })
-    ));
+    docker
+        .container("c")
+        .copy_out("/x", &dest, &Log::discard())
+        .unwrap_err();
     assert!(dest.parent().is_some_and(Path::is_dir));
 }
 

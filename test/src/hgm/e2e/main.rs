@@ -13,27 +13,74 @@ fn binary(name: &str) -> PathBuf {
         })
 }
 
-#[test]
-fn hgm_binary_runs() {
+struct Ran {
+    tmp: tempfile::TempDir,
+    code: Option<i32>,
+    stdout: String,
+    stderr: String,
+}
+
+impl Ran {
+    fn root(&self) -> &std::path::Path {
+        self.tmp.path()
+    }
+
+    fn file(&self, path: &str) -> String {
+        std::fs::read_to_string(self.root().join(path)).unwrap()
+    }
+}
+
+fn ran(tmp: tempfile::TempDir, out: std::process::Output) -> Ran {
+    Ran {
+        tmp,
+        code: out.status.code(),
+        stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+    }
+}
+
+fn hgm_with(args: &[&str]) -> Ran {
+    let tmp = tempfile::tempdir().unwrap();
     let out = Command::new(binary("hgm"))
-        .arg("--version")
+        .args(args)
         .output()
         .expect("run hgm");
-    assert!(out.status.success());
-    let stdout = String::from_utf8(out.stdout).unwrap();
-    assert!(stdout.starts_with("hgm "), "{stdout}");
+    ran(tmp, out)
 }
 
 #[test]
-fn hgm_with_an_unknown_argument_exits_with_usage_status() {
-    for arg in ["--no_such_flag", "run"] {
-        let out = Command::new(binary("hgm"))
-            .arg(arg)
-            .output()
-            .expect("run hgm");
-        assert_eq!(out.status.code(), Some(2));
-        assert!(String::from_utf8(out.stderr).unwrap().contains(arg));
-    }
+fn hgm_binary_runs() {
+    assert_eq!(hgm_with(&["--version"]).code, Some(0));
+}
+
+#[test]
+fn hgm_prints_its_name_and_version() {
+    let ran = hgm_with(&["--version"]);
+    assert!(ran.stdout.starts_with("hgm "), "{}", ran.stdout);
+}
+
+#[test]
+fn hgm_with_an_unknown_flag_exits_with_usage_status() {
+    assert_eq!(hgm_with(&["--no_such_flag"]).code, Some(2));
+}
+
+#[test]
+fn hgm_with_an_unknown_flag_names_it() {
+    assert!(
+        hgm_with(&["--no_such_flag"])
+            .stderr
+            .contains("--no_such_flag")
+    );
+}
+
+#[test]
+fn hgm_with_a_stray_argument_exits_with_usage_status() {
+    assert_eq!(hgm_with(&["run"]).code, Some(2));
+}
+
+#[test]
+fn hgm_with_a_stray_argument_names_it() {
+    assert!(hgm_with(&["run"]).stderr.contains("run"));
 }
 
 fn hgm_in(dir: &std::path::Path) -> Command {
@@ -101,69 +148,109 @@ const FINISHED: [&str; 8] = [
     "1",
 ];
 
+fn in_root(prepare: impl FnOnce(&std::path::Path), cmd: impl FnOnce(&mut Command)) -> Ran {
+    let tmp = tempfile::tempdir().unwrap();
+    prepare(tmp.path());
+    let mut command = hgm_in(tmp.path());
+    cmd(&mut command);
+    let out = command.output().unwrap();
+    ran(tmp, out)
+}
+
+fn continued_finished() -> Ran {
+    in_root(finished_run, |c| {
+        c.args(FINISHED);
+    })
+}
+
 #[test]
 fn a_finished_run_can_be_continued_without_more_work() {
-    let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path();
-    finished_run(root);
-    let out = hgm_in(root)
-        .args([
-            "--initial_agent_name",
-            "agent",
-            "--continue_from",
-            "output_hgm/prev",
-            "--max_task_evals",
-            "2",
-            "--max_workers",
-            "1",
-        ])
-        .output()
-        .unwrap();
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let ran = continued_finished();
+    assert_eq!(ran.code, Some(0), "{}{}", ran.stdout, ran.stderr);
+}
+
+#[test]
+fn a_continued_run_prints_its_output_directory() {
+    assert!(continued_finished().stdout.contains("Output directory: "));
+}
+
+#[test]
+fn a_continued_run_prints_the_best_agent() {
     assert!(
-        out.status.success(),
-        "{stdout}{}",
-        String::from_utf8_lossy(&out.stderr)
+        continued_finished()
+            .stdout
+            .contains("Best agent: c1 solved 1/2 (score 0.")
     );
-    assert!(stdout.contains("Output directory: "), "{stdout}");
+}
+
+#[test]
+fn a_continued_run_prints_where_the_best_agent_is() {
+    let best = std::path::Path::new("output_hgm")
+        .join("prev")
+        .join("best_agent");
     assert!(
-        stdout.contains("Best agent: c1 solved 1/2 (score 0."),
-        "{stdout}"
+        continued_finished()
+            .stdout
+            .contains(&format!("{}\n", best.display()))
     );
-    let output = root.join("output_hgm/prev");
-    assert!(
-        stdout.contains(&format!(
-            "{}\n",
-            std::path::Path::new("output_hgm")
-                .join("prev")
-                .join("best_agent")
-                .display()
-        )),
-        "{stdout}"
-    );
+}
+
+#[test]
+fn a_continued_run_writes_the_best_agent_source() {
     assert_eq!(
-        std::fs::read_to_string(output.join("best_agent/lib.rs")).unwrap(),
+        continued_finished().file("output_hgm/prev/best_agent/lib.rs"),
         "seed\nchild\n"
     );
-    assert!(output.join("initial/metadata.json").is_file());
-    let log = std::fs::read_to_string(output.join("hgm_outer.log")).unwrap();
+}
+
+#[test]
+fn a_continued_run_records_the_initial_node() {
     assert!(
-        log.contains("Starting HGM run prev with configuration: {"),
-        "{log}"
+        continued_finished()
+            .root()
+            .join("output_hgm/prev/initial/metadata.json")
+            .is_file()
     );
-    assert!(log.contains("\"max_task_evals\":2"), "{log}");
+}
+
+#[test]
+fn a_continued_run_logs_its_configuration() {
+    assert!(
+        continued_finished()
+            .file("output_hgm/prev/hgm_outer.log")
+            .contains("Starting HGM run prev with configuration: {")
+    );
+}
+
+#[test]
+fn a_continued_run_logs_its_budget() {
+    assert!(
+        continued_finished()
+            .file("output_hgm/prev/hgm_outer.log")
+            .contains("\"max_task_evals\":2")
+    );
+}
+
+fn unnamed() -> Ran {
+    in_root(
+        |_| {},
+        |c| {
+            c.args(["--initial_agent_name", ""]);
+        },
+    )
 }
 
 #[test]
 fn a_run_without_an_agent_name_fails() {
-    let tmp = tempfile::tempdir().unwrap();
-    let out = hgm_in(tmp.path())
-        .args(["--initial_agent_name", ""])
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(1));
+    assert_eq!(unnamed().code, Some(1));
+}
+
+#[test]
+fn a_run_without_an_agent_name_says_so() {
     assert!(
-        String::from_utf8_lossy(&out.stderr).contains("\nhgm: Initial agent name must be provided")
+        unnamed()
+            .stderr
+            .contains("\nhgm: Initial agent name must be provided")
     );
 }
 
@@ -192,48 +279,81 @@ fn swe_cache(root: &std::path::Path) -> PathBuf {
 }
 
 #[cfg(unix)]
+fn held_out() -> Ran {
+    in_root(
+        |root| {
+            finished_run(root);
+            let holdout = root.join("output_hgm/prev/holdout/best_agent");
+            std::fs::create_dir_all(&holdout).unwrap();
+            std::fs::write(holdout.join("hgm-agent"), "").unwrap();
+        },
+        |c| {
+            let python = swe_cache(&PathBuf::from(c.get_current_dir().unwrap()));
+            c.env("HGM_SWEBENCH_PYTHON", python).args(FINISHED).args([
+                "--holdout_split",
+                "Lite",
+                "--holdout_tasks",
+                "2",
+            ]);
+        },
+    )
+}
+
+#[cfg(unix)]
+fn holdout_metadata() -> serde_json::Value {
+    serde_json::from_str(&held_out().file("output_hgm/prev/holdout/best_agent/metadata.json"))
+        .unwrap()
+}
+
+#[cfg(unix)]
+#[test]
+fn a_holdout_split_runs_after_the_search() {
+    let ran = held_out();
+    assert_eq!(ran.code, Some(0), "{}{}", ran.stdout, ran.stderr);
+}
+
+#[cfg(unix)]
 #[test]
 fn a_holdout_split_scores_the_best_agent_after_the_run() {
-    let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path();
-    finished_run(root);
-    let python = swe_cache(root);
-    let holdout = root.join("output_hgm/prev/holdout/best_agent");
-    std::fs::create_dir_all(&holdout).unwrap();
-    std::fs::write(holdout.join("hgm-agent"), "").unwrap();
-    let out = hgm_in(root)
-        .env("HGM_SWEBENCH_PYTHON", &python)
-        .args(FINISHED)
-        .args(["--holdout_split", "Lite", "--holdout_tasks", "2"])
-        .output()
-        .unwrap();
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        out.status.success(),
-        "{stdout}{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert!(stdout.contains("Held-out Lite: solved 0/2\n"), "{stdout}");
-    let metadata: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(holdout.join("metadata.json")).unwrap())
-            .unwrap();
-    assert_eq!(metadata["run_id"], "best_agent");
-    assert!(metadata["swe_dnames"].is_array(), "{metadata}");
+    assert!(held_out().stdout.contains("Held-out Lite: solved 0/2\n"));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_holdout_score_is_recorded_for_the_best_agent() {
+    assert_eq!(holdout_metadata()["run_id"], "best_agent");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_holdout_score_records_the_dataset_names() {
+    assert!(holdout_metadata()["swe_dnames"].is_array());
+}
+
+fn holdout_without_dataset() -> Ran {
+    in_root(finished_run, |c| {
+        c.args(FINISHED).args(["--holdout_split", "Lite"]);
+    })
 }
 
 #[test]
 fn a_holdout_split_needs_its_dataset() {
-    let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path();
-    finished_run(root);
-    let out = hgm_in(root)
-        .args(FINISHED)
-        .args(["--holdout_split", "Lite"])
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&out.stderr).contains("\nhgm: "));
-    assert!(root.join("output_hgm/prev/best_agent/lib.rs").is_file());
+    assert_eq!(holdout_without_dataset().code, Some(1));
+}
+
+#[test]
+fn a_missing_holdout_dataset_is_reported() {
+    assert!(holdout_without_dataset().stderr.contains("\nhgm: "));
+}
+
+#[test]
+fn a_missing_holdout_dataset_still_writes_the_best_agent() {
+    assert!(
+        holdout_without_dataset()
+            .root()
+            .join("output_hgm/prev/best_agent/lib.rs")
+            .is_file()
+    );
 }
 
 fn continued(root: &std::path::Path, nodes: &[&str], n_task_evals: usize) {
@@ -259,49 +379,81 @@ fn continued(root: &std::path::Path, nodes: &[&str], n_task_evals: usize) {
     .unwrap();
 }
 
+fn overspent() -> Ran {
+    in_root(
+        |root| continued(root, &["c1", "c2", "c3"], 1),
+        |c| {
+            c.args([
+                "--initial_agent_name",
+                "agent",
+                "--continue_from",
+                "output_hgm/prev",
+                "--max_task_evals",
+                "7",
+                "--max_workers",
+                "1",
+            ]);
+        },
+    )
+}
+
 #[test]
 fn a_continued_run_evaluates_until_the_budget_is_spent() {
-    let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path();
-    continued(root, &["c1", "c2", "c3"], 1);
-    let out = hgm_in(root)
-        .args([
-            "--initial_agent_name",
-            "agent",
-            "--continue_from",
-            "output_hgm/prev",
-            "--max_task_evals",
-            "7",
-            "--max_workers",
-            "1",
-        ])
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(1));
-    let log = std::fs::read_to_string(root.join("output_hgm/prev/hgm_outer.log")).unwrap();
-    assert!(log.contains("Error: "), "{log}");
+    assert_eq!(overspent().code, Some(1));
 }
 
 #[test]
-fn runs_fail_when_their_tasks_or_records_are_missing() {
-    let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path();
-    let out = hgm_in(root)
-        .args(["--full_eval", "--output_dir", "full"])
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&out.stderr).contains("hgm: downloading the dataset"));
-    let out = hgm_in(root)
-        .args(["--continue_from", "output_hgm/none"])
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&out.stderr).contains("init_evaluated_tasks.json"));
+fn a_continued_run_logs_the_evaluation_error() {
+    assert!(
+        overspent()
+            .file("output_hgm/prev/hgm_outer.log")
+            .contains("Error: ")
+    );
+}
+
+fn full_eval() -> Ran {
+    in_root(
+        |_| {},
+        |c| {
+            c.args(["--full_eval", "--output_dir", "full"]);
+        },
+    )
 }
 
 #[test]
-fn hgm_needs_a_working_directory() {
+fn a_full_evaluation_without_its_dataset_fails() {
+    assert_eq!(full_eval().code, Some(1));
+}
+
+#[test]
+fn a_full_evaluation_without_its_dataset_says_so() {
+    assert!(full_eval().stderr.contains("hgm: downloading the dataset"));
+}
+
+fn missing_records() -> Ran {
+    in_root(
+        |_| {},
+        |c| {
+            c.args(["--continue_from", "output_hgm/none"]);
+        },
+    )
+}
+
+#[test]
+fn continuing_a_missing_run_fails() {
+    assert_eq!(missing_records().code, Some(1));
+}
+
+#[test]
+fn continuing_a_missing_run_names_the_missing_records() {
+    assert!(
+        missing_records()
+            .stderr
+            .contains("init_evaluated_tasks.json")
+    );
+}
+
+fn homeless() -> Ran {
     let tmp = tempfile::tempdir().unwrap();
     let gone = tmp.path().join("gone");
     std::fs::create_dir(&gone).unwrap();
@@ -313,6 +465,15 @@ fn hgm_needs_a_working_directory() {
         .arg(binary("hgm"))
         .output()
         .unwrap();
-    assert_eq!(out.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&out.stderr).starts_with("hgm: "));
+    ran(tmp, out)
+}
+
+#[test]
+fn hgm_needs_a_working_directory() {
+    assert_eq!(homeless().code, Some(1));
+}
+
+#[test]
+fn a_missing_working_directory_is_reported() {
+    assert!(homeless().stderr.starts_with("hgm: "));
 }

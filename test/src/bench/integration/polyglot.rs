@@ -81,7 +81,9 @@ fn base_image() {
         .stdout(Stdio::null())
         .status()
         .unwrap();
-    assert!(status.success());
+    if !status.success() {
+        panic!("building {tag} failed");
+    }
 }
 
 const MODES: [&str; 8] = [
@@ -158,94 +160,34 @@ fn outcome(id: &str, success: bool, eval_result: &str) -> Outcome {
     }
 }
 
-fn check_report(report: &Value) {
-    assert_eq!(report["total_instances"], 8);
-    assert_eq!(report["submitted_instances"], 8);
-    assert_eq!(report["resolved_ids"], json!(["python__resolved"]));
-    assert_eq!(report["unresolved_ids"], json!(["python__unresolved"]));
-    assert_eq!(report["empty_patch_ids"], json!(["python__empty"]));
-    assert_eq!(report["error_ids"], json!([]));
-    assert_eq!(
-        report["incomplete_ids"],
-        json!([
-            "python__fail",
-            "python__gitfail",
-            "python__nochat",
-            "python__nopatch",
-            "python__space"
-        ])
-    );
+fn outcomes_json(outcomes: &[Outcome]) -> Value {
+    json!(
+        outcomes
+            .iter()
+            .map(|o| json!([o.instance_id, o.success, o.eval_result]))
+            .collect::<Vec<_>>()
+    )
 }
 
-fn check_results(out: &Path) {
-    let result = |id: &str| read(&out.join(format!("python__{id}.json")));
-    let resolved = result("resolved");
-    assert_eq!(resolved["model_patch"], "patch python__resolved\n");
-    assert_eq!(resolved["model_name_or_path"], "agent_0");
-    assert_eq!(resolved["success"], true);
-    assert_eq!(resolved["proposed_model_patches"], json!([]));
-    let gitfail = result("gitfail");
-    assert_eq!(gitfail["eval_result"], "error");
-    assert_eq!(gitfail["proposed_model_patches"], json!([]));
-    assert_eq!(gitfail["model_patch"], "patch python__gitfail\n");
-    assert_eq!(result("nochat")["eval_result"], "incomplete");
-    assert_eq!(result("nochat")["proposed_model_patches"], "");
-    assert_eq!(result("empty")["eval_result"], "empty_patch");
+fn expected(outcomes: &[Outcome]) -> Value {
+    outcomes_json(outcomes)
 }
 
-fn check_outputs(out: &Path) {
-    let text = |name: &str| fs::read_to_string(out.join(name)).unwrap();
-    assert_eq!(
-        text("python__resolved.md"),
-        "chat python__resolved polyglot python /testbed\n"
-    );
-    assert_eq!(text("python__resolved_1.md"), "more python__resolved\n");
-    assert!(text("python__resolved_eval.md").contains("1 passed"));
-    assert_eq!(
-        text("python__resolved_eval.sh"),
-        "#!/bin/bash\nset -uxo pipefail\npytest -rA --tb=long\n"
-    );
-    let docker_log = text("python__resolved_docker.log");
-    assert!(docker_log.contains("Running the eval"), "{docker_log}");
-    assert!(docker_log.contains("Stopping container"), "{docker_log}");
-    let fail_log = text("python__fail_docker.log");
-    assert!(
-        fail_log.contains("Error processing entry python__fail: "),
-        "{fail_log}"
-    );
-}
-
-fn run_every_mode(h: &Harness, root: &Path, commit: &Path) {
+fn scenario(root: &Path) {
+    base_image();
+    let h = harness(root, root_with_tasks(root, &MODES));
+    let commit = root.join("commit");
+    fs::create_dir_all(&commit).unwrap();
     let mut tasks: Vec<String> = MODES.iter().map(|m| format!("python__{m}")).collect();
     tasks.push("python__absent".to_owned());
     let pred = root.join("pred");
-    let report_file = h.harness(&tasks, &agent(root), &pred, commit).unwrap();
-    assert!(report_file.starts_with(commit));
-    let name = report_file
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .into_owned();
-    assert!(name.starts_with("agent "), "{name}");
-    let report = read(&report_file);
-    check_report(&report);
-    check_results(&pred.join("agent_0"));
-    check_outputs(&pred.join("agent_0"));
-    let again = h.harness(&tasks, &agent(root), &pred, commit).unwrap();
-    assert_eq!(read(&again)["resolved_ids"], json!(["python__resolved"]));
-    assert_eq!(read(&again)["incomplete_ids"], report["incomplete_ids"]);
-}
-
-fn run_without_an_agent(h: &Harness, root: &Path) {
+    let report = h.harness(&tasks, &agent(root), &pred, &commit).unwrap();
+    let again = h.harness(&tasks, &agent(root), &pred, &commit).unwrap();
     let run = Run {
         agent: root.join("no-agent"),
         ..agent(root)
     };
-    let outcomes = h.evaluate(&[entry("resolved")], &root.join("noagent"), &run);
-    assert_eq!(outcomes, [outcome("python__resolved", false, "incomplete")]);
-}
-
-fn run_with_unwritable_outputs(h: &Harness, root: &Path) {
+    let noagent = h.evaluate(&[entry("resolved")], &root.join("noagent"), &run);
     let unwritable = root.join("unwritable");
     fs::create_dir_all(&unwritable).unwrap();
     let nowhere = root.join("no/such/dir/file");
@@ -257,87 +199,417 @@ fn run_with_unwritable_outputs(h: &Harness, root: &Path) {
         crate::dangling(&nowhere, &unwritable.join(name));
     }
     let entries = [entry("empty"), entry("resolved"), entry("unresolved")];
-    let mut outcomes = h.evaluate(&entries, &unwritable, &agent(root));
-    outcomes.sort_by(|a, b| a.instance_id.cmp(&b.instance_id));
+    let mut blocked = h.evaluate(&entries, &unwritable, &agent(root));
+    blocked.sort_by(|a, b| a.instance_id.cmp(&b.instance_id));
+    let lost = h.evaluate(&[entry("ghost")], &root.join("lost"), &agent(root));
+    let seen = json!({
+        "report": report,
+        "again": again,
+        "noagent": outcomes_json(&noagent),
+        "blocked": outcomes_json(&blocked),
+        "lost": outcomes_json(&lost),
+    });
+    fs::write(root.join("seen.json"), seen.to_string()).unwrap();
+}
+
+struct Shared {
+    root: PathBuf,
+    seen: Value,
+}
+
+impl Shared {
+    fn path(&self, key: &str) -> PathBuf {
+        PathBuf::from(self.seen[key].as_str().unwrap())
+    }
+
+    fn report(&self) -> Value {
+        read(&self.path("report"))
+    }
+
+    fn result(&self, mode: &str) -> Value {
+        read(&self.out().join(format!("python__{mode}.json")))
+    }
+
+    fn out(&self) -> PathBuf {
+        self.root.join("pred/agent_0")
+    }
+
+    fn text(&self, name: &str) -> String {
+        fs::read_to_string(self.out().join(name)).unwrap()
+    }
+}
+
+fn shared() -> Shared {
+    let root = crate::once("polyglot", scenario);
+    let seen = read(&root.join("seen.json"));
+    Shared { root, seen }
+}
+
+#[test]
+fn the_report_lands_in_the_commit_folder() {
+    let s = shared();
+    assert!(s.path("report").starts_with(s.root.join("commit")));
+}
+
+#[test]
+fn the_report_is_named_for_the_agent() {
+    let name = shared()
+        .path("report")
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    assert!(name.starts_with("agent "), "{name}");
+}
+
+#[test]
+fn the_report_counts_every_instance() {
+    assert_eq!(shared().report()["total_instances"], 8);
+}
+
+#[test]
+fn the_report_counts_every_submission() {
+    assert_eq!(shared().report()["submitted_instances"], 8);
+}
+
+#[test]
+fn the_report_lists_the_resolved() {
     assert_eq!(
-        outcomes,
-        [
+        shared().report()["resolved_ids"],
+        json!(["python__resolved"])
+    );
+}
+
+#[test]
+fn the_report_lists_the_unresolved() {
+    assert_eq!(
+        shared().report()["unresolved_ids"],
+        json!(["python__unresolved"])
+    );
+}
+
+#[test]
+fn the_report_lists_the_empty_patches() {
+    assert_eq!(
+        shared().report()["empty_patch_ids"],
+        json!(["python__empty"])
+    );
+}
+
+#[test]
+fn the_report_lists_no_errors() {
+    assert_eq!(shared().report()["error_ids"], json!([]));
+}
+
+#[test]
+fn the_report_lists_the_incomplete() {
+    assert_eq!(
+        shared().report()["incomplete_ids"],
+        json!([
+            "python__fail",
+            "python__gitfail",
+            "python__nochat",
+            "python__nopatch",
+            "python__space"
+        ])
+    );
+}
+
+#[test]
+fn a_resolved_result_keeps_its_patch() {
+    assert_eq!(
+        shared().result("resolved")["model_patch"],
+        "patch python__resolved\n"
+    );
+}
+
+#[test]
+fn a_resolved_result_names_the_run() {
+    assert_eq!(shared().result("resolved")["model_name_or_path"], "agent_0");
+}
+
+#[test]
+fn a_resolved_result_succeeds() {
+    assert_eq!(shared().result("resolved")["success"], true);
+}
+
+#[test]
+fn a_resolved_result_has_no_proposals() {
+    assert_eq!(
+        shared().result("resolved")["proposed_model_patches"],
+        json!([])
+    );
+}
+
+#[test]
+fn a_failing_git_is_an_eval_error() {
+    assert_eq!(shared().result("gitfail")["eval_result"], "error");
+}
+
+#[test]
+fn a_failing_git_has_no_proposals() {
+    assert_eq!(
+        shared().result("gitfail")["proposed_model_patches"],
+        json!([])
+    );
+}
+
+#[test]
+fn a_failing_git_keeps_the_patch() {
+    assert_eq!(
+        shared().result("gitfail")["model_patch"],
+        "patch python__gitfail\n"
+    );
+}
+
+#[test]
+fn a_missing_chat_is_incomplete() {
+    assert_eq!(shared().result("nochat")["eval_result"], "incomplete");
+}
+
+#[test]
+fn a_missing_chat_has_blank_proposals() {
+    assert_eq!(shared().result("nochat")["proposed_model_patches"], "");
+}
+
+#[test]
+fn an_empty_patch_is_reported() {
+    assert_eq!(shared().result("empty")["eval_result"], "empty_patch");
+}
+
+#[test]
+fn the_chat_log_is_copied_back() {
+    assert_eq!(
+        shared().text("python__resolved.md"),
+        "chat python__resolved polyglot python /testbed\n"
+    );
+}
+
+#[test]
+fn extra_chat_logs_are_copied_back() {
+    assert_eq!(
+        shared().text("python__resolved_1.md"),
+        "more python__resolved\n"
+    );
+}
+
+#[test]
+fn the_eval_output_is_kept() {
+    assert!(
+        shared()
+            .text("python__resolved_eval.md")
+            .contains("1 passed")
+    );
+}
+
+#[test]
+fn the_eval_script_is_kept() {
+    assert_eq!(
+        shared().text("python__resolved_eval.sh"),
+        "#!/bin/bash\nset -uxo pipefail\npytest -rA --tb=long\n"
+    );
+}
+
+#[test]
+fn the_docker_log_records_the_eval() {
+    let log = shared().text("python__resolved_docker.log");
+    assert!(log.contains("Running the eval"), "{log}");
+}
+
+#[test]
+fn the_docker_log_records_the_stop() {
+    let log = shared().text("python__resolved_docker.log");
+    assert!(log.contains("Stopping container"), "{log}");
+}
+
+#[test]
+fn a_failing_agent_is_logged() {
+    let log = shared().text("python__fail_docker.log");
+    assert!(
+        log.contains("Error processing entry python__fail: "),
+        "{log}"
+    );
+}
+
+fn again() -> Value {
+    read(&shared().path("again"))
+}
+
+#[test]
+fn a_second_run_resolves_the_same() {
+    assert_eq!(again()["resolved_ids"], json!(["python__resolved"]));
+}
+
+#[test]
+fn a_second_run_leaves_the_same_incomplete() {
+    assert_eq!(
+        again()["incomplete_ids"],
+        shared().report()["incomplete_ids"]
+    );
+}
+
+#[test]
+fn a_run_without_an_agent_is_incomplete() {
+    assert_eq!(
+        shared().seen["noagent"],
+        expected(&[outcome("python__resolved", false, "incomplete")])
+    );
+}
+
+#[test]
+fn unwritable_outputs_are_errors() {
+    assert_eq!(
+        shared().seen["blocked"],
+        expected(&[
             outcome("python__empty", false, "error"),
             outcome("python__resolved", false, "error"),
             outcome("python__unresolved", false, "error"),
-        ]
+        ])
     );
+}
+
+#[test]
+fn an_unwritable_eval_script_is_recorded_as_an_error() {
     assert_eq!(
-        read(&unwritable.join("python__resolved.json"))["eval_result"],
+        read(&shared().root.join("unwritable/python__resolved.json"))["eval_result"],
         "error"
     );
-    let lost = h.evaluate(&[entry("ghost")], &root.join("lost"), &agent(root));
-    assert_eq!(lost, [outcome("python__ghost", false, "incomplete")]);
 }
 
 #[test]
-fn the_polyglot_harness_builds_images_runs_agents_and_reports() {
-    base_image();
+fn an_entry_without_a_task_folder_is_incomplete() {
+    assert_eq!(
+        shared().seen["lost"],
+        expected(&[outcome("python__ghost", false, "incomplete")])
+    );
+}
+
+struct Setup {
+    tmp: tempfile::TempDir,
+    dataset: PathBuf,
+    run: Run,
+}
+
+impl Setup {
+    fn root(&self) -> &Path {
+        self.tmp.path()
+    }
+
+    fn gone(&self) -> Harness {
+        Harness {
+            docker: Docker::new("hgm-no-such-docker-program"),
+            ..harness(self.root(), self.dataset.clone())
+        }
+    }
+
+    fn commit(&self) -> PathBuf {
+        self.root().join("commit")
+    }
+
+    fn pred(&self) -> PathBuf {
+        self.root().join("pred")
+    }
+}
+
+const TASKS: [&str; 1] = ["python__resolved"];
+
+fn setup() -> Setup {
     let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path();
-    let h = harness(root, root_with_tasks(root, &MODES));
-    let commit = root.join("commit");
-    fs::create_dir_all(&commit).unwrap();
-    run_every_mode(&h, root, &commit);
-    run_without_an_agent(&h, root);
-    run_with_unwritable_outputs(&h, root);
+    let dataset = root_with_tasks(tmp.path(), &["resolved"]);
+    let run = agent(tmp.path());
+    Setup { tmp, dataset, run }
 }
 
 #[test]
-fn harness_setup_failures_are_errors() {
-    let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path();
-    let dataset = root_with_tasks(root, &["resolved"]);
-    let run = agent(root);
-    let commit = root.join("commit");
-    let tasks = ["python__resolved"];
-    let gone = Harness {
-        docker: Docker::new("hgm-no-such-docker-program"),
-        ..harness(root, dataset.clone())
-    };
+fn a_missing_docker_fails_the_harness() {
+    let s = setup();
     assert!(
-        gone.harness(&tasks, &run, &root.join("pred"), &commit)
+        s.gone()
+            .harness(&TASKS, &s.run, &s.pred(), &s.commit())
             .is_err()
     );
-    let no_dataset = harness(root, root.join("none.json"));
-    let e = no_dataset
-        .harness(&tasks, &run, &root.join("pred"), &commit)
+}
+
+#[test]
+fn a_missing_dataset_is_named() {
+    let s = setup();
+    let e = harness(s.root(), s.root().join("none.json"))
+        .harness(&TASKS, &s.run, &s.pred(), &s.commit())
         .unwrap_err();
     assert!(e.starts_with("Dataset file not found: "), "{e}");
-    let junk = root.join("junk.json");
+}
+
+#[test]
+fn a_junk_dataset_fails_the_harness() {
+    let s = setup();
+    let junk = s.root().join("junk.json");
     fs::write(&junk, "[").unwrap();
     assert!(
-        harness(root, junk)
-            .harness(&tasks, &run, &root.join("pred"), &commit)
+        harness(s.root(), junk)
+            .harness(&TASKS, &s.run, &s.pred(), &s.commit())
             .is_err()
     );
-    let file = root.join("file");
+}
+
+#[test]
+fn a_prediction_folder_under_a_file_fails_the_harness() {
+    let s = setup();
+    let file = s.root().join("file");
     fs::write(&file, "").unwrap();
     assert!(
-        gone.harness(&tasks, &run, &file.join("pred"), &commit)
+        s.gone()
+            .harness(&TASKS, &s.run, &file.join("pred"), &s.commit())
             .is_err()
     );
-    let empty = Harness {
-        docker: Docker::new("hgm-no-such-docker-program"),
-        ..harness(root, dataset.clone())
-    };
-    let blocked = root.join("blocked");
+}
+
+#[test]
+fn a_blocked_run_folder_fails_the_harness() {
+    let s = setup();
+    let blocked = s.root().join("blocked");
     fs::create_dir_all(&blocked).unwrap();
     fs::write(blocked.join("agent_0"), "").unwrap();
-    assert!(empty.harness(&["none"], &run, &blocked, &commit).is_err());
-    let nowhere = empty.harness(&["none"], &run, &root.join("pred"), &root.join("no/such"));
-    assert!(nowhere.is_err());
-    let report = empty
-        .harness(&["none"], &run, &root.join("pred"), root)
-        .unwrap();
-    let report = read(&report);
-    assert_eq!(report["total_instances"], 1);
-    assert_eq!(report["submitted_instances"], 0);
-    let outcomes = empty.evaluate(&[entry("resolved")], &root.join("out"), &run);
+    assert!(
+        s.gone()
+            .harness(&["none"], &s.run, &blocked, &s.commit())
+            .is_err()
+    );
+}
+
+#[test]
+fn a_missing_commit_folder_fails_the_harness() {
+    let s = setup();
+    assert!(
+        s.gone()
+            .harness(&["none"], &s.run, &s.pred(), &s.root().join("no/such"))
+            .is_err()
+    );
+}
+
+fn unknown_task_report() -> Value {
+    let s = setup();
+    read(
+        &s.gone()
+            .harness(&["none"], &s.run, &s.pred(), s.root())
+            .unwrap(),
+    )
+}
+
+#[test]
+fn an_unknown_task_still_counts_as_an_instance() {
+    assert_eq!(unknown_task_report()["total_instances"], 1);
+}
+
+#[test]
+fn an_unknown_task_is_not_submitted() {
+    assert_eq!(unknown_task_report()["submitted_instances"], 0);
+}
+
+#[test]
+fn an_entry_without_docker_is_incomplete() {
+    let s = setup();
+    let outcomes = s
+        .gone()
+        .evaluate(&[entry("resolved")], &s.root().join("out"), &s.run);
     assert_eq!(outcomes, [outcome("python__resolved", false, "incomplete")]);
 }

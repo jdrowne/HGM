@@ -15,7 +15,7 @@ use hgm_core::log::Log;
 use hgm_sandbox::Docker;
 use serde_json::json;
 
-use crate::common::{FakeBench, FakeBuild, node, performance, read_json, write_json};
+use crate::common::{FakeBench, FakeBuild, node, performance, read_json};
 
 fn paths(output_dir: Option<&str>, continue_from: Option<&str>) -> PathConfig {
     PathConfig {
@@ -25,41 +25,94 @@ fn paths(output_dir: Option<&str>, continue_from: Option<&str>) -> PathConfig {
     }
 }
 
-#[test]
-fn output_directories_follow_the_python_rules() {
-    let cwd = Path::new("/w");
-    assert_eq!(
-        resolve_output_dir(&paths(Some("runs/x/"), Some("p")), cwd, "now"),
-        (PathBuf::from("/w/runs/x/"), "x".to_owned())
-    );
-    assert_eq!(
-        resolve_output_dir(&paths(None, None), cwd, "now"),
-        (PathBuf::from("/w/output_hgm/now"), "now".to_owned())
-    );
-    assert_eq!(
-        resolve_output_dir(&paths(None, Some("old/run7")), cwd, "now"),
-        (PathBuf::from("/w/output_hgm/run7"), "run7".to_owned())
-    );
-    assert_eq!(
-        resolve_output_dir(&paths(Some("/"), None), cwd, "now"),
-        (PathBuf::from("/"), String::new())
-    );
-    assert_eq!(initial_folder(true), "initial_polyglot");
-    assert_eq!(initial_folder(false), "initial_swe");
+fn resolved(output_dir: Option<&str>, continue_from: Option<&str>) -> (PathBuf, String) {
+    resolve_output_dir(&paths(output_dir, continue_from), Path::new("/w"), "now")
 }
 
 #[test]
-fn settings_come_from_the_config() {
-    let config = HgmConfig::default();
-    let s = settings(&config, Duration::from_millis(3));
-    assert_eq!(s.max_task_evals, 800);
-    assert_eq!(s.max_workers, 16);
-    assert_eq!(s.alpha, 0.6);
-    assert_eq!(s.beta, 1.0);
-    assert!(!s.cool_down);
-    assert_eq!(s.n_pseudo_descendant_evals, 10000);
-    assert_eq!(s.eval_random_level, 1.0);
-    assert_eq!(s.jitter, Duration::from_millis(3));
+fn an_output_directory_names_the_run() {
+    assert_eq!(
+        resolved(Some("runs/x/"), Some("p")),
+        (PathBuf::from("/w/runs/x/"), "x".to_owned())
+    );
+}
+
+#[test]
+fn a_new_run_is_named_for_the_time() {
+    assert_eq!(
+        resolved(None, None),
+        (PathBuf::from("/w/output_hgm/now"), "now".to_owned())
+    );
+}
+
+#[test]
+fn a_continued_run_keeps_its_name() {
+    assert_eq!(
+        resolved(None, Some("old/run7")),
+        (PathBuf::from("/w/output_hgm/run7"), "run7".to_owned())
+    );
+}
+
+#[test]
+fn the_root_as_output_directory_has_no_name() {
+    assert_eq!(
+        resolved(Some("/"), None),
+        (PathBuf::from("/"), String::new())
+    );
+}
+
+#[test]
+fn polyglot_runs_start_from_the_polyglot_folder() {
+    assert_eq!(initial_folder(true), "initial_polyglot");
+}
+
+#[test]
+fn swe_runs_start_from_the_swe_folder() {
+    assert_eq!(initial_folder(false), "initial_swe");
+}
+
+fn default_settings() -> hgm::search::Settings {
+    settings(&HgmConfig::default(), Duration::from_millis(3))
+}
+
+#[test]
+fn the_default_budget_is_800_evaluations() {
+    assert_eq!(default_settings().max_task_evals, 800);
+}
+
+#[test]
+fn the_default_worker_count_is_16() {
+    assert_eq!(default_settings().max_workers, 16);
+}
+
+#[test]
+fn the_default_alpha_is_0_6() {
+    assert_eq!(default_settings().alpha, 0.6);
+}
+
+#[test]
+fn the_default_beta_is_1() {
+    assert_eq!(default_settings().beta, 1.0);
+}
+
+#[test]
+fn cool_down_is_off_by_default() {
+    assert!(!default_settings().cool_down);
+}
+
+#[test]
+fn the_default_pseudo_descendant_count_is_10000() {
+    assert_eq!(default_settings().n_pseudo_descendant_evals, 10000);
+}
+
+#[test]
+fn the_default_eval_random_level_is_1() {
+    assert_eq!(default_settings().eval_random_level, 1.0);
+}
+
+#[test]
+fn the_jitter_is_passed_through() {
+    assert_eq!(default_settings().jitter, Duration::from_millis(3));
 }
 
 fn offline(root: &Path) -> Hub {
@@ -69,24 +122,47 @@ fn offline(root: &Path) -> Hub {
     }
 }
 
-#[test]
-fn task_lists_and_datasets_depend_on_the_benchmark() {
-    let tmp = tempfile::tempdir().unwrap();
-    let hub = offline(tmp.path());
+fn full_eval() -> HgmConfig {
     let mut config = HgmConfig::default();
-    assert_eq!(run_tasks(&config, &hub).unwrap(), swe_run_tasks());
     config.evaluation.full_eval = true;
-    assert!(run_tasks(&config, &hub).is_err());
-    assert!(improve_dataset(false, tmp.path(), &hub).is_err());
-    let cache = tmp
-        .path()
-        .join("cache/princeton-nlp/SWE-bench_Verified/test");
+    config
+}
+
+fn verified_cache(root: &Path) {
+    let cache = root.join("cache/princeton-nlp/SWE-bench_Verified/test");
     fs::create_dir_all(&cache).unwrap();
     let fixture = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .join("../../test/src/bench/unit/fixtures/rows.parquet");
     fs::copy(fixture, cache.join("rows.parquet")).unwrap();
     fs::write(cache.join("files.json"), r#"["rows.parquet"]"#).unwrap();
-    let mut full = run_tasks(&config, &hub).unwrap();
+}
+
+#[test]
+fn swe_runs_use_the_swe_task_order() {
+    let tmp = tempfile::tempdir().unwrap();
+    assert_eq!(
+        run_tasks(&HgmConfig::default(), &offline(tmp.path())).unwrap(),
+        swe_run_tasks()
+    );
+}
+
+#[test]
+fn a_full_evaluation_needs_the_dataset() {
+    let tmp = tempfile::tempdir().unwrap();
+    assert!(run_tasks(&full_eval(), &offline(tmp.path())).is_err());
+}
+
+#[test]
+fn the_swe_improve_dataset_needs_the_dataset() {
+    let tmp = tempfile::tempdir().unwrap();
+    assert!(improve_dataset(false, tmp.path(), &offline(tmp.path())).is_err());
+}
+
+#[test]
+fn a_full_evaluation_runs_every_verified_task() {
+    let tmp = tempfile::tempdir().unwrap();
+    verified_cache(tmp.path());
+    let mut full = run_tasks(&full_eval(), &offline(tmp.path())).unwrap();
     full.sort();
     assert_eq!(
         full,
@@ -96,59 +172,89 @@ fn task_lists_and_datasets_depend_on_the_benchmark() {
             "sympy__sympy-20590"
         ]
     );
-    assert_eq!(improve_dataset(false, tmp.path(), &hub).unwrap().len(), 3);
-    config.evaluation.polyglot = true;
-    assert_eq!(run_tasks(&config, &hub).unwrap(), polyglot_run_tasks());
-    assert!(improve_dataset(true, tmp.path(), &hub).is_err());
-    write_json(
-        &tmp.path().join("polyglot/polyglot_benchmark_metadata.json"),
-        &json!([{"instance_id": "x"}]),
-    );
-    assert_eq!(
-        improve_dataset(true, tmp.path(), &hub).unwrap(),
-        [json!({"instance_id": "x"})]
-    );
-    fs::write(
-        tmp.path().join("polyglot/polyglot_benchmark_metadata.json"),
-        "[",
-    )
-    .unwrap();
-    assert!(improve_dataset(true, tmp.path(), &hub).is_err());
 }
 
 #[test]
-fn the_bench_follows_the_benchmark_flag() {
+fn the_swe_improve_dataset_is_the_verified_set() {
     let tmp = tempfile::tempdir().unwrap();
-    let hub = offline(tmp.path());
-    let docker = Docker::new("hgm-no-such-docker-program");
+    verified_cache(tmp.path());
+    assert_eq!(
+        improve_dataset(false, tmp.path(), &offline(tmp.path()))
+            .unwrap()
+            .len(),
+        3
+    );
+}
+
+#[test]
+fn polyglot_runs_use_the_polyglot_task_order() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut config = full_eval();
+    config.evaluation.polyglot = true;
+    assert_eq!(
+        run_tasks(&config, &offline(tmp.path())).unwrap(),
+        polyglot_run_tasks()
+    );
+}
+
+fn polyglot_dataset(contents: Option<&str>) -> Result<Vec<serde_json::Value>, String> {
+    let tmp = tempfile::tempdir().unwrap();
+    if let Some(text) = contents {
+        let path = tmp.path().join("polyglot/polyglot_benchmark_metadata.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, text).unwrap();
+    }
+    improve_dataset(true, tmp.path(), &offline(tmp.path()))
+}
+
+#[test]
+fn the_polyglot_improve_dataset_needs_its_file() {
+    assert!(polyglot_dataset(None).is_err());
+}
+
+#[test]
+fn the_polyglot_improve_dataset_is_read_from_its_file() {
+    assert_eq!(
+        polyglot_dataset(Some(r#"[{"instance_id": "x"}]"#)).unwrap(),
+        [json!({"instance_id": "x"})]
+    );
+}
+
+#[test]
+fn a_junk_polyglot_dataset_is_an_error() {
+    assert!(polyglot_dataset(Some("[")).is_err());
+}
+
+fn bench_error(polyglot: bool) -> String {
+    let tmp = tempfile::tempdir().unwrap();
     let mut config = HgmConfig::default();
+    config.evaluation.polyglot = polyglot;
     let out = tmp.path().join("out");
     fs::create_dir_all(out.join("c")).unwrap();
-    let swe = bench_for(&config, tmp.path(), &docker, &hub);
-    let tasks = ["t".to_owned()];
-    assert!(
-        Evaluator {
-            bench: swe.as_ref(),
-            output_dir: &out,
-            max_workers: 1,
-            builder: &FakeBuild::default()
-        }
-        .eval_agent("c", &tasks)
-        .is_err()
-    );
-    config.evaluation.polyglot = true;
-    let polyglot = bench_for(&config, tmp.path(), &docker, &hub);
-    let e = Evaluator {
-        bench: polyglot.as_ref(),
+    let docker = Docker::new("hgm-no-such-docker-program");
+    let bench = bench_for(&config, tmp.path(), &docker, &offline(tmp.path()));
+    Evaluator {
+        bench: bench.as_ref(),
         output_dir: &out,
         max_workers: 1,
         builder: &FakeBuild::default(),
     }
-    .eval_agent("c", &tasks)
-    .unwrap_err();
+    .eval_agent("c", &["t".to_owned()])
+    .unwrap_err()
+}
+
+#[test]
+fn the_swe_bench_is_used_by_default() {
+    assert!(!bench_error(false).starts_with("Dataset file not found: "));
+}
+
+#[test]
+fn the_polyglot_bench_follows_the_benchmark_flag() {
+    let e = bench_error(true);
     assert!(e.starts_with("Dataset file not found: "), "{e}");
 }
 
+#[cfg(unix)]
 fn agent_source(root: &Path) {
     fs::write(
         root.join(".dockerignore"),
@@ -176,99 +282,223 @@ fn init<'a>(
     }
 }
 
+fn two_tasks() -> Vec<String> {
+    vec!["a".to_owned(), "b".to_owned()]
+}
+
 #[cfg(unix)]
-#[test]
-fn a_new_run_prepares_and_evaluates_the_initial_agent_once() {
+struct Started {
+    tmp: tempfile::TempDir,
+    bench: FakeBench,
+    start: hgm::run::Start,
+}
+
+#[cfg(unix)]
+impl Started {
+    fn root(&self) -> &Path {
+        self.tmp.path()
+    }
+
+    fn seen(&self) -> Vec<crate::common::Seen> {
+        self.bench.seen.lock().unwrap().clone()
+    }
+
+    fn again(&self) -> hgm::run::Start {
+        initialize_run(
+            &init(self.root(), &self.root().join("out"), &two_tasks(), None),
+            &self.bench,
+            &Docker::new("true"),
+            &Log::discard(),
+        )
+        .unwrap()
+    }
+}
+
+#[cfg(unix)]
+fn started() -> Started {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     agent_source(root);
-    let out = root.join("out");
-    let tasks = vec!["a".to_owned(), "b".to_owned()];
     let bench = FakeBench::resolving(&["a"]);
-    let docker = Docker::new("true");
     let start = initialize_run(
-        &init(root, &out, &tasks, None),
+        &init(root, &root.join("out"), &two_tasks(), None),
         &bench,
-        &docker,
+        &Docker::new("true"),
         &Log::discard(),
     )
     .unwrap();
-    assert_eq!(start.src_path, root.join("initial_swe/agent/src"));
-    assert!(root.join("initial_swe/agent/src/coding_agent.py").is_file());
-    assert!(root.join("initial_swe/agent/src/Dockerfile").is_file());
-    assert!(out.join("initial/src/coding_agent.py").is_file());
-    let seen = bench.seen.lock().unwrap().clone();
-    assert_eq!(seen.len(), 1);
-    assert_eq!(
-        (
-            seen[0].commit.as_str(),
-            seen[0].tasks.clone(),
-            seen[0].max_workers
-        ),
-        ("agent", tasks.clone(), 2)
+    Started { tmp, bench, start }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_new_run_points_at_the_prepared_source() {
+    let s = started();
+    assert_eq!(s.start.src_path, s.root().join("initial_swe/agent/src"));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_new_run_copies_the_agent_source() {
+    assert!(
+        started()
+            .root()
+            .join("initial_swe/agent/src/coding_agent.py")
+            .is_file()
     );
-    assert_eq!(start.tree.len(), 1);
-    assert_eq!(start.tree.get(0).unwrap().utility_measures, [1.0, 0.0]);
-    assert_eq!(start.submitted_ids[&0].len(), 2);
-    assert_eq!(start.n_task_evals, 0);
-    assert!(start.init_evaluated_tasks.is_empty());
-    let again = initialize_run(
-        &init(root, &out, &tasks, None),
-        &bench,
-        &docker,
-        &Log::discard(),
-    )
-    .unwrap();
-    assert_eq!(again.tree.get(0).unwrap().utility_measures, [1.0, 0.0]);
-    assert_eq!(bench.seen.lock().unwrap().len(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_new_run_copies_the_dockerfile() {
+    assert!(
+        started()
+            .root()
+            .join("initial_swe/agent/src/Dockerfile")
+            .is_file()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_new_run_seeds_the_initial_node() {
+    assert!(
+        started()
+            .root()
+            .join("out/initial/src/coding_agent.py")
+            .is_file()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_new_run_evaluates_the_initial_agent_once() {
+    assert_eq!(started().seen().len(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn the_initial_evaluation_names_the_agent() {
+    assert_eq!(started().seen()[0].commit, "agent");
+}
+
+#[cfg(unix)]
+#[test]
+fn the_initial_evaluation_covers_every_task() {
+    assert_eq!(started().seen()[0].tasks, two_tasks());
+}
+
+#[cfg(unix)]
+#[test]
+fn the_initial_evaluation_caps_its_workers() {
+    assert_eq!(started().seen()[0].max_workers, 2);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_new_run_starts_with_the_root_alone() {
+    assert_eq!(started().start.tree.len(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn the_root_holds_the_initial_measures() {
     assert_eq!(
-        read_json(&out.join("initial/metadata.json"))["run_id"],
+        started().start.tree.get(0).unwrap().utility_measures,
+        [1.0, 0.0]
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn the_initial_tasks_count_as_submitted() {
+    assert_eq!(started().start.submitted_ids[&0].len(), 2);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_new_run_has_spent_no_budget() {
+    assert_eq!(started().start.n_task_evals, 0);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_new_run_has_no_initially_evaluated_tasks() {
+    assert!(started().start.init_evaluated_tasks.is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_second_start_reads_the_initial_measures_back() {
+    assert_eq!(
+        started().again().tree.get(0).unwrap().utility_measures,
+        [1.0, 0.0]
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_second_start_does_not_evaluate_again() {
+    let s = started();
+    s.again();
+    assert_eq!(s.seen().len(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn the_initial_node_is_named_initial() {
+    assert_eq!(
+        read_json(&started().root().join("out/initial/metadata.json"))["run_id"],
         "initial"
     );
 }
 
 #[test]
-fn setting_up_the_initial_agent_can_fail() {
+fn a_missing_docker_fails_the_setup() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    let out = root.join("out");
-    let tasks = vec!["a".to_owned()];
-    let bench = FakeBench::resolving(&[]);
-    let docker = Docker::new("hgm-no-such-docker-program");
     assert!(
         initialize_run(
-            &init(root, &out, &tasks, None),
-            &bench,
-            &docker,
+            &init(root, &root.join("out"), &["a".to_owned()], None),
+            &FakeBench::resolving(&[]),
+            &Docker::new("hgm-no-such-docker-program"),
             &Log::discard()
         )
         .is_err()
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_failing_initial_evaluation_is_reported() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    agent_source(root);
     let failing = FakeBench {
         fail: true,
         ..FakeBench::resolving(&[])
     };
-    let other = tmp.path().join("other");
-    fs::create_dir_all(&other).unwrap();
-    agent_source(&other);
-    let docker = Docker::new("true");
-    #[cfg(unix)]
     assert_eq!(
         initialize_run(
-            &init(&other, &out, &tasks, None),
+            &init(root, &root.join("out"), &["a".to_owned()], None),
             &failing,
-            &docker,
+            &Docker::new("true"),
             &Log::discard()
         )
         .err(),
         Some("bench failed".to_owned())
     );
-    let fresh = tmp.path().join("fresh");
-    fs::create_dir_all(fresh.join("initial_swe/agent")).unwrap();
+}
+
+#[test]
+fn an_initial_folder_without_source_is_an_error() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("initial_swe/agent")).unwrap();
     let e = initialize_run(
-        &init(&fresh, &out, &tasks, None),
-        &bench,
-        &docker,
+        &init(root, &root.join("out"), &["a".to_owned()], None),
+        &FakeBench::resolving(&[]),
+        &Docker::new("true"),
         &Log::discard(),
     )
     .err();
@@ -294,8 +524,7 @@ fn previous(prev: &Path) {
     .unwrap();
 }
 
-#[test]
-fn a_continued_run_rebuilds_the_tree_from_the_last_record() {
+fn continued() -> (FakeBench, hgm::run::Start) {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     let out = root.join("run");
@@ -309,56 +538,114 @@ fn a_continued_run_rebuilds_the_tree_from_the_last_record() {
     );
     node(&out, "c1", Some("initial"), performance(&["a"], &[], &[]));
     node(&out, "c2", Some("c1"), performance(&["a"], &["b"], &[]));
-    let tasks = vec!["a".to_owned(), "b".to_owned()];
     let bench = FakeBench::resolving(&[]);
-    let docker = Docker::new("hgm-no-such-docker-program");
     let start = initialize_run(
-        &init(root, &out, &tasks, Some(&out)),
+        &init(root, &out, &two_tasks(), Some(&out)),
         &bench,
-        &docker,
+        &Docker::new("hgm-no-such-docker-program"),
         &Log::discard(),
     )
     .unwrap();
-    assert!(bench.seen.lock().unwrap().is_empty());
-    assert_eq!(start.tree.len(), 3);
-    assert_eq!(start.tree.get(2).unwrap().parent_id, Some(1));
-    assert_eq!(start.tree.get(0).unwrap().children, [1]);
-    assert_eq!(start.tree.get(2).unwrap().utility_measures, [1.0, 0.0]);
-    assert_eq!(start.n_task_evals, 3);
-    assert_eq!(start.init_evaluated_tasks, ["a"]);
-    assert_eq!(start.submitted_ids[&1].len(), 1);
+    (bench, start)
 }
 
 #[test]
-fn a_continued_run_needs_its_records() {
+fn a_continued_run_evaluates_nothing() {
+    assert!(continued().0.seen.lock().unwrap().is_empty());
+}
+
+#[test]
+fn a_continued_run_rebuilds_the_tree_from_the_last_record() {
+    assert_eq!(continued().1.tree.len(), 3);
+}
+
+#[test]
+fn a_continued_run_keeps_the_parents() {
+    assert_eq!(continued().1.tree.get(2).unwrap().parent_id, Some(1));
+}
+
+#[test]
+fn a_continued_run_links_the_children() {
+    assert_eq!(continued().1.tree.get(0).unwrap().children, [1]);
+}
+
+#[test]
+fn a_continued_run_reads_the_node_measures() {
+    assert_eq!(
+        continued().1.tree.get(2).unwrap().utility_measures,
+        [1.0, 0.0]
+    );
+}
+
+#[test]
+fn a_continued_run_keeps_the_spent_budget() {
+    assert_eq!(continued().1.n_task_evals, 3);
+}
+
+#[test]
+fn a_continued_run_keeps_the_initially_evaluated_tasks() {
+    assert_eq!(continued().1.init_evaluated_tasks, ["a"]);
+}
+
+#[test]
+fn a_continued_run_reads_the_submitted_tasks() {
+    assert_eq!(continued().1.submitted_ids[&1].len(), 1);
+}
+
+fn continue_error(prepare: impl FnOnce(&Path)) -> Option<String> {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     let out = root.join("run");
     fs::create_dir_all(&out).unwrap();
-    let tasks = vec!["a".to_owned()];
-    let bench = FakeBench::resolving(&[]);
-    let docker = Docker::new("hgm-no-such-docker-program");
-    let go = |prev: &Path| {
-        initialize_run(
-            &init(root, &out, &tasks, Some(prev)),
-            &bench,
-            &docker,
-            &Log::discard(),
-        )
-    };
+    prepare(&out);
+    initialize_run(
+        &init(root, &out, &["a".to_owned()], Some(&out)),
+        &FakeBench::resolving(&[]),
+        &Docker::new("hgm-no-such-docker-program"),
+        &Log::discard(),
+    )
+    .err()
+}
+
+#[test]
+fn a_continued_run_needs_its_initially_evaluated_tasks() {
     assert!(
-        go(&out)
-            .err()
+        continue_error(|_| {})
             .unwrap()
             .contains("init_evaluated_tasks.json")
     );
-    fs::write(out.join("init_evaluated_tasks.json"), "[]").unwrap();
-    assert!(go(&out).err().unwrap().contains("hgm_metadata.jsonl"));
-    fs::write(out.join("hgm_metadata.jsonl"), "{\"nodes\": [{\"id\": 1}]}").unwrap();
-    assert!(go(&out).is_err());
-    previous(&out);
-    node(&out, "initial", None, performance(&[], &[], &[]));
-    assert!(go(&out).err().unwrap().contains("c1"));
+}
+
+#[test]
+fn a_continued_run_needs_its_records() {
+    assert!(
+        continue_error(|out| fs::write(out.join("init_evaluated_tasks.json"), "[]").unwrap())
+            .unwrap()
+            .contains("hgm_metadata.jsonl")
+    );
+}
+
+#[test]
+fn a_continued_run_needs_complete_records() {
+    assert!(
+        continue_error(|out| {
+            fs::write(out.join("init_evaluated_tasks.json"), "[]").unwrap();
+            fs::write(out.join("hgm_metadata.jsonl"), "{\"nodes\": [{\"id\": 1}]}").unwrap();
+        })
+        .is_some()
+    );
+}
+
+#[test]
+fn a_continued_run_needs_each_node_folder() {
+    assert!(
+        continue_error(|out| {
+            previous(out);
+            node(out, "initial", None, performance(&[], &[], &[]));
+        })
+        .unwrap()
+        .contains("c1")
+    );
 }
 
 fn run_args(root: &Path, extra: impl FnOnce(&mut Cli)) -> Cli {
@@ -371,53 +658,77 @@ fn run_args(root: &Path, extra: impl FnOnce(&mut Cli)) -> Cli {
     args
 }
 
-#[test]
-fn a_run_without_an_agent_name_or_output_directory_stops_early() {
+fn run_error(prepare: impl FnOnce(&Path), extra: impl FnOnce(&mut Cli)) -> String {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    let unnamed = run_args(root, |a| a.initial_agent_name = String::new());
+    prepare(root);
+    run(&run_args(root, extra), root, Duration::ZERO).unwrap_err()
+}
+
+#[test]
+fn a_run_without_an_agent_name_stops_early() {
     assert!(
-        run(&unnamed, root, Duration::ZERO)
-            .unwrap_err()
+        run_error(|_| {}, |a| a.initial_agent_name = String::new())
             .starts_with("Initial agent name must be provided")
     );
-    fs::write(root.join("file"), "").unwrap();
-    let under_file = run_args(root, |a| a.output_dir = Some("file/out".into()));
-    assert!(run(&under_file, root, Duration::ZERO).is_err());
-    fs::create_dir_all(root.join("out/hgm_outer.log")).unwrap();
-    let no_log = run_args(root, |a| a.output_dir = Some("out".into()));
+}
+
+#[test]
+fn a_run_with_an_output_directory_under_a_file_stops_early() {
     assert!(
-        run(&no_log, root, Duration::ZERO)
-            .unwrap_err()
-            .contains("hgm_outer.log")
+        !run_error(
+            |root| fs::write(root.join("file"), "").unwrap(),
+            |a| a.output_dir = Some("file/out".into())
+        )
+        .is_empty()
     );
 }
 
 #[test]
-fn a_run_with_a_bad_epsilon_or_a_polyglot_holdout_stops_before_any_work() {
+fn a_run_that_cannot_open_its_log_says_so() {
+    assert!(
+        run_error(
+            |root| fs::create_dir_all(root.join("out/hgm_outer.log")).unwrap(),
+            |a| a.output_dir = Some("out".into())
+        )
+        .contains("hgm_outer.log")
+    );
+}
+
+#[test]
+fn a_run_with_a_bad_epsilon_stops_before_any_work() {
+    assert!(run_error(|_| {}, |a| a.epsilon = 1.0).starts_with("epsilon must be between 0 and 1"));
+}
+
+fn polyglot_holdout(a: &mut Cli) {
+    a.polyglot = true;
+    a.holdout_split = Some("Lite".into());
+}
+
+#[test]
+fn a_polyglot_run_with_a_holdout_stops_before_any_work() {
+    assert!(run_error(|_| {}, polyglot_holdout).contains("--holdout_split"));
+}
+
+fn refused_root() -> tempfile::TempDir {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    let bad = run_args(root, |a| a.epsilon = 1.0);
-    assert!(
-        run(&bad, root, Duration::ZERO)
-            .unwrap_err()
-            .starts_with("epsilon must be between 0 and 1")
-    );
-    let polyglot_holdout = run_args(root, |a| {
-        a.polyglot = true;
-        a.holdout_split = Some("Lite".into());
-    });
-    assert!(
-        run(&polyglot_holdout, root, Duration::ZERO)
-            .unwrap_err()
-            .contains("--holdout_split")
-    );
-    assert!(!root.join("output_hgm").exists());
-    assert!(!root.join("polyglot").exists());
+    run(&run_args(root, |a| a.epsilon = 1.0), root, Duration::ZERO).unwrap_err();
+    run(&run_args(root, polyglot_holdout), root, Duration::ZERO).unwrap_err();
+    tmp
 }
 
 #[test]
-fn finish_writes_the_best_agent_source_into_the_run() {
+fn a_refused_run_makes_no_output_folder() {
+    assert!(!refused_root().path().join("output_hgm").exists());
+}
+
+#[test]
+fn a_refused_run_fetches_no_polyglot_dataset() {
+    assert!(!refused_root().path().join("polyglot").exists());
+}
+
+fn finished_run() -> (tempfile::TempDir, PathBuf) {
     let tmp = tempfile::tempdir().unwrap();
     let out = tmp.path().join("run");
     fs::create_dir_all(out.join("initial/src")).unwrap();
@@ -435,15 +746,25 @@ fn finish_writes_the_best_agent_source_into_the_run() {
     .unwrap();
     let record = json!({"n_task_evals": 2, "nodes": [{"commit_id": "c1", "id": 1, "parent_id": 0, "mean_utility": 0.5, "num_evals": 2}]});
     fs::write(out.join("hgm_metadata.jsonl"), format!("{record}\n")).unwrap();
-    let args = run_args(tmp.path(), |_| {});
-    finish(&args, &HgmConfig::default(), &out).unwrap();
+    (tmp, out)
+}
+
+#[test]
+fn finish_writes_the_best_agent_source_into_the_run() {
+    let (tmp, out) = finished_run();
+    finish(&run_args(tmp.path(), |_| {}), &HgmConfig::default(), &out).unwrap();
     assert_eq!(
         fs::read_to_string(out.join("best_agent/lib.rs")).unwrap(),
         "seed\nchild\n"
     );
+}
+
+#[test]
+fn finish_needs_the_run_records() {
+    let (tmp, out) = finished_run();
     fs::remove_file(out.join("hgm_metadata.jsonl")).unwrap();
     assert!(
-        finish(&args, &HgmConfig::default(), &out)
+        finish(&run_args(tmp.path(), |_| {}), &HgmConfig::default(), &out)
             .unwrap_err()
             .contains("hgm_metadata.jsonl")
     );

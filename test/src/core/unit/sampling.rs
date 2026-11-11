@@ -17,43 +17,59 @@ fn close(actual: &[f64], expected: &[f64]) -> bool {
             .all(|(a, e)| a == e || ((a - e) / e).abs() < 1e-12)
 }
 
+fn ts_mismatches(
+    check: impl Fn(&str, &Value, (Vec<f64>, Vec<f64>)) -> Option<String>,
+) -> Vec<String> {
+    cases("ts_sample")
+        .iter()
+        .filter_map(|case| {
+            let input = &case["input"];
+            let cool_down = input["cool_down"].as_bool().unwrap().then(|| CoolDown {
+                beta: input["beta"].as_f64().unwrap(),
+                max_task_evals: input["max_task_evals"].as_u64().unwrap() as usize,
+                n_task_evals: input["n_task_evals"].as_u64().unwrap() as usize,
+            });
+            let params = beta_params(&evals(&input["evals"]), cool_down);
+            check(case["name"].as_str().unwrap(), &case["output"], params)
+        })
+        .collect()
+}
+
 #[test]
-fn beta_parameters_match_the_python() {
-    for case in cases("ts_sample") {
-        let input = &case["input"];
-        let cool_down = input["cool_down"].as_bool().unwrap().then(|| CoolDown {
-            beta: input["beta"].as_f64().unwrap(),
-            max_task_evals: input["max_task_evals"].as_u64().unwrap() as usize,
-            n_task_evals: input["n_task_evals"].as_u64().unwrap() as usize,
-        });
-        let (alphas, betas) = beta_params(&evals(&input["evals"]), cool_down);
-        let name = case["name"].as_str().unwrap();
-        let expected_alphas = floats(&case["output"]["alphas"]);
-        let expected_betas = floats(&case["output"]["betas"]);
-        assert!(
-            close(&alphas, &expected_alphas),
-            "{name}: {alphas:?} != {expected_alphas:?}"
-        );
-        assert!(
-            close(&betas, &expected_betas),
-            "{name}: {betas:?} != {expected_betas:?}"
-        );
-        let ties = vec![1.0; alphas.len()];
-        assert_eq!(
-            argmax(&ties),
-            Some(
-                case["output"]["argmax_when_all_thetas_equal"]
-                    .as_u64()
-                    .unwrap() as usize
-            ),
-            "{name}"
-        );
-    }
+fn beta_alphas_match_the_python() {
+    let mismatches = ts_mismatches(|name, output, (alphas, _)| {
+        let expected = floats(&output["alphas"]);
+        (!close(&alphas, &expected)).then(|| format!("{name}: {alphas:?} != {expected:?}"))
+    });
+    assert_eq!(mismatches, Vec::<String>::new());
+}
+
+#[test]
+fn beta_betas_match_the_python() {
+    let mismatches = ts_mismatches(|name, output, (_, betas)| {
+        let expected = floats(&output["betas"]);
+        (!close(&betas, &expected)).then(|| format!("{name}: {betas:?} != {expected:?}"))
+    });
+    assert_eq!(mismatches, Vec::<String>::new());
+}
+
+#[test]
+fn argmax_of_equal_thetas_matches_the_python() {
+    let mismatches = ts_mismatches(|name, output, (alphas, _)| {
+        let actual = argmax(&vec![1.0; alphas.len()]);
+        let expected = output["argmax_when_all_thetas_equal"].as_u64().unwrap() as usize;
+        (actual != Some(expected)).then(|| format!("{name}: {actual:?} != {expected}"))
+    });
+    assert_eq!(mismatches, Vec::<String>::new());
 }
 
 #[test]
 fn argmax_takes_the_first_maximum() {
     assert_eq!(argmax(&[0.2, 0.9, 0.9, 0.1]), Some(1));
+}
+
+#[test]
+fn argmax_of_nothing_is_nothing() {
     assert_eq!(argmax(&[]), None);
 }
 
@@ -73,25 +89,25 @@ fn sampling_favours_the_better_arm() {
     assert!(picks.iter().all(|&p| p == 1));
 }
 
-#[test]
-fn cooling_down_at_the_budget_uses_the_fixed_factor() {
-    let at = CoolDown {
+fn cool_down(n_task_evals: usize) -> CoolDown {
+    CoolDown {
         beta: 1.0,
         max_task_evals: 10,
-        n_task_evals: 10,
-    };
-    let past = CoolDown {
-        n_task_evals: 12,
-        ..at
-    };
-    assert_eq!(at.factor(), 10000.0);
-    assert_eq!(past.factor(), 10000.0);
-    assert_eq!(
-        CoolDown {
-            n_task_evals: 5,
-            ..at
-        }
-        .factor(),
-        2.0
-    );
+        n_task_evals,
+    }
+}
+
+#[test]
+fn cooling_down_at_the_budget_uses_the_fixed_factor() {
+    assert_eq!(cool_down(10).factor(), 10000.0);
+}
+
+#[test]
+fn cooling_down_past_the_budget_uses_the_fixed_factor() {
+    assert_eq!(cool_down(12).factor(), 10000.0);
+}
+
+#[test]
+fn cooling_down_before_the_budget_scales_with_the_evals_left() {
+    assert_eq!(cool_down(5).factor(), 2.0);
 }

@@ -53,12 +53,9 @@ pub fn same(a: &Value, b: &Value) -> bool {
     }
 }
 
-#[track_caller]
-pub fn assert_same(actual: &Value, expected: &Value, what: &str) {
-    assert!(
-        same(actual, expected),
-        "{what}\n  actual:   {actual}\n  expected: {expected}"
-    );
+pub fn differs(actual: &Value, expected: &Value, what: &str) -> Option<String> {
+    (!same(actual, expected))
+        .then(|| format!("{what}\n  actual:   {actual}\n  expected: {expected}"))
 }
 
 pub fn floats(v: &Value) -> Vec<f64> {
