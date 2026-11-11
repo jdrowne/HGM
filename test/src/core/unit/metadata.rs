@@ -186,3 +186,59 @@ fn compiled_self_improvement_matches_the_python() {
     let ok = &case("evo_utils", "is_compiled_self_improve_ok")["input"]["metadata"];
     assert!(is_compiled_self_improve(ok, None));
 }
+
+#[test]
+fn malformed_metadata_is_invalid_data() {
+    let tmp = tempfile::tempdir().unwrap();
+    let empty = tmp.path().join("hgm_metadata.jsonl");
+    fs::write(&empty, "").unwrap();
+    let invalid = |e: std::io::Error| assert_eq!(e.kind(), std::io::ErrorKind::InvalidData);
+    invalid(load_last_hgm_metadata(&empty).unwrap_err());
+    fs::write(&empty, "{\"a\": }").unwrap();
+    invalid(load_hgm_metadata(&empty).unwrap_err());
+    let tasks = tmp.path().join("tasks.json");
+    fs::write(&tasks, "{}").unwrap();
+    invalid(load_init_evaluated_tasks(&tasks).unwrap_err());
+    for record in [
+        json!({}),
+        json!({"nodes": [{"id": 1}]}),
+        json!({"nodes": [{"commit_id": "c"}]}),
+    ] {
+        invalid(tree_from_record(&record).unwrap_err());
+    }
+    fs::write(tmp.path().join("metadata.json"), "{}").unwrap();
+    invalid(read_overall_performance(tmp.path()).unwrap_err());
+    fs::write(tmp.path().join("metadata.json"), "not json").unwrap();
+    invalid(read_overall_performance(tmp.path()).unwrap_err());
+}
+
+#[test]
+fn accuracy_is_resolved_over_submitted() {
+    let mut perf = OverallPerformance::default();
+    assert_eq!(perf.accuracy_score(), 0.0);
+    perf.total_resolved_instances = 1;
+    perf.total_submitted_instances = 4;
+    assert_eq!(perf.accuracy_score(), 0.25);
+}
+
+#[test]
+fn a_results_file_overrides_the_computed_fields_and_may_be_a_list() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(
+        tmp.path().join("run_a.json"),
+        r#"{"file": "other", "accuracy_score": 0.5, "resolved_instances": 1, "submitted_instances": 3}"#,
+    )
+    .unwrap();
+    fs::write(tmp.path().join("run_b.json"), "[]").unwrap();
+    fs::write(tmp.path().join("run_c.txt"), "{}").unwrap();
+    let (per_file, overall) = get_all_performance(tmp.path(), "run").unwrap();
+    assert_eq!(overall.files, ["run_a.json", "run_b.json"]);
+    assert_eq!(overall.total_submitted_instances, 3);
+    let first = py(&per_file[0]);
+    assert_eq!(first["file"], "other");
+    assert_eq!(first["accuracy_score"], 0.5);
+    assert_eq!(py(&per_file[1])["accuracy_score"], 0);
+    fs::write(tmp.path().join("run_d.json"), "{").unwrap();
+    assert!(get_all_performance(tmp.path(), "run").is_err());
+    assert!(get_all_performance(&tmp.path().join("missing"), "run").is_err());
+}

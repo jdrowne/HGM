@@ -114,3 +114,72 @@ fn load_skips_overrides_without_a_value() {
     assert_eq!(config.optimization.alpha, 0.6);
     assert_eq!(config.execution.max_workers, 4);
 }
+
+#[test]
+fn set_takes_each_field_only_with_its_type() {
+    let fields = [
+        ("llm.self_improve_llm", OverrideValue::Str("m".into())),
+        ("llm.downstream_llm", OverrideValue::Str("m".into())),
+        ("llm.diagnose_llm", OverrideValue::Str("m".into())),
+        ("optimization.alpha", OverrideValue::Float(0.5)),
+        ("optimization.beta", OverrideValue::Int(2)),
+        ("optimization.cool_down", OverrideValue::Bool(false)),
+        ("optimization.eval_random_level", OverrideValue::Float(0.25)),
+        (
+            "optimization.n_pseudo_descendant_evals",
+            OverrideValue::Int(7),
+        ),
+        ("execution.max_workers", OverrideValue::Int(3)),
+        ("execution.self_improve_timeout", OverrideValue::Int(60)),
+        ("execution.evaluation_timeout", OverrideValue::Int(61)),
+        ("execution.max_task_evals", OverrideValue::Int(9)),
+        ("evaluation.full_eval", OverrideValue::Bool(true)),
+        ("evaluation.polyglot", OverrideValue::Bool(true)),
+        ("paths.output_dir", OverrideValue::Str("out".into())),
+        ("paths.continue_from", OverrideValue::Str("prev".into())),
+        (
+            "paths.initial_agent_name",
+            OverrideValue::Str("agent".into()),
+        ),
+    ];
+    let mut config = HgmConfig::default();
+    for (key, value) in &fields {
+        assert!(config.set(key, value.clone()), "{key}");
+    }
+    let json = config.to_json();
+    assert_eq!(json["optimization"]["beta"], 2.0);
+    assert_eq!(json["execution"]["max_task_evals"], 9);
+    assert_eq!(json["paths"]["continue_from"], "prev");
+    let wrong = [
+        OverrideValue::Str("x".into()),
+        OverrideValue::Int(-1),
+        OverrideValue::Bool(true),
+    ];
+    for (key, value) in &fields {
+        let rejected = wrong
+            .iter()
+            .filter(|w| std::mem::discriminant(*w) != std::mem::discriminant(value))
+            .filter(|w| {
+                !(matches!(value, OverrideValue::Float(_)) && matches!(w, OverrideValue::Int(_)))
+            })
+            .all(|w| !config.clone().set(key, w.clone()));
+        assert!(rejected, "{key} took a value of the wrong type");
+    }
+    assert!(!config.set("nodot", OverrideValue::Bool(true)));
+    assert!(!config.set("llm.unknown", OverrideValue::Bool(true)));
+    assert_eq!(config.to_json(), json);
+}
+
+#[test]
+fn yaml_writes_floats_like_python_and_empty_strings_quoted() {
+    let mut config = HgmConfig::default();
+    config.set("optimization.alpha", OverrideValue::Float(0.1));
+    config.set(
+        "paths.initial_agent_name",
+        OverrideValue::Str(String::new()),
+    );
+    let yaml = config.to_yaml();
+    assert!(yaml.contains("  alpha: 0.1\n"), "{yaml}");
+    assert!(yaml.contains("  initial_agent_name: ''\n"), "{yaml}");
+    assert!(yaml.contains("  output_dir: null\n"), "{yaml}");
+}

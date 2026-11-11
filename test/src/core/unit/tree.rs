@@ -79,3 +79,19 @@ fn a_node_with_no_evals_has_infinite_mean_and_is_not_expandable() {
         Value::from("Infinity")
     );
 }
+
+#[test]
+fn lookups_of_unknown_nodes_find_nothing() {
+    let mut tree = Tree::new();
+    assert!(tree.is_empty());
+    assert_eq!(tree.len(), 0);
+    assert!(tree.get_mut(7).is_none());
+    assert!(tree.sub_tree(7).is_empty());
+    assert!(tree.descendant_evals(7, 0).is_empty());
+    let mut tree = Tree::with_root();
+    let child = tree.add_child(0, "c");
+    tree.get_mut(child).unwrap().utility_measures.push(1.0);
+    assert_eq!(tree.len(), 2);
+    assert!(!tree.is_empty());
+    assert_eq!(tree.sub_tree(0), [0, child]);
+}

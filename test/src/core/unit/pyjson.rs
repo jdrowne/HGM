@@ -61,3 +61,43 @@ fn bare_non_finite_tokens_are_read_back() {
     assert_eq!(f64_lenient(&v["x"]), Some(1.5));
     assert_eq!(f64_lenient(&v["s"]), None);
 }
+
+#[test]
+fn every_json_value_converts_and_dumps_like_python() {
+    let v = serde_json::json!({"n": null, "t": true, "f": false, "i": -3, "x": 1.5, "s": "q\"\\\n\r\t\u{8}\u{c}é😀", "l": [], "d": {}, "nl": [1, {"k": []}]});
+    let py = PyValue::from(&v);
+    assert_eq!(
+        dumps(&py, None),
+        r#"{"n": null, "t": true, "f": false, "i": -3, "x": 1.5, "s": "q\"\\\n\r\t\b\f\u00e9\ud83d\ude00", "l": [], "d": {}, "nl": [1, {"k": []}]}"#
+    );
+    assert_eq!(
+        dumps(
+            &PyValue::dict([
+                ("l", PyValue::List(vec![])),
+                ("d", PyValue::Dict(vec![])),
+                ("v", PyValue::list_of_str(&["a"]))
+            ]),
+            Some(2)
+        ),
+        "{\n  \"l\": [],\n  \"d\": {},\n  \"v\": [\n    \"a\"\n  ]\n}"
+    );
+    assert_eq!(
+        PyValue::from(&serde_json::json!(u64::MAX)),
+        PyValue::Float(u64::MAX as f64)
+    );
+}
+
+#[test]
+fn lenient_parsing_reads_python_non_finite_numbers() {
+    let v = parse_lenient(
+        r#"{"a": NaN, "b": -Infinity, "c": Infinity, "s": "say \"NaN\" \\", "d": 2}"#,
+    )
+    .unwrap();
+    assert!(f64_lenient(&v["a"]).unwrap().is_nan());
+    assert_eq!(f64_lenient(&v["b"]), Some(f64::NEG_INFINITY));
+    assert_eq!(f64_lenient(&v["c"]), Some(f64::INFINITY));
+    assert_eq!(v["s"], "say \"NaN\" \\");
+    assert_eq!(f64_lenient(&v["d"]), Some(2.0));
+    assert_eq!(f64_lenient(&v["s"]), None);
+    assert_eq!(f64_lenient(&serde_json::json!(null)), None);
+}

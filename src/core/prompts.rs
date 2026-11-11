@@ -231,20 +231,12 @@ pub fn process_selfimprove_eval_logs(logs: &EvalLogs) -> EvalLog {
     }
 }
 
-fn str_list(v: &Value) -> Vec<String> {
-    v.as_array()
-        .map(|a| a.iter().map(value_text).collect())
-        .unwrap_or_default()
-}
-
-fn truthy(v: &Value) -> bool {
+fn py_items(v: Option<&Value>) -> Vec<String> {
     match v {
-        Value::Null => false,
-        Value::Bool(b) => *b,
-        Value::Array(a) => !a.is_empty(),
-        Value::Object(o) => !o.is_empty(),
-        Value::String(s) => !s.is_empty(),
-        Value::Number(n) => n.as_f64() != Some(0.0),
+        Some(Value::Array(a)) => a.iter().map(value_text).collect(),
+        Some(Value::String(s)) => s.chars().map(String::from).collect(),
+        Some(Value::Object(o)) => o.keys().cloned().collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -261,13 +253,13 @@ pub fn get_eval_log_text(eval_json: &Value) -> String {
         "These test whether the coding agent fixed the requested issue.".into(),
     ];
     let f2p = status.get("FAIL_TO_PASS").unwrap_or(&empty);
-    if f2p.get("success").is_some_and(truthy) {
-        let success = str_list(&f2p["success"]);
+    let success = py_items(f2p.get("success"));
+    if !success.is_empty() {
         parts.push(format!("Successfully fixed {}:", success.len()));
         parts.extend(success.iter().map(|t| format!("  \u{2713} {t}")));
     }
-    if f2p.get("failure").is_some_and(truthy) {
-        let failure = str_list(&f2p["failure"]);
+    let failure = py_items(f2p.get("failure"));
+    if !failure.is_empty() {
         parts.push(format!("Failed to fix {} tests:", failure.len()));
         parts.extend(failure.iter().map(|t| format!("  \u{2717} {t}")));
     } else {
@@ -279,14 +271,12 @@ pub fn get_eval_log_text(eval_json: &Value) -> String {
             .into(),
     );
     let p2p = status.get("PASS_TO_PASS").unwrap_or(&empty);
-    if p2p.get("success").is_some_and(truthy) {
-        parts.push(format!(
-            "\nMaintained {} passing tests",
-            str_list(&p2p["success"]).len()
-        ));
+    let maintained = py_items(p2p.get("success"));
+    if !maintained.is_empty() {
+        parts.push(format!("\nMaintained {} passing tests", maintained.len()));
     }
-    if p2p.get("failure").is_some_and(truthy) {
-        let failure = str_list(&p2p["failure"]);
+    let failure = py_items(p2p.get("failure"));
+    if !failure.is_empty() {
         parts.push(format!(
             "Regression in {} previously passing tests:",
             failure.len()

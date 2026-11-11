@@ -142,6 +142,54 @@
       "output": "## New tests for the issue\nThese test whether the coding agent fixed the requested issue.\nPass All New Tests!\n## Previous tests from the repo\nThese test whether the modification that coding agent made break the previous tests\nPass All Previous Tests!"
     },
     {
+      "name": "get_eval_log_text_null_and_empty_string",
+      "input": {
+        "inst-1": {
+          "tests_status": {
+            "FAIL_TO_PASS": {
+              "success": null,
+              "failure": ""
+            },
+            "PASS_TO_PASS": {
+              "success": {},
+              "failure": null
+            }
+          }
+        }
+      },
+      "output": "## New tests for the issue\nThese test whether the coding agent fixed the requested issue.\nPass All New Tests!\n## Previous tests from the repo\nThese test whether the modification that coding agent made break the previous tests\nPass All Previous Tests!"
+    },
+    {
+      "name": "get_eval_log_text_strings_and_objects",
+      "input": {
+        "inst-1": {
+          "tests_status": {
+            "FAIL_TO_PASS": {
+              "success": "ab",
+              "failure": {
+                "k1": 1,
+                "k2": 2
+              }
+            },
+            "PASS_TO_PASS": {
+              "success": {
+                "k": 1
+              },
+              "failure": "xyz"
+            }
+          }
+        }
+      },
+      "output": "## New tests for the issue\nThese test whether the coding agent fixed the requested issue.\nSuccessfully fixed 2:\n  ✓ a\n  ✓ b\nFailed to fix 2 tests:\n  ✗ k1\n  ✗ k2\n## Previous tests from the repo\nThese test whether the modification that coding agent made break the previous tests\n\nMaintained 1 passing tests\nRegression in 3 previously passing tests:\n  ✗ x\n  ✗ y\n  ✗ z"
+    },
+    {
+      "name": "get_eval_log_text_no_tests_status",
+      "input": {
+        "inst-1": {}
+      },
+      "output": "## New tests for the issue\nThese test whether the coding agent fixed the requested issue.\nPass All New Tests!\n## Previous tests from the repo\nThese test whether the modification that coding agent made break the previous tests\nPass All Previous Tests!"
+    },
+    {
       "name": "read_mdlog_file_filter_True",
       "input": {
         "text": "line one\nError in get_response_withtools: boom\n  Error in get_response_withtools: indented\nlast\n\n",

@@ -1,5 +1,6 @@
 mod common;
 mod config;
+mod log;
 mod metadata;
 mod pool;
 mod prompts;

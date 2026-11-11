@@ -53,7 +53,9 @@ impl Log {
     pub fn log(&self, level: Level, message: impl Display) {
         if let Some(sink) = &self.sink {
             let line = Self::line(level, &message.to_string());
-            let mut file = sink.lock().unwrap_or_else(|e| e.into_inner());
+            let mut file = sink
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let _ = file.write_all(line.as_bytes());
             let _ = file.flush();
         }

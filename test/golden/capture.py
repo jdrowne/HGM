@@ -456,10 +456,14 @@ def capture_self_improvement_prompts():
             "PASS_TO_PASS": {"success": ["p1", "p2"], "failure": ["p3"]},
         },
         "empty": {},
+        "null_and_empty_string": {"FAIL_TO_PASS": {"success": None, "failure": ""}, "PASS_TO_PASS": {"success": {}, "failure": None}},
+        "strings_and_objects": {"FAIL_TO_PASS": {"success": "ab", "failure": {"k1": 1, "k2": 2}}, "PASS_TO_PASS": {"success": {"k": 1}, "failure": "xyz"}},
     }
     for name, ts in status_cases.items():
         eval_json = {"inst-1": {"tests_status": ts}}
         cases.append({"name": f"get_eval_log_text_{name}", "input": eval_json, "output": sip.get_eval_log_text(eval_json)})
+    eval_json = {"inst-1": {}}
+    cases.append({"name": "get_eval_log_text_no_tests_status", "input": eval_json, "output": sip.get_eval_log_text(eval_json)})
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp) / "log.md"
@@ -1154,6 +1158,65 @@ def capture_swe_report():
     )
 
 
+DIAGNOSE_TREE = {
+    "root/coding_agent.py": "def main():\n    pass\n",
+    "root/coding_agent_polyglot.py": "def polyglot_main():\n    pass\n",
+    "root/tools/edit.py": "EDIT = 1\n",
+    "root/tools/sub/bash.py": "BASH = 2\n",
+    "root/tools/README.md": "not python\n",
+    "root/utils/common.py": "  padded  \n\n",
+    "root/utils/evo_utils.py": "EVO = 3\n",
+    "root/utils/eval_utils.py": "EVAL = 4\n",
+    "root/utils/docker_utils.py": "DOCKER = 5\n",
+    "out/c1/model_patch.diff": "diff --git a/x b/x\n+parent\n",
+    "out/c1/predictions/run_a/inst-1.md": "chat for inst-1\\nError in get_response_withtools: boom\\nmore",
+    "out/c1/predictions/run_a/inst-1.json": json.dumps({"instance_id": "inst-1", "model_patch": "diff --git a/y b/y\\n+fix\\n", "eval_result": "resolved"}),
+    "out/c1/logs/run_evaluation/run_a/run_a/inst-1/report.json": json.dumps({"inst-1": {"tests_status": {"FAIL_TO_PASS": {"success": ["t1"], "failure": ["t2"]}, "PASS_TO_PASS": {"success": ["t3"], "failure": []}}}}),
+    "out/c1/predictions/run_b/inst-2.md": "chat for inst-2",
+    "out/c1/predictions/run_b/inst-2.json": json.dumps({"instance_id": "inst-2", "model_patch": "", "eval_result": "empty_patch"}),
+    "out/c1/predictions/run_b/inst-2_eval.md": "  eval log for inst-2  \n",
+    "out/c1/predictions/notes.txt": "a file, not a run folder",
+}
+
+DIAGNOSE_DATASET = [
+    {"instance_id": "inst-1", "patch": "gold-1", "test_patch": "tests-1", "problem_statement": "Issue {one}"},
+    {"instance_id": "inst-2", "patch": "gold-2", "test_patch": "tests-2", "problem_statement": "Issue two",
+     "language": "python", "reference_answers": "ref-2", "reference_tests": "reftests-2"},
+]
+
+
+def capture_diagnose_prompts():
+    import prompts.self_improvement_prompt as sip
+
+    cases = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for rel, text in DIAGNOSE_TREE.items():
+            path = Path(tmp, rel)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        root, out = os.path.join(tmp, "root"), os.path.join(tmp, "out")
+        patches = [os.path.join(out, "c1", "model_patch.diff")]
+        for entry in ["inst-1", "inst-2", "solve_empty_patches", "solve_stochasticity", "solve_contextlength"]:
+            (system, prompt), _ = quiet(sip.get_diagnose_prompt_swe, entry, "c1", root, out, DIAGNOSE_DATASET, patch_files=patches)
+            cases.append({"name": f"swe_{entry}", "input": {"entry_id": entry, "patch_files": True}, "output": [system, prompt]})
+        (system, prompt), _ = quiet(sip.get_diagnose_prompt_swe, "inst-1", "c1", root, out, DIAGNOSE_DATASET)
+        cases.append({"name": "swe_inst-1_no_patches", "input": {"entry_id": "inst-1", "patch_files": False}, "output": [system, prompt]})
+        for entry, draw in [("inst-1", 0.9), ("inst-2", 0.9), ("inst-2", 0.1)]:
+            saved = random.random
+            random.random = lambda: draw
+            try:
+                (system, prompt), _ = quiet(sip.get_diagnose_prompt_polyglot, entry, "c1", root, out, DIAGNOSE_DATASET, patch_files=patches)
+            finally:
+                random.random = saved
+            cases.append({"name": f"polyglot_{entry}_draw_{draw}", "input": {"entry_id": entry, "draw": draw, "patch_files": True}, "output": [system, prompt]})
+    write(
+        "core",
+        "diagnose_prompts",
+        "prompts/self_improvement_prompt.py: get_diagnose_prompt_swe, get_diagnose_prompt_polyglot over DIAGNOSE_TREE",
+        [{"name": "tree", "input": DIAGNOSE_TREE, "output": DIAGNOSE_DATASET}] + cases,
+    )
+
+
 def main():
     capture_config()
     capture_tree()
@@ -1175,6 +1238,7 @@ def main():
     capture_py_shuffle()
     capture_dataset_rows()
     capture_swe_report()
+    capture_diagnose_prompts()
 
 
 if __name__ == "__main__":

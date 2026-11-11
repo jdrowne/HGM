@@ -211,12 +211,9 @@ impl HgmConfig {
     pub fn to_yaml(&self) -> String {
         fn scalar(v: &serde_json::Value) -> String {
             match v {
-                serde_json::Value::Null => "null".into(),
-                serde_json::Value::Bool(b) => b.to_string(),
-                serde_json::Value::Number(n) => match n.as_i64() {
-                    Some(i) => i.to_string(),
-                    None => crate::pyjson::float_repr(n.as_f64().unwrap_or(f64::NAN)),
-                },
+                serde_json::Value::Number(n) if n.as_i64().is_none() => {
+                    crate::pyjson::float_repr(n.as_f64().unwrap_or(f64::NAN))
+                }
                 serde_json::Value::String(s) if s.is_empty() => "''".into(),
                 serde_json::Value::String(s) => s.clone(),
                 other => other.to_string(),
