@@ -151,7 +151,7 @@ jobs:
               "rustfmt inline; lint levels live in Cargo.toml and" \
               "thresholds in etc/clippy, so fix the code instead"
             fail=1
-          done < <(grep -rnE --include='*.rs' "$pattern" src test lib || true)
+          done < <(git ls-files -z '*.rs' | xargs -0 -r grep -nE "$pattern" || true)
           exit $fail
   assert-no-linter-config-files:
     runs-on: ubuntu-latest
@@ -194,7 +194,7 @@ jobs:
       - name: Check file line limits
         run: |
           fail=0
-          for f in $(find src test lib -name '*.rs')
+          for f in $(git ls-files '*.rs')
           do
             lines=$(wc -l < "$f" | tr -d " ")
             if [ "$lines" -gt 1000 ]; then
@@ -409,7 +409,7 @@ jobs:
       - if: ${{ !cancelled() }}
         name: Check the formatting of every Rust file, reachable from a crate or not
         run: >-
-          find src test lib -name '*.rs' -print0
+          git ls-files -z '*.rs'
           | xargs -0 -r rustfmt --check --edition 2024
   unit-test:
     name: unit-test-${{ matrix.platform }}
@@ -479,8 +479,13 @@ on:
   push:
     branches: [main]
     paths:
+      - .dockerignore
       - .github/workflows/release.yml
+      - Cargo.toml
+      - Dockerfile
+      - config.yaml
       - lib/**
+      - rust-toolchain.toml
       - src/**
       - test/**
   workflow_dispatch: {}
