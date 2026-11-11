@@ -18,6 +18,10 @@ jobs:
       - name: Build and test the agent subtree on its own
         run: test/agent-subtree.sh
   assert-coverage:
+    needs:
+      - e2e-test-coverage
+      - integration-test-coverage
+      - unit-test-coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -26,18 +30,29 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools
-      - name: Install cargo-llvm-cov and cargo-nextest
+      - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@main
         with:
-          tool: cargo-llvm-cov,cargo-nextest
-      - name: Cache the build
-        uses: Swatinem/rust-cache@master
-      - name: Run every tier under coverage
-        run: cargo llvm-cov nextest --workspace --no-report
+          tool: cargo-llvm-cov
+      - name: Download the instrumented build
+        uses: actions/download-artifact@main
+        with:
+          name: build-coverage
+      - name: Unpack the instrumented binaries where the report looks for them
+        run: |
+          mkdir -p target/llvm-cov-target
+          tar --zstd -xf build-coverage.tar.zst -C target/llvm-cov-target
+      - name: Download the profile data of every tier
+        uses: actions/download-artifact@main
+        with:
+          merge-multiple: true
+          path: target/llvm-cov-target/
+          pattern: profraw-*
       - if: ${{ !cancelled() }}
         name: Generate the coverage report
         run: >-
           cargo llvm-cov report
+          --nextest-archive-file build-coverage.tar.zst
           --ignore-filename-regex '(^|/)test/'
           --html
           --output-dir coverage-html
@@ -50,9 +65,11 @@ jobs:
       - name: Enforce 100% coverage
         run: |
           cargo llvm-cov report \
+            --nextest-archive-file build-coverage.tar.zst \
             --ignore-filename-regex '(^|/)test/' \
             --show-missing-lines
           cargo llvm-cov report \
+            --nextest-archive-file build-coverage.tar.zst \
             --ignore-filename-regex '(^|/)test/' \
             --json \
             --summary-only \
@@ -259,6 +276,33 @@ jobs:
             runner: ubuntu-latest
           - platform: linux-arm64
             runner: ubuntu-24.04-arm
+  build-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools
+      - name: Install cargo-llvm-cov and cargo-nextest
+        uses: taiki-e/install-action@main
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
+      - name: Cache the build
+        uses: Swatinem/rust-cache@master
+      - name: Build every test binary with coverage instrumentation into an archive
+        run: >-
+          cargo llvm-cov nextest-archive
+          --workspace
+          --all-targets
+          --archive-file build-coverage.tar.zst
+      - name: Upload the instrumented build
+        uses: actions/upload-artifact@main
+        with:
+          name: build-coverage
+          path: build-coverage.tar.zst
+          retention-days: 1
   clippy:
     runs-on: ubuntu-latest
     steps:
@@ -310,6 +354,40 @@ jobs:
             runner: ubuntu-latest
           - platform: linux-arm64
             runner: ubuntu-24.04-arm
+  e2e-test-coverage:
+    needs: build-coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools
+      - name: Install cargo-llvm-cov and cargo-nextest
+        uses: taiki-e/install-action@main
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
+      - name: Download the instrumented build
+        uses: actions/download-artifact@main
+        with:
+          name: build-coverage
+      - env:
+          LLVM_PROFILE_FILE_NAME: e2e-%p-%m.profraw
+        name: Run the e2e tier under coverage
+        run: >-
+          cargo llvm-cov nextest
+          --archive-file build-coverage.tar.zst
+          --workspace-remap .
+          --no-report
+          --no-fail-fast
+          -E 'binary(e2e)'
+      - name: Upload the e2e profile data
+        uses: actions/upload-artifact@main
+        with:
+          name: profraw-e2e
+          path: target/llvm-cov-target/*.profraw
+          retention-days: 1
   integration-test:
     name: integration-test-${{ matrix.platform }}
     needs: build
@@ -339,6 +417,39 @@ jobs:
             runner: ubuntu-latest
           - platform: linux-arm64
             runner: ubuntu-24.04-arm
+  integration-test-coverage:
+    needs: build-coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools
+      - name: Install cargo-llvm-cov and cargo-nextest
+        uses: taiki-e/install-action@main
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
+      - name: Download the instrumented build
+        uses: actions/download-artifact@main
+        with:
+          name: build-coverage
+      - env:
+          LLVM_PROFILE_FILE_NAME: integration-%p-%m.profraw
+        name: Run the integration tier under coverage
+        run: >-
+          cargo llvm-cov nextest
+          --archive-file build-coverage.tar.zst
+          --workspace-remap .
+          --no-report
+          -E 'binary(integration)'
+      - name: Upload the integration profile data
+        uses: actions/upload-artifact@main
+        with:
+          name: profraw-integration
+          path: target/llvm-cov-target/*.profraw
+          retention-days: 1
   release:
     if: >-
       github.ref_name == 'main'
@@ -445,6 +556,40 @@ jobs:
             runner: ubuntu-latest
           - platform: linux-arm64
             runner: ubuntu-24.04-arm
+  unit-test-coverage:
+    needs: build-coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools
+      - name: Install cargo-llvm-cov and cargo-nextest
+        uses: taiki-e/install-action@main
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
+      - name: Download the instrumented build
+        uses: actions/download-artifact@main
+        with:
+          name: build-coverage
+      - env:
+          LLVM_PROFILE_FILE_NAME: unit-%p-%m.profraw
+        name: Run the unit tier under coverage
+        run: >-
+          cargo llvm-cov nextest
+          --archive-file build-coverage.tar.zst
+          --workspace-remap .
+          --no-report
+          --no-tests warn
+          -E 'kind(lib) | kind(bin) | binary(unit)'
+      - name: Upload the unit profile data
+        uses: actions/upload-artifact@main
+        with:
+          name: profraw-unit
+          path: target/llvm-cov-target/*.profraw
+          retention-days: 1
   yamllint:
     runs-on: ubuntu-latest
     steps:
