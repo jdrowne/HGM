@@ -9,38 +9,37 @@ jobs:
   loop:
     runs-on: ubuntu-24.04-arm
     steps:
-      - name: Checkout code
-        uses: actions/checkout@main
-      - name: Install the toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Cache the build
-        uses: Swatinem/rust-cache@master
-        with:
-          key: linux-arm64
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@main
-        with:
-          tool: cargo-nextest
       - name: Show the Docker engine
         run: docker version && docker info
-      - name: Build the integration tier
-        run: cargo nextest archive --workspace --all-targets --archive-file build.tar.zst
-      - name: Run the integration tier repeatedly
+      - name: Look the image up while concurrent builds retag it
         run: |
-          failed=0
-          for i in $(seq 1 15); do
-            echo "::group::iteration $i"
-            if ! cargo-nextest nextest run \
-              --archive-file build.tar.zst \
-              --workspace-remap . \
-              --no-fail-fast \
-              --failure-output final \
-              -E 'binary(integration)' > "run-$i.log" 2>&1; then
-              failed=$((failed+1))
-            fi
-            tail -n 40 "run-$i.log"
-            echo "::endgroup::"
+          mk() {
+            d=$(mktemp -d)
+            mkdir -p "$d/rustyhgm"
+            : > "$d/rustyhgm/Cargo.toml"
+            printf 'x\n' > "$d/git"
+            printf 'y\n' > "$d/cargo"
+            printf 'FROM busybox:latest\nCOPY rustyhgm /rustyhgm\nCOPY git cargo /usr/local/bin/\nCMD ["tail", "-f", "/dev/null"]\n' > "$d/Dockerfile"
+            echo "$d"
+          }
+          docker pull -q busybox:latest
+          misses=0
+          for round in $(seq 1 30); do
+            docker image rm -f rustyhgm-probe:latest > /dev/null 2>&1 || true
+            [ "$round" -gt 15 ] && docker build -q -t rustyhgm-probe:latest "$(mk)" > /dev/null
+            for i in $(seq 1 16); do
+              docker build -q -t rustyhgm-probe:latest "$(mk)" > /dev/null 2>&1 &
+            done
+            seen=0
+            while [ -n "$(jobs -rp)" ]; do
+              if docker image inspect --format '{{.Id}}' rustyhgm-probe:latest > /dev/null 2>&1; then
+                seen=1
+              elif [ "$seen" = 1 ]; then
+                misses=$((misses+1))
+                echo "round $round: the image went missing after it existed"
+              fi
+            done
+            wait
           done
-          echo "iterations with a failure: $failed of 15"
-          grep -h -A60 '^ *FAIL \[' run-*.log || true
-    timeout-minutes: 180
+          echo "lookups that missed an image that had existed: $misses"
+    timeout-minutes: 60
