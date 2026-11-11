@@ -203,6 +203,16 @@ jobs:
             fi
           done
           exit $fail
+  assert-one-assert-per-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Assert one assert per test
+        uses: 10U-Labs/assert-one-assert-per-test@latest
+        with:
+          files: src test
+          verbose: "true"
   build:
     name: build-${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
@@ -389,6 +399,7 @@ jobs:
       - assert-no-inline-directives
       - assert-no-linter-config-files
       - assert-no-oversized-source-files
+      - assert-one-assert-per-test
       - clippy
       - e2e-test
       - integration-test
