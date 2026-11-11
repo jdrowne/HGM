@@ -358,8 +358,14 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: Check formatting
+      - if: ${{ !cancelled() }}
+        name: Check the formatting of every crate against the Rust Style Guide
         run: cargo fmt --all --check
+      - if: ${{ !cancelled() }}
+        name: Check the formatting of every Rust file, reachable from a crate or not
+        run: >-
+          find src test lib -name '*.rs' -print0
+          | xargs -0 -r rustfmt --check --edition 2024
   unit-test:
     name: unit-test-${{ matrix.platform }}
     needs: build
