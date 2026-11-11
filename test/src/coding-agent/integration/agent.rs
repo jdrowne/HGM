@@ -11,8 +11,8 @@ type Seen = Arc<Mutex<Vec<Value>>>;
 
 fn agent() -> Command {
     Command::new(
-        std::env::var_os("NEXTEST_BIN_EXE_hgm-agent")
-            .unwrap_or_else(|| env!("CARGO_BIN_EXE_hgm-agent").into()),
+        std::env::var_os("NEXTEST_BIN_EXE_hgm-coding-agent")
+            .unwrap_or_else(|| env!("CARGO_BIN_EXE_hgm-coding-agent").into()),
     )
 }
 
@@ -317,7 +317,7 @@ fn an_unwritable_chat_log_fails_the_agent() {
 
 #[test]
 fn an_unwritable_chat_log_is_reported() {
-    assert!(stderr(&unwritable_chat()).starts_with("hgm-agent: "));
+    assert!(stderr(&unwritable_chat()).starts_with("hgm-coding-agent: "));
 }
 
 fn unwritable_outdir() -> (tempfile::TempDir, Output) {
@@ -359,7 +359,7 @@ fn a_missing_git_fails_the_agent() {
 
 #[test]
 fn a_missing_git_is_reported() {
-    assert!(stderr(&without_git()).starts_with("hgm-agent: "));
+    assert!(stderr(&without_git()).starts_with("hgm-coding-agent: "));
 }
 
 fn keyless() -> (tempfile::TempDir, Output) {
@@ -379,7 +379,7 @@ fn a_missing_key_file_fails_the_agent() {
 fn a_missing_key_file_is_reported_by_name() {
     let (tmp, out) = keyless();
     assert!(stderr(&out).starts_with(&format!(
-        "hgm-agent: {}: ",
+        "hgm-coding-agent: {}: ",
         tmp.path().join("key").display()
     )));
 }
@@ -413,6 +413,6 @@ fn the_version_names_the_agent() {
     assert!(
         String::from_utf8(version().stdout)
             .unwrap()
-            .starts_with("hgm-agent ")
+            .starts_with("hgm-coding-agent ")
     );
 }

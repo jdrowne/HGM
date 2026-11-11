@@ -4,7 +4,7 @@ mod swe;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm_agent::llm::{Provider, Service};
+use hgm_coding_agent::llm::{Provider, Service};
 
 pub fn executable(path: &Path, body: &str) {
     fs::write(path, body).unwrap();

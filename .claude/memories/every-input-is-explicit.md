@@ -1,6 +1,6 @@
 ---
 name: every-input-is-explicit
-description: "hgm and hgm-agent take every setting explicitly; no defaults, no environment variables, no lookups relative to the working directory"
+description: "hgm and hgm-coding-agent take every setting explicitly; no defaults, no environment variables, no lookups relative to the working directory"
 metadata:
   node_type: memory
   type: feedback
@@ -10,7 +10,7 @@ metadata:
 
 # Every input is explicit
 
-Every input to `hgm` and `hgm-agent` is given explicitly by the person running it. No setting has a default value (no clap `default_value`, no serde `default`, no fallback when a file is missing), no environment variable is read, and nothing is found by looking in the working directory.
+Every input to `hgm` and `hgm-coding-agent` is given explicitly by the person running it. No setting has a default value (no clap `default_value`, no serde `default`, no fallback when a file is missing), no environment variable is read, and nothing is found by looking in the working directory.
 
 **Why:** a run should be fully described by what was typed, so nothing changes behaviour behind the user's back and a downloaded binary works from anywhere.
 

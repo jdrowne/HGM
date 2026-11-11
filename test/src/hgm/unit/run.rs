@@ -287,7 +287,7 @@ fn a_new_run_copies_the_agent_source() {
     assert!(
         started()
             .root()
-            .join("initial_swe/agent/src/src/agent/main.rs")
+            .join("initial_swe/agent/src/src/coding-agent/main.rs")
             .is_file()
     );
 }
@@ -309,7 +309,7 @@ fn a_new_run_seeds_the_initial_node() {
     assert!(
         started()
             .root()
-            .join("out/initial/src/src/agent/main.rs")
+            .join("out/initial/src/src/coding-agent/main.rs")
             .is_file()
     );
 }

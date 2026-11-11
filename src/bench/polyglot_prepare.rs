@@ -4,7 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use hgm_agent::git::diff_versus_commit;
+use hgm_coding_agent::git::diff_versus_commit;
 use hgm_core::pool;
 use hgm_core::pyjson::{PyValue, dumps};
 use serde_json::{Map, Value, json};

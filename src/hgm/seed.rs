@@ -4,8 +4,8 @@ use std::path::Path;
 
 use include_dir::{Dir, DirEntry, include_dir};
 
-static AGENT: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../agent");
-static AGENT_TESTS: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../test/src/agent");
+static AGENT: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../coding-agent");
+static AGENT_TESTS: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../test/src/coding-agent");
 
 const FILES: [(&str, &[u8]); 5] = [
     ("Cargo.toml", include_bytes!("../../Cargo.toml")),
@@ -38,8 +38,8 @@ pub fn files() -> Vec<(String, &'static [u8])> {
         .iter()
         .map(|(path, contents)| ((*path).to_owned(), *contents))
         .collect();
-    collect(&AGENT, "src/agent", &mut files);
-    collect(&AGENT_TESTS, "test/src/agent", &mut files);
+    collect(&AGENT, "src/coding-agent", &mut files);
+    collect(&AGENT_TESTS, "test/src/coding-agent", &mut files);
     files
 }
 

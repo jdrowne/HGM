@@ -138,7 +138,7 @@ fn evaluated() -> Evaluated {
     let bench = FakeBench::resolving(&["a"]);
     let builder = FakeBuild::default();
     let accs = eval(evaluator(&bench, out, 8, &builder), "child", &["a", "b"]).unwrap();
-    fs::write(out.join("parent/hgm-agent"), "").unwrap();
+    fs::write(out.join("parent/hgm-coding-agent"), "").unwrap();
     eval(evaluator(&bench, out, 8, &builder), "parent", &["a", "b"]).unwrap();
     Evaluated {
         tmp,
@@ -164,7 +164,7 @@ fn eval_agent_builds_a_missing_agent_from_the_patch_chain() {
                 out.join("parent/model_patch.diff"),
                 out.join("child/model_patch.diff")
             ],
-            out.join("child/hgm-agent")
+            out.join("child/hgm-coding-agent")
         )]
     );
 }
@@ -187,13 +187,13 @@ fn eval_agent_caps_workers_at_the_task_count() {
 #[test]
 fn eval_agent_runs_the_built_agent() {
     let e = evaluated();
-    assert_eq!(e.seen()[0].agent, e.out().join("child/hgm-agent"));
+    assert_eq!(e.seen()[0].agent, e.out().join("child/hgm-coding-agent"));
 }
 
 #[test]
 fn eval_agent_runs_an_existing_agent() {
     let e = evaluated();
-    assert_eq!(e.seen()[1].agent, e.out().join("parent/hgm-agent"));
+    assert_eq!(e.seen()[1].agent, e.out().join("parent/hgm-coding-agent"));
 }
 
 #[test]

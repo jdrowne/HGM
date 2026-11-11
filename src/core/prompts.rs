@@ -38,7 +38,7 @@ pub const NO_EVAL_RESULT: &str = "No evaluation result available. Assume the age
 
 pub const FILTERED_LOG_PREFIX: &str = "Error in get_response_withtools";
 
-pub const CODE_FILES: [&str; 1] = ["src/agent/"];
+pub const CODE_FILES: [&str; 1] = ["src/coding-agent/"];
 
 pub const CONTEXT_LENGTH_ERRORS: [&str; 3] = [
     r"Error in get_response_withtools: Error code: 400 - {'message': 'Input is too long for requested model.'}",

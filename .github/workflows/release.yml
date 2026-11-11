@@ -260,7 +260,7 @@ jobs:
       - name: Stage the release binaries
         run: |
           mkdir dist
-          for bin in hgm hgm-agent; do
+          for bin in hgm hgm-coding-agent; do
             cp "target/release/$bin" "dist/$bin-${{ matrix.platform }}"
           done
       - name: Upload the release binaries

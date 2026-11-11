@@ -7,7 +7,7 @@ use serde_json::Value;
 
 pub fn fixture_dir() -> PathBuf {
     PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
-        .join("../../test/src/agent/unit/fixtures")
+        .join("../../test/src/coding-agent/unit/fixtures")
 }
 
 pub fn cases(name: &str) -> Vec<Value> {

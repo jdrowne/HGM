@@ -1,7 +1,7 @@
 use clap::Parser;
 use hgm::cli::{Cli, Services};
-use hgm_agent::llm::{Provider, Service};
 use hgm_bench::dataset::Hub;
+use hgm_coding_agent::llm::{Provider, Service};
 use serde_json::json;
 
 use crate::common::{SETTINGS, argv, cli};

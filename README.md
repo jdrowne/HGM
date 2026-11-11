@@ -106,13 +106,13 @@ These flags ask for an extra step, so they are given only when that step is want
 | `--holdout_split <name>` | After the run, scores the best agent on `princeton-nlp/SWE-bench_<name>`, such as `Lite`; needs `--holdout_tasks` and is not allowed with `--polyglot true` |
 | `--holdout_tasks <n>` | Scores the first `n` held-out tasks; needs `--holdout_split` |
 
-The first run with a given agent name writes the seed into `initial_swe/<name>/` or `initial_polyglot/<name>/` in the `--seed_dir` folder and measures it on every task in the pool. The seed is the `hgm-agent` source as it was when `hgm` was built, with the builder `Dockerfile` beside it. Later runs with the same `--seed_dir` reuse that folder and its results, so delete it to measure a newer seed.
+The first run with a given agent name writes the seed into `initial_swe/<name>/` or `initial_polyglot/<name>/` in the `--seed_dir` folder and measures it on every task in the pool. The seed is the `hgm-coding-agent` source as it was when `hgm` was built, with the builder `Dockerfile` beside it. Later runs with the same `--seed_dir` reuse that folder and its results, so delete it to measure a newer seed. A seed folder written by a release from before the agent was named `hgm-coding-agent` holds the old name and paths, which this `hgm` cannot build or patch, so delete it too.
 
 The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout` limit and `--max_workers`, and writes its results to `holdout/best_agent/` in the `--output_dir` folder.
 
-### The agent binary
+### The coding agent
 
-The harness also builds `hgm-agent`, the agent being evolved, and runs it inside containers. It can be run by hand to watch one attempt, with `cargo run -p hgm-agent -- <flags>`. It reads no environment variables, and every flag but `--instance_id` is required.
+The harness also builds `hgm-coding-agent`, the agent being evolved, and runs it inside containers. It can be run by hand to watch one attempt, with `cargo run -p hgm-coding-agent -- <flags>`. It reads no environment variables, and every flag but `--instance_id` is required.
 
 | Flag | What it sets |
 | --- | --- |

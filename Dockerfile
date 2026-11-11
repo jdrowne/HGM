@@ -8,7 +8,7 @@ COPY . .
 
 RUN printf 'target/\nCargo.lock\n' > .gitignore \
     && rustup target add "$(uname -m)-unknown-linux-musl" \
-    && cargo build --release --target "$(uname -m)-unknown-linux-musl" -p hgm-agent \
-    && cargo test -p hgm-agent --no-run
+    && cargo build --release --target "$(uname -m)-unknown-linux-musl" -p hgm-coding-agent \
+    && cargo test -p hgm-coding-agent --no-run
 
 CMD ["tail", "-f", "/dev/null"]

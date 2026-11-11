@@ -140,7 +140,7 @@ fn harness(root: &Path, dataset: PathBuf) -> Harness {
 }
 
 fn agent(root: &Path) -> Run {
-    let path = root.join("agent/hgm-agent");
+    let path = root.join("agent/hgm-coding-agent");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     crate::executable(&path, AGENT);
     Run {

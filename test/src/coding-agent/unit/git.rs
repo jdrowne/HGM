@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use hgm_agent::git::{diff_versus_commit, diff_versus_commit_with};
+use hgm_coding_agent::git::{diff_versus_commit, diff_versus_commit_with};
 
 fn git(dir: &Path, args: &[&str]) -> String {
     let out = Command::new("git")

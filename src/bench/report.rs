@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm_agent::patch::remove_patches_to_tests;
+use hgm_coding_agent::patch::remove_patches_to_tests;
 use hgm_core::pyjson::{PyValue, dumps};
 use serde_json::{Map, Value};
 

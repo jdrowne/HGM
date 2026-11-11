@@ -8,7 +8,7 @@ use clap::Parser;
 use hgm::agent_build::Build;
 use hgm::cli::Cli;
 use hgm::node::{Bench, Eval};
-use hgm_agent::llm::{Provider, Service};
+use hgm_coding_agent::llm::{Provider, Service};
 use serde_json::{Value, json};
 
 pub const SETTINGS: [(&str, &str); 32] = [

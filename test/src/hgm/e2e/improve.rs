@@ -12,7 +12,7 @@ use super::{binary, flags};
 const TASK: &str = "javascript__queen-attack";
 const HGM: &str = "hgm";
 const IMPROVE_COMMAND: &str =
-    "cd /hgm && printf 'pub const E2E: u8 = 1;\\n' >> src/agent/lib.rs && echo ok";
+    "cd /hgm && printf 'pub const E2E: u8 = 1;\\n' >> src/coding-agent/lib.rs && echo ok";
 const SOLVE_COMMAND: &str =
     "cd /testbed && printf 'export const e2e = 1;\\n' >> queen-attack.js && echo ok";
 const DIAGNOSIS: &str = "```json\n{\"log_summarization\": \"s\", \"potential_improvements\": [\"p\"], \"improvement_proposal\": \"i\", \"implementation_suggestion\": \"do it\", \"problem_description\": \"broken\"}\n```";
@@ -354,7 +354,8 @@ fn the_run_prints_where_the_best_agent_is() {
 
 #[test]
 fn the_best_agent_carries_the_improvement() {
-    let lib = fs::read_to_string(shared().run().join("best_agent/src/agent/lib.rs")).unwrap();
+    let lib =
+        fs::read_to_string(shared().run().join("best_agent/src/coding-agent/lib.rs")).unwrap();
     assert!(lib.ends_with("pub const E2E: u8 = 1;\n"), "{lib}");
 }
 
@@ -453,12 +454,12 @@ fn the_child_resolves_nothing() {
 #[test]
 fn the_child_keeps_its_agent_patch() {
     let patch = fs::read_to_string(shared().child_dir().join("model_patch.diff")).unwrap();
-    assert!(patch.contains("+++ b/src/agent/lib.rs"), "{patch}");
+    assert!(patch.contains("+++ b/src/coding-agent/lib.rs"), "{patch}");
 }
 
 #[test]
 fn the_child_keeps_its_built_agent() {
-    assert!(shared().child_dir().join("hgm-agent").is_file());
+    assert!(shared().child_dir().join("hgm-coding-agent").is_file());
 }
 
 #[test]

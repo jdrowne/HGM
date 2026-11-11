@@ -1,4 +1,4 @@
-use hgm_agent::parsers::{parser, parser_for_repo, parser_name};
+use hgm_coding_agent::parsers::{parser, parser_for_repo, parser_name};
 use serde_json::{Value, json};
 
 use crate::common::cases;

@@ -3,8 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use hgm_agent::llm::Service;
-use hgm_agent::testrepo::{TestRepo, get_test_description};
+use hgm_coding_agent::llm::Service;
+use hgm_coding_agent::testrepo::{TestRepo, get_test_description};
 use hgm_core::log::Log;
 use hgm_core::pyjson::{PyValue, dumps};
 use hgm_sandbox::{Container, Docker, ExecOptions};

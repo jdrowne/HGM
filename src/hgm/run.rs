@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use hgm_agent::llm::Service;
 use hgm_bench::dataset::{Hub, SWE_BENCH_VERIFIED, instance_ids};
 use hgm_bench::polyglot::{self, DATASET};
 use hgm_bench::polyglot_build::copy_tree;
@@ -12,6 +11,7 @@ use hgm_bench::polyglot_prepare::prepare;
 use hgm_bench::polyglot_spec::NAMESPACE;
 use hgm_bench::swe;
 use hgm_bench::tasks::{dedup, polyglot_run_tasks, shuffled, swe_run_tasks};
+use hgm_coding_agent::llm::Service;
 use hgm_core::config::HgmConfig;
 use hgm_core::log::Log;
 use hgm_core::metadata::{

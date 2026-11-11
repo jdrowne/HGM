@@ -2,9 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use hgm_agent::llm::{Client, Service, extract_json_between_markers, get_response_from_llm};
-use hgm_agent::testrepo::{TestRepo, get_test_description};
 use hgm_bench::swe::{Step, key_mount, message, run_logged, run_step, service_flags};
+use hgm_coding_agent::llm::{Client, Service, extract_json_between_markers, get_response_from_llm};
+use hgm_coding_agent::testrepo::{TestRepo, get_test_description};
 use hgm_core::log::Log;
 use hgm_core::metadata::{MODEL_PATCH_FILE, model_patch_paths, read_overall_performance};
 use hgm_core::prompts::{

@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use clap::Parser;
-use hgm_agent::agent::{Args, ChatLog, Language};
-use hgm_agent::llm::{Provider, Service};
+use hgm_coding_agent::agent::{Args, ChatLog, Language};
+use hgm_coding_agent::llm::{Provider, Service};
 
 const FLAGS: [(&str, &str); 14] = [
     ("--problem_statement", "p"),
@@ -22,7 +22,7 @@ const FLAGS: [(&str, &str); 14] = [
 ];
 
 fn argv(changes: &[(&str, &str)], without: &str) -> Vec<String> {
-    let mut argv = vec!["hgm-agent".to_owned()];
+    let mut argv = vec!["hgm-coding-agent".to_owned()];
     for (flag, value) in FLAGS.iter().filter(|(flag, _)| *flag != without) {
         let changed = changes.iter().find(|(f, _)| f == flag);
         argv.push((*flag).to_owned());

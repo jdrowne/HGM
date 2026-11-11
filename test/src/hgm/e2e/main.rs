@@ -349,7 +349,7 @@ fn held_out() -> Ran {
             finished_run(root);
             let holdout = root.join("output_hgm/prev/holdout/best_agent");
             std::fs::create_dir_all(&holdout).unwrap();
-            std::fs::write(holdout.join("hgm-agent"), "").unwrap();
+            std::fs::write(holdout.join("hgm-coding-agent"), "").unwrap();
         },
         |c| {
             let python = swe_cache(&PathBuf::from(c.get_current_dir().unwrap()));
@@ -547,7 +547,7 @@ fn a_fresh_run_writes_the_built_in_seed_agent() {
         fresh()
             .root()
             .join(FRESH_SEED)
-            .join("src/agent/main.rs")
+            .join("src/coding-agent/main.rs")
             .is_file()
     );
 }

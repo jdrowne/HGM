@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use hgm::FAILED;
 use hgm::improve::{Improver, SelfImprove};
-use hgm_agent::llm::{Client, Provider, Service};
+use hgm_coding_agent::llm::{Client, Provider, Service};
 use hgm_sandbox::Docker;
 use serde_json::{Value, json};
 
@@ -29,7 +29,7 @@ echo "$count" > /tmp/builds
 [ "$mode" = childfail ] && [ "$count" -ge 2 ] && { echo child build failed; exit 1; }
 out="target/$(uname -m)-unknown-linux-musl/release"
 mkdir -p "$out"
-cp /usr/local/lib/fake-agent "$out/hgm-agent"
+cp /usr/local/lib/fake-agent "$out/hgm-coding-agent"
 "#;
 
 const AGENT: &str = r#"#!/bin/sh
@@ -248,7 +248,12 @@ fn a_polyglot_child_keeps_the_agent_chat() {
 
 #[test]
 fn a_polyglot_child_keeps_its_built_agent() {
-    assert!(polyglot_child().child_dir().join("hgm-agent").is_file());
+    assert!(
+        polyglot_child()
+            .child_dir()
+            .join("hgm-coding-agent")
+            .is_file()
+    );
 }
 
 #[test]

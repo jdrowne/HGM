@@ -1,6 +1,6 @@
 pub const SWE_TEST_PROMPT: &str = "The tests in the repository can be run with the bash command `{test_command}`. If no specific test files are provided, all tests will be run. The given command-line options must be used EXACTLY as specified. Do not use any other command-line options. {test_hint}";
 
-pub const HGM_TEST_DESCRIPTION: &str = "The tests in the repository can be run with the bash command `cd /hgm/ && cargo test -p hgm-agent --test unit <test name filter>`. If no test name filter is provided, all tests will be run. The given command-line options must be used EXACTLY as specified. Do not use any other command-line options. ONLY test tools and utils. NEVER try to test or run the agent's forward().";
+pub const HGM_TEST_DESCRIPTION: &str = "The tests in the repository can be run with the bash command `cd /hgm/ && cargo test -p hgm-coding-agent --test unit <test name filter>`. If no test name filter is provided, all tests will be run. The given command-line options must be used EXACTLY as specified. Do not use any other command-line options. ONLY test tools and utils. NEVER try to test or run the agent's forward().";
 
 pub const DOTTED_TEST_HINT: &str = "If the target test file path is tests/some_folder/some_file.py, then <specific test files> should be `some_folder.some_file`.";
 

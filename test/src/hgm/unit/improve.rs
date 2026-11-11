@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use hgm::FAILED;
 use hgm::improve::{Improver, SelfImprove, child_performance, choose_entry, diagnose_problem};
-use hgm_agent::llm::{Client, Provider};
+use hgm_coding_agent::llm::{Client, Provider};
 use hgm_core::log::Log;
 use hgm_core::prompts::{
     CONTEXT_LENGTH_ERRORS, DiagnoseInput, SOLVE_CONTEXTLENGTH, SOLVE_EMPTY_PATCHES,

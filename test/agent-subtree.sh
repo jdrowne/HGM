@@ -2,14 +2,14 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-dest="$(mktemp -d "${TMPDIR:-/tmp}/hgm-agent-subtree.XXXXXX")"
+dest="$(mktemp -d "${TMPDIR:-/tmp}/hgm-coding-agent-subtree.XXXXXX")"
 trap 'rm -rf "$dest"' EXIT
 
 paths=(
   Cargo.toml
   rust-toolchain.toml
-  src/agent
-  test/src/agent
+  src/coding-agent
+  test/src/coding-agent
 )
 
 for p in "${paths[@]}"; do

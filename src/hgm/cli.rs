@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use clap::{ArgAction, Parser};
-use hgm_agent::llm::{Provider, Service, read_api_key};
 use hgm_bench::dataset::Hub;
 use hgm_bench::swebench::Swebench;
+use hgm_coding_agent::llm::{Provider, Service, read_api_key};
 use hgm_core::config::{
     EvaluationConfig, ExecutionConfig, ExpansionStatistic, HgmConfig, LlmConfig,
     OptimizationConfig, PathConfig,

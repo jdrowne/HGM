@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use std::fs;
 
-use hgm_agent::eval::{
+use hgm_coding_agent::eval::{
     TIE_BREAKER_SYSTEM, get_acc_on_tasks, get_report_score, msg_history_to_report,
     parse_eval_output, repo_of, score_tie_breaker, tie_breaker_prompt,
 };
-use hgm_agent::llm::{Client, Provider};
+use hgm_coding_agent::llm::{Client, Provider};
 use serde_json::{Value, json};
 
 use crate::common::{Seen, cases, content, ok, refused, serve};

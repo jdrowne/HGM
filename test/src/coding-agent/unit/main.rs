@@ -13,7 +13,7 @@ use serde_json::Value;
 
 #[test]
 fn crate_is_linked() {
-    assert_eq!(hgm_agent::CRATE_NAME, "hgm-agent");
+    assert_eq!(hgm_coding_agent::CRATE_NAME, "hgm-coding-agent");
 }
 
 fn fixture_docs() -> Vec<(String, Value)> {

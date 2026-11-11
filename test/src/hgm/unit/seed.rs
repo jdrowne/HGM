@@ -79,7 +79,9 @@ fn the_built_in_seed_holds_no_controller_or_grader() {
     let kept: Vec<String> = seed::files()
         .into_iter()
         .map(|(path, _)| path)
-        .filter(|path| !path.starts_with("src/agent/") && !path.starts_with("test/src/agent/"))
+        .filter(|path| {
+            !path.starts_with("src/coding-agent/") && !path.starts_with("test/src/coding-agent/")
+        })
         .collect();
     assert_eq!(
         kept,

@@ -22,7 +22,7 @@ pub enum Language {
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "hgm-agent",
+    name = "hgm-coding-agent",
     version,
     about = "Process repository with an agentic system."
 )]

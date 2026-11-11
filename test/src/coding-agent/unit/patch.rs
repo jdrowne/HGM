@@ -1,4 +1,4 @@
-use hgm_agent::patch::{
+use hgm_coding_agent::patch::{
     filter_patch_by_files, remove_patch_by_files, remove_patches_to_tests, splitlines,
 };
 use serde_json::Value;

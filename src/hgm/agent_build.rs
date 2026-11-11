@@ -8,14 +8,14 @@ use hgm_sandbox::{Container, Docker};
 
 use crate::node::at;
 
-pub const AGENT_BINARY: &str = "hgm-agent";
-pub const INSTALLED_AGENT: &str = "/usr/local/bin/hgm-agent";
+pub const AGENT_BINARY: &str = "hgm-coding-agent";
+pub const INSTALLED_AGENT: &str = "/usr/local/bin/hgm-coding-agent";
 pub const BUILD_LOG: &str = "build_agent.log";
 
 const BUILD: [&str; 3] = [
     "/bin/sh",
     "-c",
-    "cargo build --release --target \"$(uname -m)-unknown-linux-musl\" -p hgm-agent && cp \"target/$(uname -m)-unknown-linux-musl/release/hgm-agent\" /usr/local/bin/hgm-agent",
+    "cargo build --release --target \"$(uname -m)-unknown-linux-musl\" -p hgm-coding-agent && cp \"target/$(uname -m)-unknown-linux-musl/release/hgm-coding-agent\" /usr/local/bin/hgm-coding-agent",
 ];
 
 pub trait Build: Sync {

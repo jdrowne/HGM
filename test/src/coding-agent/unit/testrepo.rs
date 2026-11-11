@@ -1,4 +1,4 @@
-use hgm_agent::testrepo::{TestRepo, get_test_command, get_test_description};
+use hgm_coding_agent::testrepo::{TestRepo, get_test_command, get_test_description};
 use serde_json::{Value, json};
 
 use crate::common::cases;

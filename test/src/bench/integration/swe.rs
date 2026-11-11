@@ -105,7 +105,7 @@ fn agent_run(root: &Path) -> Run {
         model_name_or_path: "agent".into(),
         agent: PathBuf::from(script(
             &dir,
-            "hgm-agent",
+            "hgm-coding-agent",
             AGENT.trim_start_matches("#!/bin/sh\n"),
         )),
         max_workers: 4,

@@ -21,7 +21,7 @@ path = "../../test/src/bench/integration/main.rs"
 
 [dependencies]
 chrono = "*"
-hgm-agent = { path = "../agent" }
+hgm-coding-agent = { path = "../coding-agent" }
 hgm-core = { path = "../core" }
 hgm-sandbox = { path = "../sandbox" }
 parquet = { version = "*", default-features = false, features = ["snap"] }
