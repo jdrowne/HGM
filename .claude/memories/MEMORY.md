@@ -18,3 +18,4 @@
 - [Every input is explicit](every-input-is-explicit.md) — every value setting of rustyhgm/rustyhgm-coding-agent is a required flag; yes/no settings are bare switches, off unless given; no config file or environment variables
 - [Clippy runs with the CI thresholds](clippy-runs-with-ci-thresholds.md) — set CLIPPY_CONF_DIR to etc/clippy/src or test; uvx assert-one-assert-per-test src test; && counts as two asserts
 - [The first agent is the progenitor](the-first-agent-is-the-progenitor.md) — one name in code, flags, folders and docs; "root" only for tree structure; "seed" only for RNG
+- [Machine and coding harness](machine-and-coding-harness.md) — rustyhgm is the machine; what it evolves is the coding harness, never agent, prompts included; harness means nothing else
