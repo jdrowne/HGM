@@ -1,11 +1,12 @@
+use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use parquet::file::reader::{FileReader, SerializedFileReader};
+use parquet::file::reader::SerializedFileReader;
 use parquet::record::Field;
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 pub const SWE_BENCH: &str = "princeton-nlp/SWE-bench";
 pub const SWE_BENCH_VERIFIED: &str = "princeton-nlp/SWE-bench_Verified";
@@ -52,6 +53,7 @@ impl From<ureq::Error> for Error {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Hub {
     pub endpoint: String,
     pub cache_dir: PathBuf,
@@ -59,12 +61,18 @@ pub struct Hub {
 
 impl Hub {
     pub fn from_env() -> Self {
-        let endpoint = std::env::var("HGM_HF_ENDPOINT")
-            .unwrap_or_else(|_| "https://huggingface.co".to_owned());
-        let cache_dir = std::env::var_os("HGM_DATA_DIR").map_or_else(
+        Self::from_vars(|key| std::env::var_os(key))
+    }
+
+    pub fn from_vars(var: impl Fn(&str) -> Option<OsString>) -> Self {
+        let endpoint = var("HGM_HF_ENDPOINT").map_or_else(
+            || "https://huggingface.co".to_owned(),
+            |e| e.to_string_lossy().into_owned(),
+        );
+        let cache_dir = var("HGM_DATA_DIR").map_or_else(
             || {
-                std::env::var_os("HOME")
-                    .or_else(|| std::env::var_os("USERPROFILE"))
+                var("HOME")
+                    .or_else(|| var("USERPROFILE"))
                     .map_or_else(|| PathBuf::from("."), PathBuf::from)
                     .join(".cache")
                     .join("hgm")
@@ -172,21 +180,23 @@ fn field_value(field: &Field) -> Value {
 }
 
 pub fn read_parquet(path: &Path) -> Result<Vec<Value>, Error> {
-    let reader = SerializedFileReader::new(fs::File::open(path)?)?;
-    let mut rows = Vec::new();
-    for row in reader.get_row_iter(None)? {
-        let row = row?;
-        let object: Map<String, Value> = row
-            .get_column_iter()
-            .map(|(k, v)| (k.clone(), field_value(v)))
-            .collect();
-        rows.push(Value::Object(object));
-    }
-    Ok(rows)
-}
-
-pub fn load(name: &str, split: &str) -> Result<Vec<Value>, Error> {
-    Hub::from_env().load(name, split)
+    let file = fs::File::open(path)?;
+    SerializedFileReader::new(file)
+        .and_then(|reader| {
+            reader
+                .into_iter()
+                .map(|row| {
+                    row.map(|row| {
+                        Value::Object(
+                            row.get_column_iter()
+                                .map(|(k, v)| (k.clone(), field_value(v)))
+                                .collect(),
+                        )
+                    })
+                })
+                .collect()
+        })
+        .map_err(Error::from)
 }
 
 pub fn instance_ids(rows: &[Value]) -> Vec<String> {

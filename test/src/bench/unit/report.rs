@@ -90,15 +90,45 @@ fn preds_to_jsonl_rejects_mixed_models_and_empty_sets() {
 #[test]
 fn run_names_count_earlier_runs_of_the_model() {
     let tmp = tempfile::tempdir().unwrap();
-    assert_eq!(next_run_name(tmp.path(), "agent").unwrap(), "agent_1");
+    assert_eq!(next_run_name(tmp.path(), "agent"), "agent_1");
     fs::create_dir(tmp.path().join("agent_1")).unwrap();
     fs::create_dir(tmp.path().join("other_1")).unwrap();
     fs::write(tmp.path().join("agent_file"), "").unwrap();
-    assert_eq!(next_run_name(tmp.path(), "agent").unwrap(), "agent_2");
-    assert!(next_run_name(&PathBuf::from("/definitely/not/here"), "agent").is_err());
+    assert_eq!(next_run_name(tmp.path(), "agent"), "agent_2");
+    assert_eq!(
+        next_run_name(&PathBuf::from("/definitely/not/here"), "agent"),
+        "agent_1"
+    );
 }
 
 #[test]
 fn run_ids_are_zero_padded() {
     assert_eq!(default_run_ids(3), ["000", "001", "002"]);
+}
+
+#[test]
+fn unreadable_or_junk_prediction_files_are_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+    let bytes = tmp.path().join("bytes.json");
+    fs::write(&bytes, [0xff, 0xfe]).unwrap();
+    let e = load_predictions(std::slice::from_ref(&bytes)).unwrap_err();
+    assert!(e.starts_with(&bytes.display().to_string()), "{e}");
+    let junk = tmp.path().join("junk.json");
+    fs::write(&junk, "{").unwrap();
+    let e = load_predictions(std::slice::from_ref(&junk)).unwrap_err();
+    assert!(e.starts_with(&junk.display().to_string()), "{e}");
+}
+
+#[test]
+fn an_unwritable_jsonl_path_is_an_error() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(
+        tmp.path().join("a.json"),
+        r#"{"instance_id": "a", "model_name_or_path": "m", "model_patch": ""}"#,
+    )
+    .unwrap();
+    fs::create_dir(tmp.path().join("all_preds.jsonl")).unwrap();
+    let preds = load_predictions(&[tmp.path().to_path_buf()]).unwrap();
+    let e = preds_to_jsonl(tmp.path(), &preds).unwrap_err();
+    assert!(e.contains("all_preds.jsonl"), "{e}");
 }

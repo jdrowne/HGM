@@ -7,15 +7,16 @@ use serde_json::{Map, Value};
 
 use crate::swebench::{EvaluationRun, Swebench};
 
-fn json_files(dir: &Path) -> Result<Vec<PathBuf>, String> {
+fn json_files(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = fs::read_dir(dir)
-        .map_err(|e| format!("{}: {e}", dir.display()))?
-        .filter_map(Result::ok)
+        .into_iter()
+        .flatten()
+        .flatten()
         .map(|e| e.path())
         .filter(|p| p.is_file() && p.extension().is_some_and(|x| x == "json"))
         .collect();
     files.sort();
-    Ok(files)
+    files
 }
 
 pub fn load_predictions(paths: &[PathBuf]) -> Result<Map<String, Value>, String> {
@@ -24,16 +25,17 @@ pub fn load_predictions(paths: &[PathBuf]) -> Result<Map<String, Value>, String>
         if path.is_file() {
             files.push(path.clone());
         } else if path.is_dir() {
-            files.extend(json_files(path)?);
+            files.extend(json_files(path));
         } else {
             return Err(format!("{} does not exist", path.display()));
         }
     }
     let mut predictions = Map::new();
     for file in files {
-        let text = fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
-        let mut pred: Value =
-            serde_json::from_str(&text).map_err(|e| format!("{}: {e}", file.display()))?;
+        let mut pred: Value = fs::read_to_string(&file)
+            .map_err(|e| e.to_string())
+            .and_then(|text| serde_json::from_str(&text).map_err(|e| e.to_string()))
+            .map_err(|e| format!("{}: {e}", file.display()))?;
         let Some(inst) = pred
             .get("instance_id")
             .and_then(Value::as_str)

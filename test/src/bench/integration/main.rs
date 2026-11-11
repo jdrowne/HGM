@@ -1,3 +1,6 @@
+#[cfg(unix)]
+mod swe;
+
 #[test]
 fn crate_is_linked() {
     assert_eq!(hgm_bench::CRATE_NAME, "hgm-bench");

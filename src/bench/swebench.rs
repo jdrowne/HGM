@@ -79,26 +79,25 @@ impl Swebench {
     }
 
     pub fn specs(&self, entries: &[Value]) -> Result<Vec<TestSpec>, Error> {
-        let mut child = Command::new(&self.python)
-            .args(["-c", SPECS])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
         let mut input = String::new();
         for entry in entries {
             input.push_str(&entry.to_string());
             input.push('\n');
         }
-        let mut stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| Error::Output("no stdin".to_owned()))?;
-        let writer = std::thread::spawn(move || stdin.write_all(input.as_bytes()));
-        let out = child.wait_with_output()?;
-        writer
-            .join()
-            .map_err(|_| Error::Output("stdin writer panicked".to_owned()))??;
+        let out = Command::new(&self.python)
+            .args(["-c", SPECS])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .and_then(|mut child| {
+                let stdin = child.stdin.take();
+                let writer =
+                    std::thread::spawn(move || stdin.map(|mut s| s.write_all(input.as_bytes())));
+                let out = child.wait_with_output();
+                drop(writer.join());
+                out
+            })?;
         if !out.status.success() {
             return Err(Error::Failed {
                 what: "test specs".to_owned(),

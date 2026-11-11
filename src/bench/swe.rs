@@ -9,7 +9,7 @@ use hgm_core::pyjson::{PyValue, dumps};
 use hgm_sandbox::{Container, Docker, ExecOptions, RunOptions};
 use serde_json::Value;
 
-use crate::dataset::{self, SWE_BENCH};
+use crate::dataset::{self, Hub, SWE_BENCH};
 use crate::swebench::{Swebench, TestSpec};
 
 pub const AGENT_FILES: [(&str, &str); 10] = [
@@ -39,6 +39,7 @@ pub const AGENT_ENV: [&str; 7] = [
 pub struct Harness {
     pub docker: Docker,
     pub swebench: Swebench,
+    pub hub: Hub,
     pub llm: String,
     pub timeout: u64,
 }
@@ -85,25 +86,38 @@ pub fn prediction(
     )
 }
 
+fn message(e: hgm_sandbox::Error) -> String {
+    e.to_string()
+}
+
 fn run_logged(
     container: &Container,
     argv: &[&str],
     opts: &ExecOptions,
     log: &Log,
-) -> Result<String, String> {
-    let result = container.exec(argv, opts).map_err(|e| e.to_string())?;
-    result.log(log, true).map_err(|e| e.to_string())?;
-    Ok(result.text())
+) -> Result<String, hgm_sandbox::Error> {
+    container
+        .exec(argv, opts)
+        .and_then(|r| r.log(log, true).map(|()| r.text()))
 }
 
-fn found_files(container: &Container, pattern: &str, log: &Log) -> Result<Vec<String>, String> {
-    let out = run_logged(
-        container,
-        &["find", "/hgm/", "-name", pattern],
-        &ExecOptions::workdir("/"),
-        log,
-    )?;
-    Ok(out.split_whitespace().map(str::to_owned).collect())
+enum Step {
+    Info(&'static str),
+    CopyIn(PathBuf, &'static str),
+    Run(&'static [&'static str], &'static str),
+}
+
+fn run_step(container: &Container, step: &Step, log: &Log) -> Result<(), hgm_sandbox::Error> {
+    match step {
+        Step::Info(message) => {
+            log.info(*message);
+            Ok(())
+        }
+        Step::CopyIn(source, dest) => container.copy_in(source, dest, log),
+        Step::Run(argv, workdir) => {
+            run_logged(container, argv, &ExecOptions::workdir(*workdir), log).map(drop)
+        }
+    }
 }
 
 impl Harness {
@@ -112,7 +126,7 @@ impl Harness {
         let name = job.spec.container_name(&run_id);
         self.docker
             .remove_existing_container(&name, log)
-            .map_err(|e| e.to_string())?;
+            .map_err(message)?;
         let opts = RunOptions {
             user: Some(job.spec.user.clone()),
             platform: Some(job.spec.platform.clone()),
@@ -121,57 +135,55 @@ impl Harness {
         };
         self.docker
             .run_detached_as(&job.spec.image, &name, &opts, log)
-            .map_err(|e| e.to_string())
+            .map_err(message)
     }
 
     fn setup(&self, job: &Job, container: &Container, log: &Log) -> Result<(), String> {
-        for (source, dest) in AGENT_FILES {
-            container
-                .copy_in(&job.run.init_agent_path.join(source), dest, log)
-                .map_err(|e| e.to_string())?;
-        }
-        log.info("Setting up environment");
         let eval_file = job
             .out_dname
             .join(format!("{}_eval.sh", job.spec.instance_id));
         fs::write(&eval_file, &job.spec.eval_script).map_err(|e| e.to_string())?;
-        container
-            .copy_in(&eval_file, "/eval.sh", log)
-            .map_err(|e| e.to_string())?;
-        let root = ExecOptions::workdir("/");
-        run_logged(container, &["/bin/bash", "/eval.sh"], &root, log)?;
-        run_logged(container, &["rm", "/eval.sh"], &root, log)?;
+        let mut steps: Vec<Step> = AGENT_FILES
+            .iter()
+            .map(|(source, dest)| Step::CopyIn(job.run.init_agent_path.join(source), dest))
+            .collect();
+        steps.extend([
+            Step::Info("Setting up environment"),
+            Step::CopyIn(eval_file, "/eval.sh"),
+            Step::Run(&["/bin/bash", "/eval.sh"], "/"),
+            Step::Run(&["rm", "/eval.sh"], "/"),
+        ]);
         if !job.run.model_patch_paths.is_empty() {
-            log.info("Applying model patches");
+            steps.push(Step::Info("Applying model patches"));
         }
-        let hgm = ExecOptions::workdir("/hgm");
         for patch in &job.run.model_patch_paths {
-            container
-                .copy_in(patch, "/hgm/parent_patch.txt", log)
-                .map_err(|e| e.to_string())?;
-            run_logged(
-                container,
-                &["/bin/sh", "-c", "patch -p1 < /hgm/parent_patch.txt"],
-                &hgm,
-                log,
-            )?;
-            run_logged(container, &["rm", "/hgm/parent_patch.txt"], &hgm, log)?;
+            steps.extend([
+                Step::CopyIn(patch.clone(), "/hgm/parent_patch.txt"),
+                Step::Run(
+                    &["/bin/sh", "-c", "patch -p1 < /hgm/parent_patch.txt"],
+                    "/hgm",
+                ),
+                Step::Run(&["rm", "/hgm/parent_patch.txt"], "/hgm"),
+            ]);
         }
-        log.info("Installing more requirements");
-        run_logged(
-            container,
-            &[
-                "python",
-                "-m",
-                "pip",
-                "install",
-                "-r",
-                "/hgm/requirements.txt",
-            ],
-            &root,
-            log,
-        )?;
-        Ok(())
+        steps.extend([
+            Step::Info("Installing more requirements"),
+            Step::Run(
+                &[
+                    "python",
+                    "-m",
+                    "pip",
+                    "install",
+                    "-r",
+                    "/hgm/requirements.txt",
+                ],
+                "/",
+            ),
+        ]);
+        steps
+            .iter()
+            .try_for_each(|step| run_step(container, step, log))
+            .map_err(message)
     }
 
     fn solve(&self, job: &Job, container: &Container, log: &Log) -> Result<(), String> {
@@ -207,38 +219,49 @@ impl Harness {
             &timeout,
         ];
         let env = ExecOptions::workdir("/").passthrough_env(&AGENT_ENV);
-        run_logged(container, &argv, &env, log)?;
-        Ok(())
+        run_logged(container, &argv, &env, log)
+            .map(drop)
+            .map_err(message)
     }
 
     fn collect(&self, job: &Job, container: &Container, log: &Log) -> Result<String, String> {
         let instance_id = &job.spec.instance_id;
         log.info("Copying output files back to host");
-        container
-            .copy_out(
-                &format!("/hgm/{instance_id}.md"),
-                &job.out_dname.join(format!("{instance_id}.md")),
-                log,
-            )
-            .map_err(|e| e.to_string())?;
-        for file in found_files(container, &format!("{instance_id}_*.md"), log)? {
-            let name = file.rsplit('/').next().unwrap_or(&file);
-            container
-                .copy_out(&file, &job.out_dname.join(name), log)
-                .map_err(|e| e.to_string())?;
-        }
+        let md_pattern = format!("{instance_id}_*.md");
+        let argv = [
+            "find",
+            "/hgm/",
+            "-name",
+            &md_pattern,
+            "-o",
+            "-name",
+            "model_patch_*.diff",
+        ];
+        let found =
+            run_logged(container, &argv, &ExecOptions::workdir("/"), log).map_err(message)?;
+        let (mds, diffs): (Vec<&str>, Vec<&str>) =
+            found.split_whitespace().partition(|f| f.ends_with(".md"));
+        let chat_history = format!("/hgm/{instance_id}.md");
+        std::iter::once(chat_history.as_str())
+            .chain(mds)
+            .try_for_each(|file| {
+                let name = file.rsplit('/').next().unwrap_or(file);
+                container.copy_out(file, &job.out_dname.join(name), log)
+            })
+            .map_err(message)?;
         log.info("Getting model_patch");
         let none = ExecOptions::default();
-        let model_patch = run_logged(container, &["cat", "/hgm/model_patch.diff"], &none, log)?;
-        let mut proposed = Vec::new();
-        for file in found_files(container, "model_patch_*.diff", log)? {
-            proposed.push(run_logged(container, &["cat", &file], &none, log)?);
-        }
+        let mut patches = std::iter::once("/hgm/model_patch.diff")
+            .chain(diffs)
+            .map(|file| run_logged(container, &["cat", file], &none, log))
+            .collect::<Result<Vec<String>, _>>()
+            .map_err(message)?;
+        let model_patch = patches.remove(0);
         Ok(prediction(
             &job.run.model_name_or_path,
             instance_id,
             &model_patch,
-            &proposed,
+            &patches,
         ))
     }
 
@@ -267,20 +290,16 @@ impl Harness {
         let log = Log::to_file(&job.out_dname.join(format!("{instance_id}_docker.log")))
             .unwrap_or_else(|_| Log::discard());
         let mut container = None;
-        let outcome = self.attempt(job, &mut container, &log);
+        let outcome = self
+            .attempt(job, &mut container, &log)
+            .and_then(|result| fs::write(&out_fname, result).map_err(|e| e.to_string()));
         if let Some(c) = &container {
             c.cleanup(&log);
         }
         match outcome {
-            Ok(result) => match fs::write(&out_fname, result) {
-                Ok(()) => EntryResult {
-                    instance_id,
-                    error: None,
-                },
-                Err(e) => EntryResult {
-                    instance_id,
-                    error: Some(e.to_string()),
-                },
+            Ok(()) => EntryResult {
+                instance_id,
+                error: None,
             },
             Err(e) => {
                 println!("Error processing entry {instance_id}: {e}");
@@ -336,7 +355,9 @@ impl Harness {
         pred_dname: &Path,
     ) -> Result<Vec<PathBuf>, String> {
         let wanted: HashSet<&str> = test_task_list.iter().map(AsRef::as_ref).collect();
-        let entries: Vec<Value> = dataset::load(SWE_BENCH, "test")
+        let entries: Vec<Value> = self
+            .hub
+            .load(SWE_BENCH, "test")
             .map_err(|e| e.to_string())?
             .into_iter()
             .filter(|e| {
@@ -351,13 +372,11 @@ impl Harness {
             .prepare_images(SWE_BENCH, &ids, run.max_workers)
             .map_err(|e| e.to_string())?;
         let specs = self.swebench.specs(&entries).map_err(|e| e.to_string())?;
-        let out_dname = pred_dname.join(next_run_name(pred_dname, &run.model_name_or_path)?);
+        let name = next_run_name(pred_dname, &run.model_name_or_path);
+        let out_dname = pred_dname.join(&name);
         fs::create_dir_all(&out_dname).map_err(|e| e.to_string())?;
         let inst = Run {
-            model_name_or_path: out_dname
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default(),
+            model_name_or_path: name,
             ..run.clone()
         };
         println!("Starting evaluation 0 for model {}", run.model_name_or_path);
@@ -370,10 +389,11 @@ impl Harness {
     }
 }
 
-pub fn next_run_name(pred_dname: &Path, model_name_or_path: &str) -> Result<String, String> {
+pub fn next_run_name(pred_dname: &Path, model_name_or_path: &str) -> String {
     let taken = fs::read_dir(pred_dname)
-        .map_err(|e| e.to_string())?
-        .filter_map(Result::ok)
+        .into_iter()
+        .flatten()
+        .flatten()
         .filter(|d| d.path().is_dir())
         .filter(|d| {
             d.file_name()
@@ -381,5 +401,5 @@ pub fn next_run_name(pred_dname: &Path, model_name_or_path: &str) -> Result<Stri
                 .starts_with(model_name_or_path)
         })
         .count();
-    Ok(format!("{model_name_or_path}_{}", taken + 1))
+    format!("{model_name_or_path}_{}", taken + 1)
 }

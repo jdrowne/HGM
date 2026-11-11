@@ -1,0 +1,54 @@
+{
+  "source": "datasets.load_dataset('parquet') over types.parquet: every column type the reader maps, dates shown with str()",
+  "cases": [
+    {
+      "name": "types_parquet",
+      "input": "types.parquet",
+      "output": [
+        {
+          "b": true,
+          "i8": -1,
+          "i16": -300,
+          "i32": -70000,
+          "i64": -1099511627776,
+          "u8": 200,
+          "u16": 60000,
+          "u32": 4000000000,
+          "u64": 9223372036854775808,
+          "f32": 0.5,
+          "f64": 0.1,
+          "s": "x",
+          "l": [
+            1,
+            2
+          ],
+          "g": {
+            "k": 1,
+            "v": "a"
+          },
+          "d": "2020-01-02"
+        },
+        {
+          "b": null,
+          "i8": 2,
+          "i16": 2,
+          "i32": 2,
+          "i64": 2,
+          "u8": 2,
+          "u16": 2,
+          "u32": 2,
+          "u64": 2,
+          "f32": -1.25,
+          "f64": -2.0,
+          "s": null,
+          "l": [],
+          "g": {
+            "k": null,
+            "v": null
+          },
+          "d": null
+        }
+      ]
+    }
+  ]
+}

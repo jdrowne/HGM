@@ -26,3 +26,12 @@ fn a_missing_interpreter_is_an_error() {
     let none: [&str; 0] = [];
     assert!(swebench.prepare_images("d", &none, 1).is_ok());
 }
+
+#[test]
+fn errors_say_what_failed() {
+    assert_eq!(
+        hgm_bench::swebench::Error::from(std::io::Error::other("x")).to_string(),
+        "running swebench: x"
+    );
+    assert!(!Swebench::from_env().python.is_empty());
+}

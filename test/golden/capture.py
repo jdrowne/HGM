@@ -1096,7 +1096,7 @@ def capture_polyglot_specs():
 
 def capture_py_shuffle():
     cases = []
-    for seed, n in ((42, 10), (0, 1000), (7, 33)):
+    for seed, n in ((42, 10), (0, 1000), (7, 33), (2**40 + 5, 50), (2**64 - 1, 20)):
         items = list(range(n))
         random.seed(seed)
         random.shuffle(items)
@@ -1125,6 +1125,34 @@ def capture_dataset_rows():
         "dataset_rows",
         "datasets.load_dataset('parquet') over rows.parquet, written by pyarrow with snappy and two row groups",
         [{"name": "rows_parquet", "input": "rows.parquet", "output": loaded}],
+    )
+    import datetime
+
+    typed = pa.table({
+        "b": pa.array([True, None], pa.bool_()),
+        "i8": pa.array([-1, 2], pa.int8()),
+        "i16": pa.array([-300, 2], pa.int16()),
+        "i32": pa.array([-70000, 2], pa.int32()),
+        "i64": pa.array([-(2**40), 2], pa.int64()),
+        "u8": pa.array([200, 2], pa.uint8()),
+        "u16": pa.array([60000, 2], pa.uint16()),
+        "u32": pa.array([4000000000, 2], pa.uint32()),
+        "u64": pa.array([2**63, 2], pa.uint64()),
+        "f32": pa.array([0.5, -1.25], pa.float32()),
+        "f64": pa.array([0.1, -2.0], pa.float64()),
+        "s": pa.array(["x", None], pa.string()),
+        "l": pa.array([[1, 2], []], pa.list_(pa.int64())),
+        "g": pa.array([{"k": 1, "v": "a"}, {"k": None, "v": None}], pa.struct([("k", pa.int64()), ("v", pa.string())])),
+        "d": pa.array([datetime.date(2020, 1, 2), None], pa.date32()),
+    })
+    typed_path = FIXTURES / "bench" / "unit" / "fixtures" / "types.parquet"
+    pq.write_table(typed, typed_path, compression="snappy")
+    typed_rows = [dict(r) for r in load_dataset("parquet", data_files=str(typed_path), cache_dir=tempfile.mkdtemp())["train"]]
+    write(
+        "bench",
+        "dataset_types",
+        "datasets.load_dataset('parquet') over types.parquet: every column type the reader maps, dates shown with str()",
+        [{"name": "types_parquet", "input": "types.parquet", "output": json.loads(json.dumps(typed_rows, default=str))}],
     )
 
 
