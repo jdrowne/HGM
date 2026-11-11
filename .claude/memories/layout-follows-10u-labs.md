@@ -5,6 +5,8 @@ metadata:
   type: feedback
 ---
 
+# The layout follows the 10U-Labs repos
+
 The tree is laid out like deltahdl and the 10U-Labs repos, not like Cargo's defaults:
 
 - `src/<component>/` holds the component's files directly: `src/core/lib.rs`, `src/hgm/main.rs`. A crate's manifest sets `[lib] path = "lib.rs"` or `[[bin]] path = "main.rs"`, so no crate has a nested `src/`. A component with both a library and a binary, like `src/agent`, is one package.

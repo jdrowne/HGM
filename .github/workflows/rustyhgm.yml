@@ -1,0 +1,230 @@
+---
+concurrency:
+  cancel-in-progress: true
+  group: rustyhgm-${{ github.ref }}
+defaults:
+  run:
+    shell: bash
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  agent-subtree:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build and test the agent subtree on its own
+        run: test/agent-subtree.sh
+  assert-no-comments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Assert no comments
+        uses: 10U-Labs/assert-no-comments@latest
+        with:
+          trees: .claude/statusline.sh .github/workflows/rustyhgm.yml config.yaml src test
+          verbose: "true"
+  build:
+    name: build-${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache the build
+        uses: Swatinem/rust-cache@master
+        with:
+          key: ${{ matrix.platform }}
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@main
+        with:
+          tool: cargo-nextest
+      - name: Build every test binary into an archive
+        run: cargo nextest archive --workspace --all-targets --archive-file build.tar.zst
+      - name: Upload build
+        uses: actions/upload-artifact@main
+        with:
+          name: build-${{ matrix.platform }}
+          path: build.tar.zst
+          retention-days: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86-64
+            runner: ubuntu-latest
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+          - platform: macos-arm64
+            runner: macos-latest
+          - platform: windows-x86-64
+            runner: windows-latest
+          - platform: windows-arm64
+            runner: windows-11-arm
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Cache the build
+        uses: Swatinem/rust-cache@master
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+  e2e-test:
+    if: ${{ !cancelled() && needs.integration-test.result == 'success' }}
+    name: e2e-test-${{ matrix.platform }}
+    needs: integration-test
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Download build
+        uses: actions/download-artifact@main
+        with:
+          name: build-${{ matrix.platform }}
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@main
+        with:
+          tool: cargo-nextest
+      - name: Run the e2e tier
+        run: >-
+          cargo-nextest nextest run
+          --archive-file build.tar.zst
+          --workspace-remap .
+          -E 'binary(e2e)'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86-64
+            runner: ubuntu-latest
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+  integration-test:
+    if: ${{ !cancelled() && needs.unit-test.result == 'success' }}
+    name: integration-test-${{ matrix.platform }}
+    needs: unit-test
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Download build
+        uses: actions/download-artifact@main
+        with:
+          name: build-${{ matrix.platform }}
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@main
+        with:
+          tool: cargo-nextest
+      - name: Run the integration tier
+        run: >-
+          cargo-nextest nextest run
+          --archive-file build.tar.zst
+          --workspace-remap .
+          -E 'binary(integration)'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86-64
+            runner: ubuntu-latest
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all --check
+  unit-test:
+    name: unit-test-${{ matrix.platform }}
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Download build
+        uses: actions/download-artifact@main
+        with:
+          name: build-${{ matrix.platform }}
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@main
+        with:
+          tool: cargo-nextest
+      - name: Run the unit tier
+        run: >-
+          cargo-nextest nextest run
+          --archive-file build.tar.zst
+          --workspace-remap .
+          --no-tests warn
+          -E 'kind(lib) | kind(bin) | binary(unit)'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86-64
+            runner: ubuntu-latest
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+          - platform: macos-arm64
+            runner: macos-latest
+          - platform: windows-x86-64
+            runner: windows-latest
+          - platform: windows-arm64
+            runner: windows-11-arm
+  yamllint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install tools
+        run: pip install assert-no-inline-directives yamllint
+      - if: ${{ !cancelled() }}
+        name: Assert no inline yamllint disables
+        run: >-
+          assert-no-inline-directives
+          --tools yamllint
+          --verbose
+          .github/workflows/rustyhgm.yml
+      - if: ${{ !cancelled() }}
+        name: Lint YAML
+        run: |
+          EMPTY='empty-lines: {max: 0, max-start: 0, max-end: 1}'
+          KEY='key-ordering: enable'
+          LL='line-length: disable'
+          NL='new-line-at-end-of-file: enable'
+          TR='truthy: {allowed-values: ["true", "false", "on"]}'
+          RULES="$EMPTY, $KEY, $LL, $NL, $TR"
+          yamllint --strict \
+            --config-data \
+            "{extends: default, rules: {$RULES}}" \
+            .github/workflows/rustyhgm.yml
+name: rustyhgm
+on:
+  push:
+    branches: [main]
+    paths:
+      - .claude/statusline.sh
+      - .dockerignore
+      - .github/workflows/rustyhgm.yml
+      - Cargo.toml
+      - Dockerfile
+      - config.yaml
+      - lib/**
+      - rust-toolchain.toml
+      - src/**
+      - test/**
+  workflow_dispatch: {}

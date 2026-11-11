@@ -5,8 +5,8 @@ fn crate_is_linked() {
 
 #[test]
 fn golden_fixtures_load() {
-    let dir =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test/src/bench/unit/fixtures");
+    let dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join("../../test/src/bench/unit/fixtures");
     let mut n = 0;
     for entry in std::fs::read_dir(&dir).expect("fixtures dir") {
         let path = entry.unwrap().path();

@@ -1,16 +1,19 @@
 ---
 name: ci-follows-10u-labs-conventions
-description: Workflows follow the 10U-Labs layout; each assert is its own job via its published action; yamllint lints the workflows
+description: One workflow per thing it guards (rustyhgm.yml for the compiled product, markdownlint.yml); build, unit, integration and e2e chained through a build artifact, as deltahdl does
 metadata:
   type: feedback
 ---
 
-CI in this repo is written the way the 10U-Labs repos (`../../10U-Labs/*`) and deltahdl write theirs:
+# CI follows the 10U-Labs conventions
 
-- Each check is its own job, named after the tool, with no `needs:` between scanning jobs.
-- An assert runs through its published action (`10U-Labs/assert-no-comments@latest`) rather than a hand-written `pip install` step.
-- A `yamllint` job lints every workflow file with the 10U-Labs `config_data` (`empty-lines` max 0, `key-ordering`, `truthy` allowing `on`) and `strict: "true"`. So a workflow starts with `---`, has no blank lines, sorts every mapping's keys, and names every step.
+CI is written the way deltahdl (`../../deltahdl/deltahdl`) and the 10U-Labs repos (`../../10U-Labs/*`) write theirs:
 
-**Why:** the user asked for yamllint and assert-no-comments to be adopted "like we do in .. and ../../", so those repos are the reference when a CI question comes up.
+- One workflow per thing it guards, named after it: `rustyhgm.yml` for the compiled Rust product, as deltahdl has `deltahdl.yml` and the 10U-Labs tools have `release.yml`, and `markdownlint.yml` for the Markdown. Each starts on a push to `main` filtered by `paths`, and on `workflow_dispatch`, with a `concurrency` group that cancels older runs.
+- Every workflow checks itself: its own `assert-no-comments` and `yamllint` jobs cover the workflow file, and `yamllint` also runs `assert-no-inline-directives --tools yamllint`.
+- Because Rust is compiled, the product workflow builds once per platform and the test tiers consume that build, as deltahdl does with CMake: `build-<platform>` writes a `cargo nextest archive` and uploads it, `unit-test-<platform>` needs it, `integration-test-<platform>` needs the unit tests, and `e2e-test-<platform>` needs the integration tests. Lint checks (`clippy`, `rustfmt`, the asserts) are their own jobs with no `needs:`.
+- An assert with a published action runs through it (`10U-Labs/assert-no-comments@latest`). `yamllint` uses the 10U-Labs rules (`empty-lines` max 0, `key-ordering`, `line-length` disabled, `new-line-at-end-of-file`, `truthy` allowing `on`) with `--strict`, so a workflow starts with `---`, has no blank lines, sorts every mapping's keys, and names every step.
 
-**How to apply:** a new workflow file is added to the yamllint job's `file_or_dir`. Before inventing a CI pattern, look at how those repos do it. Related: [[no-comments-in-any-file]], [[always-use-latest-versions]].
+**Why:** the user asked on 2026-11-11 for at least two workflows like the 10U-Labs `release.yml` and `markdownlint.yml`, and pointed at deltahdl for how a compiled language splits its build from its tests.
+
+**How to apply:** a new kind of file gets its own workflow rather than a job in `rustyhgm.yml`. Before inventing a CI pattern, look at how those repos do it. Related: [[supported-platforms]], [[no-comments-in-any-file]], [[always-use-latest-versions]].

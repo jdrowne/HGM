@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use hgm_core::config::{HgmConfig, OverrideValue};
 use serde_json::Value;
@@ -92,7 +92,8 @@ fn saved_defaults_match_the_python_yaml() {
 
 #[test]
 fn the_shipped_config_leaves_the_output_dir_unset() {
-    let shipped = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../config.yaml");
+    let shipped =
+        PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("../../config.yaml");
     let config = HgmConfig::from_yaml(&shipped);
     assert_eq!(config.paths.output_dir, None);
     assert!(!config.optimization.cool_down);

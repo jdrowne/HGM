@@ -5,7 +5,8 @@ use hgm_core::tree::Tree;
 use serde_json::Value;
 
 pub fn fixtures_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test/src/core/unit/fixtures")
+    PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join("../../test/src/core/unit/fixtures")
 }
 
 pub fn cases(name: &str) -> Vec<Value> {
