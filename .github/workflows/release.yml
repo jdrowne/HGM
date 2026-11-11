@@ -79,9 +79,8 @@ jobs:
       - name: Run clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
   e2e-test:
-    if: ${{ !cancelled() && needs.integration-test.result == 'success' }}
     name: e2e-test-${{ matrix.platform }}
-    needs: integration-test
+    needs: build
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
@@ -109,9 +108,8 @@ jobs:
           - platform: linux-arm64
             runner: ubuntu-24.04-arm
   integration-test:
-    if: ${{ !cancelled() && needs.unit-test.result == 'success' }}
     name: integration-test-${{ matrix.platform }}
-    needs: unit-test
+    needs: build
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
