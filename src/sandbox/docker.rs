@@ -76,6 +76,11 @@ impl ExecOptions {
     }
 }
 
+pub struct BuildOptions<'a> {
+    pub platform: Option<&'a str>,
+    pub no_cache: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RunOptions {
     pub user: Option<String>,
@@ -163,8 +168,37 @@ impl Docker {
     }
 
     pub fn image_exists(&self, image: &str) -> Result<bool, Error> {
-        let out = self.output(["image", "inspect", "--format", "{{.Id}}", image])?;
-        Ok(out.code == Some(0))
+        self.inspect_image(image, "{{.Id}}").map(|id| id.is_some())
+    }
+
+    pub fn inspect_image(&self, image: &str, format: &str) -> Result<Option<String>, Error> {
+        let out = self.output(["image", "inspect", "--format", format, image])?;
+        Ok((out.code == Some(0)).then(|| String::from_utf8_lossy(&out.bytes).trim().to_owned()))
+    }
+
+    pub fn images(&self) -> Result<Vec<(String, String)>, Error> {
+        let out = self.run([
+            "image",
+            "ls",
+            "--no-trunc",
+            "--format",
+            "{{.ID}} {{.Repository}}:{{.Tag}}",
+        ])?;
+        let mut images: Vec<(String, String)> = Vec::new();
+        for line in out.lines() {
+            let (id, tag) = line.split_once(' ').unwrap_or((line, "<none>"));
+            if images.iter().any(|(seen, _)| seen == id) {
+                continue;
+            }
+            let name = if tag.contains("<none>") { id } else { tag };
+            images.push((id.to_owned(), name.to_owned()));
+        }
+        Ok(images)
+    }
+
+    pub fn history(&self, image: &str) -> Result<Vec<String>, Error> {
+        let out = self.run(["history", "-q", "--no-trunc", image])?;
+        Ok(out.lines().map(str::to_owned).collect())
     }
 
     pub fn container_exists(&self, name: &str) -> Result<bool, Error> {
@@ -173,8 +207,25 @@ impl Docker {
     }
 
     pub fn build(&self, context: &Path, tag: &str, no_cache: bool, log: &Log) -> Result<(), Error> {
+        let opts = BuildOptions {
+            platform: None,
+            no_cache,
+        };
+        self.build_for(context, tag, &opts, log)
+    }
+
+    pub fn build_for(
+        &self,
+        context: &Path,
+        tag: &str,
+        opts: &BuildOptions,
+        log: &Log,
+    ) -> Result<(), Error> {
         let mut args: Vec<&OsStr> = vec!["build".as_ref(), "-t".as_ref(), tag.as_ref()];
-        if no_cache {
+        if let Some(platform) = opts.platform {
+            args.extend([OsStr::new("--platform"), OsStr::new(platform)]);
+        }
+        if opts.no_cache {
             args.push("--no-cache".as_ref());
         }
         args.push(context.as_os_str());
@@ -424,8 +475,12 @@ impl Container {
     }
 
     pub fn stop(&self) -> Result<(), Error> {
+        self.stop_within(10)
+    }
+
+    pub fn stop_within(&self, seconds: u32) -> Result<(), Error> {
         self.docker
-            .run(["stop", "-t", "10", &self.name])
+            .run(["stop", "-t", &seconds.to_string(), &self.name])
             .map(|_| ())
     }
 
@@ -434,8 +489,12 @@ impl Container {
     }
 
     pub fn cleanup(&self, log: &Log) {
+        self.cleanup_within(10, log);
+    }
+
+    pub fn cleanup_within(&self, seconds: u32, log: &Log) {
         log.info(format!("Stopping container '{}'...", self.name));
-        if let Err(e) = self.stop() {
+        if let Err(e) = self.stop_within(seconds) {
             log.error(format!("Failed to stop container {}: {e}", self.name));
         }
         match self.remove() {

@@ -1,4 +1,7 @@
 pub mod dataset;
+pub mod polyglot;
+pub mod polyglot_build;
+pub mod polyglot_spec;
 pub mod pyrandom;
 pub mod report;
 pub mod swe;

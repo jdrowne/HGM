@@ -1,4 +1,6 @@
 #[cfg(unix)]
+mod polyglot;
+#[cfg(unix)]
 mod swe;
 
 #[test]

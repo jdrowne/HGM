@@ -1086,6 +1086,20 @@ def capture_polyglot_specs():
                 )
     finally:
         platform.machine = real
+    from polyglot import harness as ph
+    from polyglot.constants import MAP_REPO_VERSION_TO_SPECS, TEST_COMMANDS
+
+    for lang in ("python", "rust", "go", "javascript", "cpp", "java"):
+        cases.append(
+            {
+                "name": f"harness_eval_script_{lang}",
+                "input": {"language": lang},
+                "output": {
+                    "eval_script": ph.get_eval_script(TEST_COMMANDS[lang]),
+                    "test_cmd": MAP_REPO_VERSION_TO_SPECS[lang]["test_cmd"],
+                },
+            }
+        )
     write(
         "bench",
         "polyglot_specs",

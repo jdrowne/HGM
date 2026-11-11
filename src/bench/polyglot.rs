@@ -1,0 +1,464 @@
+use std::collections::HashSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use chrono::Local;
+use hgm_agent::patch::remove_patch_by_files;
+use hgm_agent::testrepo::{TestRepo, get_test_description};
+use hgm_core::log::Log;
+use hgm_core::pyjson::{PyValue, dumps};
+use hgm_sandbox::{Container, Docker, ExecOptions};
+use serde_json::Value;
+
+use crate::polyglot_build::Images;
+use crate::polyglot_spec::{get_eval_script, make_test_spec, test_cmd, test_commands};
+use crate::swe::{AGENT_ENV, AGENT_FILES, Run, Step, message, run_logged, run_step};
+
+pub const DATASET: &str = "polyglot/polyglot_benchmark_metadata.json";
+
+#[derive(Clone, Debug)]
+pub struct Harness {
+    pub docker: Docker,
+    pub root: PathBuf,
+    pub dataset: PathBuf,
+    pub machine: String,
+    pub llm: String,
+    pub timeout: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Outcome {
+    pub instance_id: String,
+    pub success: bool,
+    pub eval_result: String,
+}
+
+struct Job<'a> {
+    entry: &'a Value,
+    out_dname: &'a Path,
+    run: &'a Run,
+}
+
+fn text(entry: &Value, key: &str) -> String {
+    entry[key].as_str().unwrap_or_default().to_owned()
+}
+
+fn result(
+    job: &Job,
+    model_patch: &str,
+    proposed: PyValue,
+    eval_result: &str,
+    success: bool,
+) -> String {
+    dumps(
+        &PyValue::dict([
+            ("instance_id", PyValue::str(text(job.entry, "instance_id"))),
+            (
+                "model_name_or_path",
+                PyValue::str(&job.run.model_name_or_path),
+            ),
+            ("model_patch", PyValue::str(model_patch)),
+            ("proposed_model_patches", proposed),
+            ("eval_result", PyValue::str(eval_result)),
+            ("success", PyValue::Bool(success)),
+        ]),
+        Some(4),
+    )
+}
+
+fn run_steps(container: &Container, steps: &[Step], log: &Log) -> Result<(), String> {
+    steps
+        .iter()
+        .try_for_each(|step| run_step(container, step, log))
+        .map_err(message)
+}
+
+fn write(path: &Path, contents: impl AsRef<[u8]>) -> Result<(), String> {
+    fs::write(path, contents).map_err(|e| e.to_string())
+}
+
+impl Harness {
+    fn setup(&self, job: &Job, container: &Container, log: &Log) -> Result<(), String> {
+        let mut steps: Vec<Step> = AGENT_FILES
+            .iter()
+            .map(|(source, dest)| {
+                let source = if *source == "coding_agent.py" {
+                    "coding_agent_polyglot.py"
+                } else {
+                    source
+                };
+                Step::CopyIn(job.run.init_agent_path.join(source), dest)
+            })
+            .collect();
+        steps.push(Step::Run(&["ls", "-R", "/testbed"], "/"));
+        if !job.run.model_patch_paths.is_empty() {
+            steps.push(Step::Info("Applying model patches"));
+        }
+        for patch in &job.run.model_patch_paths {
+            steps.extend([
+                Step::CopyIn(patch.clone(), "/hgm/parent_patch.txt"),
+                Step::Run(
+                    &["/bin/sh", "-c", "patch -p1 < /hgm/parent_patch.txt"],
+                    "/hgm",
+                ),
+                Step::Run(&["rm", "/hgm/parent_patch.txt"], "/hgm"),
+            ]);
+        }
+        steps.extend([
+            Step::Info("Installing more requirements"),
+            Step::Run(
+                &[
+                    "python",
+                    "-m",
+                    "pip",
+                    "install",
+                    "-r",
+                    "/hgm/requirements.txt",
+                ],
+                "/",
+            ),
+        ]);
+        run_steps(container, &steps, log)
+    }
+
+    fn solve(&self, job: &Job, container: &Container, log: &Log) -> Result<(), String> {
+        let instance_id = text(job.entry, "instance_id");
+        let language = text(job.entry, "language");
+        let chat_history = format!("/hgm/{instance_id}.md");
+        let timeout = self.timeout.to_string();
+        let problem_statement = text(job.entry, "problem_statement");
+        let base_commit = text(job.entry, "base_commit");
+        let test_description = get_test_description(&test_cmd(&language), TestRepo::Polyglot);
+        log.info("Running the agent");
+        let argv = [
+            "timeout",
+            &timeout,
+            "python",
+            "/hgm/coding_agent.py",
+            "--problem_statement",
+            &problem_statement,
+            "--git_dir",
+            "/testbed/",
+            "--chat_history_file",
+            &chat_history,
+            "--base_commit",
+            &base_commit,
+            "--outdir",
+            "/hgm/",
+            "--test_description",
+            &test_description,
+            "--language",
+            &language,
+            "--model",
+            &self.llm,
+            "--timeout",
+            &timeout,
+        ];
+        let env = ExecOptions::workdir("/testbed/").passthrough_env(&AGENT_ENV);
+        run_logged(container, &argv, &env, log)
+            .map(drop)
+            .map_err(message)
+    }
+
+    fn collect(&self, job: &Job, container: &Container, log: &Log) -> Result<String, String> {
+        let instance_id = text(job.entry, "instance_id");
+        log.info("Copying output files back to host");
+        let chat_history = format!("/hgm/{instance_id}.md");
+        let pattern = format!("{instance_id}_*.md");
+        let find = ["find", "/hgm/", "-name", &pattern];
+        container
+            .copy_out(
+                &chat_history,
+                &job.out_dname.join(format!("{instance_id}.md")),
+                log,
+            )
+            .and_then(|()| container.exec(&find, &ExecOptions::workdir("/")))
+            .and_then(|found| {
+                found.text().split_whitespace().try_for_each(|file| {
+                    let name = file.rsplit('/').next().unwrap_or(file);
+                    container.copy_out(file, &job.out_dname.join(name), log)
+                })
+            })
+            .map_err(message)?;
+        log.info("Getting model_patch");
+        run_logged(
+            container,
+            &["cat", "/hgm/model_patch.diff"],
+            &ExecOptions::default(),
+            log,
+        )
+        .map_err(message)
+    }
+
+    fn evaluate_patch(
+        &self,
+        job: &Job,
+        container: &Container,
+        log: &Log,
+    ) -> Result<String, String> {
+        let instance_id = text(job.entry, "instance_id");
+        let language = text(job.entry, "language");
+        let solution: Vec<&str> = job.entry["files"]["solution"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect();
+        let restore = [
+            Step::Command(
+                format!("git -C /testbed stash push {}", solution.join(" ")),
+                "/",
+            ),
+            Step::Command(
+                format!(
+                    "git -C /testbed reset --hard {}",
+                    text(job.entry, "test_commit")
+                ),
+                "/",
+            ),
+            Step::Run(&["git", "-C", "/testbed", "clean", "-fd"], "/"),
+            Step::Run(&["git", "-C", "/testbed", "stash", "pop"], "/"),
+            Step::Info("Running the eval"),
+        ];
+        let eval_file = job.out_dname.join(format!("{instance_id}_eval.sh"));
+        let eval_result_file = job.out_dname.join(format!("{instance_id}_eval.md"));
+        let prepare = [
+            Step::CopyIn(eval_file.clone(), "/testbed/eval.sh"),
+            Step::Run(&["ls", "-R", "/testbed"], "/"),
+            Step::Run(&["chmod", "+x", "/testbed/eval.sh"], "/"),
+        ];
+        let eval = run_steps(container, &restore, log)
+            .and_then(|()| write(&eval_file, get_eval_script(test_commands(&language))))
+            .and_then(|()| run_steps(container, &prepare, log))
+            .and_then(|()| {
+                container
+                    .exec(
+                        &["timeout", "120", "./eval.sh"],
+                        &ExecOptions::workdir("/testbed"),
+                    )
+                    .map_err(message)
+            })?;
+        eval.log(log, false).ok();
+        write(&eval_result_file, eval.text())?;
+        Ok(if eval.success() {
+            "resolved"
+        } else {
+            "unresolved"
+        }
+        .to_owned())
+    }
+
+    fn attempt(
+        &self,
+        job: &Job,
+        container: &mut Option<Container>,
+        model_patch: &mut Option<String>,
+        log: &Log,
+    ) -> Result<String, String> {
+        let spec = make_test_spec(job.entry, &self.machine);
+        let run_id = Local::now().format("%Y%m%d_%H%M%S_%6f").to_string();
+        self.docker
+            .remove_existing_container(&spec.container_name(&run_id), log)
+            .map_err(message)?;
+        let images = Images {
+            docker: &self.docker,
+            root: &self.root,
+        };
+        let started = container.insert(images.build_container(&spec, &run_id, log, true)?);
+        self.setup(job, started, log)?;
+        self.solve(job, started, log)?;
+        let patch = model_patch.insert(self.collect(job, started, log)?);
+        let eval_result = if patch.is_empty() {
+            "empty_patch".to_owned()
+        } else {
+            self.evaluate_patch(job, started, log)?
+        };
+        let out_fname = job.out_dname.join(format!("{}.json", spec.instance_id));
+        write(
+            &out_fname,
+            result(job, patch, PyValue::List(Vec::new()), &eval_result, true),
+        )?;
+        Ok(eval_result)
+    }
+
+    fn process_entry(&self, job: &Job) -> Outcome {
+        let instance_id = text(job.entry, "instance_id");
+        let out_fname = job.out_dname.join(format!("{instance_id}.json"));
+        if out_fname.exists() {
+            println!("Skipping existing entry {instance_id}");
+            let saved: Value = fs::read_to_string(&out_fname)
+                .ok()
+                .and_then(|t| serde_json::from_str(&t).ok())
+                .unwrap_or_default();
+            return Outcome {
+                instance_id,
+                success: saved["success"].as_bool().unwrap_or_default(),
+                eval_result: text(&saved, "eval_result"),
+            };
+        }
+        let log = Log::to_file(&job.out_dname.join(format!("{instance_id}_docker.log")))
+            .unwrap_or_else(|_| Log::discard());
+        let mut container = None;
+        let mut model_patch = None;
+        let attempted = self.attempt(job, &mut container, &mut model_patch, &log);
+        let outcome = match attempted {
+            Ok(eval_result) => Outcome {
+                instance_id,
+                success: true,
+                eval_result,
+            },
+            Err(e) => {
+                let (patch, proposed, eval_result) = match model_patch {
+                    None => (String::new(), PyValue::str(""), "incomplete"),
+                    Some(patch) => (patch, PyValue::List(Vec::new()), "error"),
+                };
+                if let Err(write_error) = write(
+                    &out_fname,
+                    result(job, &patch, proposed, eval_result, false),
+                ) {
+                    println!("Error writing result for {instance_id}: {write_error}");
+                }
+                log.error(format!("Error processing entry {instance_id}: {e}"));
+                Outcome {
+                    instance_id,
+                    success: false,
+                    eval_result: eval_result.to_owned(),
+                }
+            }
+        };
+        if let Some(c) = &container {
+            c.cleanup_within(15, &log);
+        }
+        outcome
+    }
+
+    pub fn evaluate(&self, entries: &[Value], out_dname: &Path, run: &Run) -> Vec<Outcome> {
+        let jobs: Vec<Job> = entries
+            .iter()
+            .map(|entry| Job {
+                entry,
+                out_dname,
+                run,
+            })
+            .collect();
+        hgm_core::pool::map(&jobs, run.max_workers, |job| {
+            let outcome = self.process_entry(job);
+            if outcome.success {
+                println!(
+                    "Successfully processed entry {} for eval 0",
+                    outcome.instance_id
+                );
+            } else {
+                println!(
+                    "Failed to process entry {} for eval 0: Unknown error",
+                    outcome.instance_id
+                );
+            }
+            outcome
+        })
+    }
+
+    pub fn harness<S: AsRef<str>>(
+        &self,
+        test_task_list: &[S],
+        run: &Run,
+        pred_dname: &Path,
+        output_dir: &Path,
+    ) -> Result<PathBuf, String> {
+        for path in &run.model_patch_paths {
+            fs::read_to_string(path)
+                .and_then(|patch| fs::write(path, remove_patch_by_files(&patch, "polyglot")))
+                .map_err(|e| format!("{}: {e}", path.display()))?;
+        }
+        let dataset: Vec<Value> = fs::read_to_string(&self.dataset)
+            .map_err(|_| format!("Dataset file not found: {}", self.dataset.display()))
+            .and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string()))?;
+        fs::create_dir_all(pred_dname).map_err(|e| e.to_string())?;
+        let wanted: HashSet<&str> = test_task_list.iter().map(AsRef::as_ref).collect();
+        let entries: Vec<Value> = dataset
+            .iter()
+            .filter(|e| {
+                e["instance_id"]
+                    .as_str()
+                    .is_some_and(|id| wanted.contains(id))
+            })
+            .cloned()
+            .collect();
+        let specs: Vec<_> = entries
+            .iter()
+            .map(|e| make_test_spec(e, &self.machine))
+            .collect();
+        let images = Images {
+            docker: &self.docker,
+            root: &self.root,
+        };
+        images.build_env_images(&specs, run.max_workers)?;
+        let name = format!("{}_0", run.model_name_or_path);
+        let out_dname = pred_dname.join(&name);
+        fs::create_dir_all(&out_dname).map_err(|e| e.to_string())?;
+        let inst = Run {
+            model_name_or_path: name,
+            ..run.clone()
+        };
+        println!("Starting evaluation 0 for model {}", run.model_name_or_path);
+        let outcomes = self.evaluate(&entries, &out_dname, &inst);
+        println!(
+            "All evaluations completed for model {}",
+            run.model_name_or_path
+        );
+        let report = report(dataset.len(), &outcomes);
+        println!("{}", dumps(&report, None));
+        let report_file = output_dir.join(format!(
+            "{} {}.json",
+            run.model_name_or_path.replace('/', "__"),
+            Local::now().format("%Y%m%d_%H%M%S_%6f")
+        ));
+        write(&report_file, dumps(&report, Some(4)) + "\n")?;
+        println!("Report written to {}", report_file.display());
+        Ok(report_file)
+    }
+}
+
+fn sorted_ids<'a>(outcomes: impl Iterator<Item = &'a Outcome>) -> Vec<String> {
+    let mut ids: Vec<String> = outcomes.map(|o| o.instance_id.clone()).collect();
+    ids.sort();
+    ids
+}
+
+pub fn report(total_instances: usize, outcomes: &[Outcome]) -> PyValue {
+    let completed = || outcomes.iter().filter(|o| o.success);
+    let with = |result: &'static str| completed().filter(move |o| o.eval_result == result);
+    let resolved = sorted_ids(with("resolved"));
+    let unresolved = sorted_ids(with("unresolved"));
+    let empty_patch = sorted_ids(with("empty_patch"));
+    let error =
+        sorted_ids(completed().filter(|o| {
+            !["resolved", "unresolved", "empty_patch"].contains(&o.eval_result.as_str())
+        }));
+    let count = |n: usize| PyValue::Int(i64::try_from(n).unwrap_or(i64::MAX));
+    let ids = |ids: &[String]| PyValue::list_of_str(ids);
+    let none: [String; 0] = [];
+    PyValue::dict([
+        ("total_instances", count(total_instances)),
+        ("submitted_instances", count(outcomes.len())),
+        ("completed_instances", count(completed().count())),
+        ("resolved_instances", count(resolved.len())),
+        ("unresolved_instances", count(unresolved.len())),
+        ("empty_patch_instances", count(empty_patch.len())),
+        ("error_instances", count(error.len())),
+        ("unstopped_instances", count(0)),
+        ("completed_ids", ids(&sorted_ids(completed()))),
+        (
+            "incomplete_ids",
+            ids(&sorted_ids(outcomes.iter().filter(|o| !o.success))),
+        ),
+        ("empty_patch_ids", ids(&empty_patch)),
+        ("submitted_ids", ids(&sorted_ids(outcomes.iter()))),
+        ("resolved_ids", ids(&resolved)),
+        ("unresolved_ids", ids(&unresolved)),
+        ("error_ids", ids(&error)),
+        ("unstopped_containers", ids(&none)),
+        ("unremoved_images", ids(&none)),
+        ("schema_version", PyValue::Int(2)),
+    ])
+}

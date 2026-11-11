@@ -27,6 +27,7 @@ hgm-sandbox = { path = "../sandbox" }
 parquet = { version = "*", default-features = false, features = ["snap"] }
 serde = { version = "*", features = ["derive"] }
 serde_json = { version = "*", features = ["preserve_order"] }
+sha2 = "*"
 ureq = { version = "*", features = ["json"] }
 
 [dev-dependencies]
