@@ -9,9 +9,7 @@ paths=(
   Cargo.toml
   rust-toolchain.toml
   src/agent
-  lib/agent
-  test/unit/agent
-  test/integration/agent
+  test/src/agent
 )
 
 for p in "${paths[@]}"; do

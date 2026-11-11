@@ -3,3 +3,4 @@
 - [Always use latest versions](always-use-latest-versions.md) — never pin toolchains, crates, actions or images; stable / "*" / @main / :latest; no committed Cargo.lock
 - [No comments in any file](no-comments-in-any-file.md) — no comments, doc comments, docstrings or fixture notes anywhere in the port; reasons go in commits and issues
 - [CI follows 10U-Labs conventions](ci-follows-10u-labs-conventions.md) — one job per check via published actions; yamllint with key-ordering over every workflow
+- [Layout follows 10U-Labs](layout-follows-10u-labs.md) — crates in src/<component>/ with flat files, no nested src; lib/<language>/<pkg> for shared support; test/src/<component>/<tier>

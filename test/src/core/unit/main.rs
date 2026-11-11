@@ -1,12 +1,19 @@
+mod common;
+mod config;
+mod metadata;
+mod pyjson;
+mod sampling;
+mod scheduler;
+mod tree;
+
 #[test]
 fn crate_is_linked() {
-    assert_eq!(hgm_sandbox::CRATE_NAME, "hgm-sandbox");
+    assert_eq!(hgm_core::CRATE_NAME, "hgm-core");
 }
 
 #[test]
 fn golden_fixtures_load() {
-    let dir =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test/unit/sandbox/fixtures");
+    let dir = common::fixtures_dir();
     let mut n = 0;
     for entry in std::fs::read_dir(&dir).expect("fixtures dir") {
         let path = entry.unwrap().path();

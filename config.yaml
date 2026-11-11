@@ -21,6 +21,6 @@ evaluation:
   polyglot: false
 
 paths:
-  output_dir: "output_hgm:"
+  output_dir: null
   continue_from: null
   initial_agent_name: "default_agent"

@@ -4,7 +4,7 @@
     {
       "name": "shipped_config_yaml",
       "input": {
-        "yaml": "# This file contains all configurable parameters for the HGM system.\n\n# Language Model Configuration\nllm:\n  # Model used for self-improvement tasks\n  self_improve_llm: \"gpt-5-mini\"\n  \n  # Model used for downstream evaluation tasks\n  downstream_llm: \"gpt-5-mini\"\n  \n  # Model used for problem diagnosis\n  diagnose_llm: \"gpt-5-mini\"\n\n# Optimization Algorithm Parameters\noptimization:\n  # Alpha parameter for node expansion (controls exploration vs exploitation)\n  alpha: 0.6\n  \n  # Beta parameter for cooling down factor\n  beta: 1.0\n  \n  # Whether to use decreasing temperature over iterations\n  cool_down: false\n  \n  # Randomness level for evaluation task selection (0.0 = deterministic, 1.0 = fully random)\n  eval_random_level: 1.0\n  \n  # Number of pseudo descendant evaluations for tree search\n  n_pseudo_descendant_evals: 10000\n\n# Execution and Resource Management\nexecution:\n  # Number of parallel workers for self-improvement attempts\n  max_workers: 20\n  \n  # Timeout for self-improvement attempts (in seconds)\n  self_improve_timeout: 3600  # 1 hour\n  \n  # Timeout for evaluation attempts (in seconds)\n  evaluation_timeout: 3600   # 1 hour\n  \n  # Maximum number of task evaluations (evolution iterations)\n  max_task_evals: 800\n\n# Evaluation Settings\nevaluation:\n  # Skip full evaluation on SWE-bench if node is top N performing\n  full_eval: false\n  \n  # Use Polyglot benchmark instead of SWE-bench\n  polyglot: false\n\n# Path Configuration\npaths:\n  # Output directory for results (if null, will be auto-generated)\n  output_dir: \"output_hgm:\"\n  \n  # Directory to continue a previous run from\n  continue_from: null\n  \n  # Name of the initial agent (required)\n  initial_agent_name: \"default_agent\""
+        "yaml": "llm:\n  self_improve_llm: \"gpt-5-mini\"\n  downstream_llm: \"gpt-5-mini\"\n  diagnose_llm: \"gpt-5-mini\"\n\noptimization:\n  alpha: 0.6\n  beta: 1.0\n  cool_down: false\n  eval_random_level: 1.0\n  n_pseudo_descendant_evals: 10000\n\nexecution:\n  max_workers: 20\n  self_improve_timeout: 3600\n  evaluation_timeout: 3600\n  max_task_evals: 800\n\nevaluation:\n  full_eval: false\n  polyglot: false\n\npaths:\n  output_dir: null\n  continue_from: null\n  initial_agent_name: \"default_agent\"\n"
       },
       "output": {
         "llm": {
@@ -30,7 +30,7 @@
           "polyglot": false
         },
         "paths": {
-          "output_dir": "output_hgm:",
+          "output_dir": null,
           "continue_from": null,
           "initial_agent_name": "default_agent"
         }
@@ -428,7 +428,7 @@
           "polyglot": false
         },
         "paths": {
-          "output_dir": "output_hgm:",
+          "output_dir": null,
           "continue_from": null,
           "initial_agent_name": "default_agent"
         }
@@ -467,7 +467,7 @@
           "polyglot": false
         },
         "paths": {
-          "output_dir": "output_hgm:",
+          "output_dir": null,
           "continue_from": null,
           "initial_agent_name": "default_agent"
         }
@@ -506,7 +506,7 @@
           "polyglot": false
         },
         "paths": {
-          "output_dir": "output_hgm:",
+          "output_dir": null,
           "continue_from": null,
           "initial_agent_name": "default_agent"
         }

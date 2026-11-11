@@ -18,7 +18,7 @@ os.chdir(REPO)
 import numpy as np
 import pathspec
 
-FIXTURES = REPO / "test" / "unit"
+FIXTURES = REPO / "test" / "src"
 
 
 def plain(obj):
@@ -41,7 +41,7 @@ def plain(obj):
 
 
 def write(crate, name, source, cases):
-    path = FIXTURES / crate / "fixtures" / f"{name}.json"
+    path = FIXTURES / crate / "unit" / "fixtures" / f"{name}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     doc = {"source": source, "cases": plain(cases)}
     text = json.dumps(doc, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
@@ -50,7 +50,7 @@ def write(crate, name, source, cases):
 
 
 def write_text(crate, rel, text):
-    path = FIXTURES / crate / "fixtures" / rel
+    path = FIXTURES / crate / "unit" / "fixtures" / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
     print(f"wrote {path.relative_to(REPO)}")

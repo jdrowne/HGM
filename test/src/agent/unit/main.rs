@@ -1,12 +1,12 @@
 #[test]
 fn crate_is_linked() {
-    assert_eq!(hgm_bench::CRATE_NAME, "hgm-bench");
+    assert_eq!(hgm_agent::CRATE_NAME, "hgm-agent");
 }
 
 #[test]
 fn golden_fixtures_load() {
     let dir =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test/unit/bench/fixtures");
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test/src/agent/unit/fixtures");
     let mut n = 0;
     for entry in std::fs::read_dir(&dir).expect("fixtures dir") {
         let path = entry.unwrap().path();

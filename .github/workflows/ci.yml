@@ -19,7 +19,7 @@ jobs:
       - name: Assert no comments
         uses: 10U-Labs/assert-no-comments@latest
         with:
-          trees: .claude/statusline.sh .github/workflows config.yaml lib src test
+          trees: .claude/statusline.sh .github/workflows config.yaml src test
           verbose: "true"
   lint:
     runs-on: ubuntu-latest
