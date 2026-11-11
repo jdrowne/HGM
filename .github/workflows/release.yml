@@ -377,7 +377,8 @@ jobs:
           LLVM_PROFILE_FILE_NAME: e2e-%p-%m.profraw
         name: Run the e2e tier under coverage
         run: >-
-          cargo llvm-cov nextest
+          mkdir -p target/llvm-cov-target
+          && cargo llvm-cov nextest
           --archive-file build-coverage.tar.zst
           --workspace-remap .
           --no-report
@@ -440,7 +441,8 @@ jobs:
           LLVM_PROFILE_FILE_NAME: integration-%p-%m.profraw
         name: Run the integration tier under coverage
         run: >-
-          cargo llvm-cov nextest
+          mkdir -p target/llvm-cov-target
+          && cargo llvm-cov nextest
           --archive-file build-coverage.tar.zst
           --workspace-remap .
           --no-report
@@ -578,7 +580,8 @@ jobs:
           LLVM_PROFILE_FILE_NAME: unit-%p-%m.profraw
         name: Run the unit tier under coverage
         run: >-
-          cargo llvm-cov nextest
+          mkdir -p target/llvm-cov-target
+          && cargo llvm-cov nextest
           --archive-file build-coverage.tar.zst
           --workspace-remap .
           --no-report
