@@ -208,9 +208,28 @@ pub fn filter_error(error: &str) -> String {
 }
 
 #[cfg(windows)]
-const SHELL: &str = "bash";
+fn shell() -> PathBuf {
+    let system = std::env::var_os("SystemRoot")
+        .map(|root| root.to_string_lossy().to_lowercase())
+        .unwrap_or_else(|| "c:\\windows".into());
+    std::env::var_os("PATH")
+        .iter()
+        .flat_map(std::env::split_paths)
+        .filter(|dir| !dir.to_string_lossy().to_lowercase().starts_with(&system))
+        .flat_map(|dir| {
+            [
+                dir.join("bash.exe"),
+                dir.join("..").join("bin").join("bash.exe"),
+            ]
+        })
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| PathBuf::from("bash"))
+}
+
 #[cfg(not(windows))]
-const SHELL: &str = "/bin/bash";
+fn shell() -> PathBuf {
+    PathBuf::from("/bin/bash")
+}
 
 #[derive(Debug, Clone)]
 pub struct Bash {
@@ -221,7 +240,7 @@ pub struct Bash {
 impl Default for Bash {
     fn default() -> Self {
         Bash {
-            program: PathBuf::from(SHELL),
+            program: shell(),
             timeout: Duration::from_secs(120),
         }
     }

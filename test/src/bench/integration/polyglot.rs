@@ -1,5 +1,4 @@
 use std::fs;
-use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -139,8 +138,7 @@ fn harness(root: &Path, dataset: PathBuf) -> Harness {
 fn agent(root: &Path) -> Run {
     let path = root.join("agent/hgm-agent");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(&path, AGENT).unwrap();
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    crate::executable(&path, AGENT);
     Run {
         model_name_or_path: "agent".into(),
         agent: path,
@@ -256,7 +254,7 @@ fn run_with_unwritable_outputs(h: &Harness, root: &Path) {
         "python__resolved_eval.sh",
         "python__unresolved_eval.md",
     ] {
-        symlink(&nowhere, unwritable.join(name)).unwrap();
+        crate::dangling(&nowhere, &unwritable.join(name));
     }
     let entries = [entry("empty"), entry("resolved"), entry("unresolved")];
     let mut outcomes = h.evaluate(&entries, &unwritable, &agent(root));

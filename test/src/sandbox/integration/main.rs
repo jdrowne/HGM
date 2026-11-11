@@ -1,5 +1,4 @@
 mod container;
-#[cfg(unix)]
 mod fake;
 mod image;
 

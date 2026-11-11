@@ -341,14 +341,15 @@ jobs:
             runner: ubuntu-24.04-arm
           - gate: >-
               - (package(hgm-sandbox) & test(/^(container|image)::/))
-              - (package(hgm-bench) & test(/^swe::|^polyglot::the_polyglot_harness_/))
+              - (package(hgm-bench) & test(/^swe::(a_full_run|a_missing_agent|each_failing_step|existing_predictions)_|^polyglot::the_polyglot_harness_/))
               - (package(hgm) & test(/^improve::|^agent_build::the_agent_is_built_/))
             platform: macos-arm64
             runner: macos-latest
           - gate: >-
               - (package(hgm-sandbox) & test(/^(container|image)::/))
-              - (package(hgm-bench) & test(/^swe::|^polyglot::the_polyglot_harness_/))
+              - (package(hgm-bench) & test(/^swe::(a_full_run|a_missing_agent|each_failing_step|existing_predictions)_|^polyglot::the_polyglot_harness_/))
               - (package(hgm) & test(/^improve::|^agent_build::the_agent_is_built_/))
+              - (package(hgm-bench) & test(=swe::the_harness_stops_at_the_first_failing_stage))
             platform: windows-x86-64
             runner: windows-latest
   release:

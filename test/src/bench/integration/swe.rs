@@ -1,5 +1,4 @@
 use std::fs;
-use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -34,8 +33,8 @@ fn platform() -> String {
     let out = Command::new("docker")
         .args(["version", "--format", "{{.Server.Os}}/{{.Server.Arch}}"])
         .output()
-        .unwrap();
-    String::from_utf8(out.stdout).unwrap().trim().to_owned()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned());
+    out.unwrap_or_default()
 }
 
 fn image() {
@@ -57,8 +56,7 @@ fn image() {
 
 fn script(dir: &Path, name: &str, body: &str) -> String {
     let path = dir.join(name);
-    fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    crate::executable(&path, &format!("#!/bin/sh\n{body}\n"));
     path.to_string_lossy().into_owned()
 }
 
@@ -253,7 +251,7 @@ fn existing_predictions_are_skipped_and_unwritable_outputs_are_reported() {
     fs::write(out.join("done.json"), "{}").unwrap();
     let nowhere = root.join("no/such/dir/file");
     for name in ["unwritable.json", "unwritable_docker.log", "noeval_eval.sh"] {
-        symlink(&nowhere, out.join(name)).unwrap();
+        crate::dangling(&nowhere, &out.join(name));
     }
     let specs = [
         spec("done", "true", IMAGE),
