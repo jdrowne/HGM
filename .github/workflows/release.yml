@@ -255,15 +255,13 @@ jobs:
           name: build-${{ matrix.platform }}
           path: build.tar.zst
           retention-days: 1
-      - name: Build the release binaries
-        run: cargo build --workspace --bins --release
-      - name: Stage the release binaries
+      - name: Build the release binary
+        run: cargo build --release -p hgm --bin hgm
+      - name: Stage the release binary
         run: |
           mkdir dist
-          for bin in hgm hgm-coding-agent; do
-            cp "target/release/$bin" "dist/$bin-${{ matrix.platform }}"
-          done
-      - name: Upload the release binaries
+          cp target/release/hgm "dist/hgm-${{ matrix.platform }}"
+      - name: Upload the release binary
         uses: actions/upload-artifact@main
         with:
           name: release-${{ matrix.platform }}

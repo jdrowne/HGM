@@ -112,7 +112,7 @@ The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout`
 
 ### The coding agent
 
-The harness also builds `hgm-coding-agent`, the agent being evolved, and runs it inside containers. It can be run by hand to watch one attempt, with `cargo run -p hgm-coding-agent -- <flags>`. It reads no environment variables, and every flag but `--instance_id` is required.
+The harness also builds `hgm-coding-agent`, the agent being evolved, and runs it inside containers. Releases carry only `hgm`, so to watch one attempt by hand, run the agent from a clone of this repository with `cargo run -p hgm-coding-agent -- <flags>`. It reads no environment variables, and every flag but `--instance_id` is required.
 
 | Flag | What it sets |
 | --- | --- |
