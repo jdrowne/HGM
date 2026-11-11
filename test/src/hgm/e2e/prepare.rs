@@ -48,8 +48,18 @@ fn prepare(root: &Path, repo: &str) -> Output {
 }
 
 fn prepare_with(root: &Path, repo: Option<&str>, path: Option<&Path>) -> Output {
+    fs::create_dir_all(root).unwrap();
+    fs::write(root.join("empty.yaml"), "").unwrap();
     let mut cmd = Command::new(binary("hgm"));
-    cmd.arg("prepare-polyglot").current_dir(root);
+    cmd.args([
+        "--polyglot",
+        "--config",
+        "empty.yaml",
+        "--continue_from",
+        "output_hgm/none",
+    ])
+    .current_dir(root)
+    .env("HGM_DOCKER", "hgm-no-such-docker-program");
     if let Some(repo) = repo {
         cmd.env("HGM_POLYGLOT_REPO", repo);
     }
@@ -65,6 +75,13 @@ fn prepare_with(root: &Path, repo: Option<&str>, path: Option<&Path>) -> Output 
 
 fn stdout(out: &Output) -> String {
     String::from_utf8_lossy(&out.stdout).into_owned()
+}
+
+fn prepared(out: &Output) -> String {
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("init_evaluated_tasks.json"), "{out:?}");
+    stdout(out)
 }
 
 fn failure(out: &Output) -> String {
@@ -314,16 +331,14 @@ fn check_hello_fields(entry: &Value, commits: &Value) {
 }
 
 #[test]
-fn prepare_polyglot_registers_each_exercise_and_writes_the_dataset() {
+fn a_polyglot_run_registers_each_exercise_and_writes_the_dataset() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     let bench = root.join(BENCH);
     hello(&bench);
     languages(&bench);
     broken(&bench);
-    let out = prepare(root, "unused");
-    assert!(out.status.success(), "{out:?}");
-    let log = stdout(&out);
+    let log = prepared(&prepare(root, "unused"));
     for line in [
         format!("Found polyglot-benchmark at {}\n", native(BENCH)),
         "Initializing git repositories for 10 practice directories...\n".to_owned(),
@@ -370,9 +385,8 @@ fn prepare_polyglot_registers_each_exercise_and_writes_the_dataset() {
     assert_eq!(entries[0]["reference_tests"], "### two_fer_test.cpp\nc\n\n");
     assert_eq!(entries[1]["reference_tests"], "");
 
-    let again = prepare_with(root, None, None);
-    assert!(again.status.success(), "{again:?}");
-    assert!(stdout(&again).contains("All practice directories already initialized with git\n"));
+    let again = prepared(&prepare_with(root, None, None));
+    assert!(again.contains("All practice directories already initialized with git\n"));
     assert_eq!(fs::read_to_string(&dataset).unwrap(), text);
     check_later_runs(root, &dataset);
 
@@ -392,9 +406,7 @@ fn check_later_runs(root: &Path, dataset: &Path) {
         "{",
     )
     .unwrap();
-    let out = prepare(root, "unused");
-    assert!(out.status.success(), "{out:?}");
-    let log = stdout(&out);
+    let log = prepared(&prepare(root, "unused"));
     assert!(
         log.contains(&format!(
             "Error processing {}: ",
@@ -410,9 +422,7 @@ fn check_later_runs(root: &Path, dataset: &Path) {
 
     let nowhere = root.join("no-git");
     fs::create_dir(&nowhere).unwrap();
-    let out = prepare_with(root, Some("unused"), Some(&nowhere));
-    assert!(out.status.success(), "{out:?}");
-    let log = stdout(&out);
+    let log = prepared(&prepare_with(root, Some("unused"), Some(&nowhere)));
     assert!(
         log.contains(&format!(
             "Error processing {}: ",
@@ -424,7 +434,7 @@ fn check_later_runs(root: &Path, dataset: &Path) {
 }
 
 #[test]
-fn prepare_polyglot_clones_the_benchmark_when_it_is_missing() {
+fn a_polyglot_run_clones_the_benchmark_when_it_is_missing() {
     let tmp = tempfile::tempdir().unwrap();
     let source = tmp.path().join("source");
     hello(&source);
@@ -450,9 +460,7 @@ fn prepare_polyglot_clones_the_benchmark_when_it_is_missing() {
     );
     let root = tmp.path().join("root");
     fs::create_dir(&root).unwrap();
-    let out = prepare(&root, &source.to_string_lossy());
-    assert!(out.status.success(), "{out:?}");
-    let log = stdout(&out);
+    let log = prepared(&prepare(&root, &source.to_string_lossy()));
     assert!(
         log.starts_with(&format!(
             "Cloning polyglot-benchmark repository to {} ...\n",
@@ -483,7 +491,7 @@ fn prepare_polyglot_clones_the_benchmark_when_it_is_missing() {
 }
 
 #[test]
-fn prepare_polyglot_stops_on_a_bad_config_or_an_unwritable_output() {
+fn a_polyglot_run_stops_on_a_bad_exercise_config_or_an_unwritable_output() {
     let tmp = tempfile::tempdir().unwrap();
     for (name, config, expected) in [
         ("invalid", Some("{"), "config.json: "),

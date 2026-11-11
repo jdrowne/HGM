@@ -1,25 +1,11 @@
 use std::path::PathBuf;
 
-use clap::{ArgAction, Args, Parser, Subcommand};
+use clap::{ArgAction, Parser};
 use hgm_core::config::OverrideValue;
 
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 #[command(name = "hgm", version, about = "Huxley-Godel Machine")]
 pub struct Cli {
-    #[command(subcommand)]
-    pub command: Command,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum Command {
-    Run(RunArgs),
-    Evaluate(EvaluateArgs),
-    PreparePolyglot,
-    Best(BestArgs),
-}
-
-#[derive(Clone, Debug, Default, Args)]
-pub struct RunArgs {
     #[arg(long, default_value = "config.yaml")]
     pub config: PathBuf,
     #[arg(long = "max_task_evals")]
@@ -62,6 +48,18 @@ pub struct RunArgs {
     pub eval_random_level: Option<f64>,
     #[arg(long = "initial_agent_name", default_value = "default_agent")]
     pub initial_agent_name: String,
+    #[arg(long, default_value_t = 0.01)]
+    pub epsilon: f64,
+    #[arg(long = "holdout_split")]
+    pub holdout_split: Option<String>,
+    #[arg(long = "holdout_tasks")]
+    pub holdout_tasks: Option<usize>,
+}
+
+impl Default for Cli {
+    fn default() -> Self {
+        Self::parse_from(["hgm"])
+    }
 }
 
 fn either(on: bool, off: bool) -> Option<bool> {
@@ -74,7 +72,7 @@ fn either(on: bool, off: bool) -> Option<bool> {
     }
 }
 
-impl RunArgs {
+impl Cli {
     pub fn overrides(&self) -> Vec<(&'static str, Option<OverrideValue>)> {
         use OverrideValue::{Bool, Float, Int, Str};
         vec![
@@ -125,30 +123,4 @@ impl RunArgs {
             ),
         ]
     }
-}
-
-#[derive(Clone, Debug, Args)]
-pub struct EvaluateArgs {
-    #[arg(long = "agent_path")]
-    pub agent_path: PathBuf,
-    #[arg(long = "results_dir", default_value = "results")]
-    pub results_dir: PathBuf,
-    #[arg(long, default_value = "Lite")]
-    pub split: String,
-    #[arg(long, default_value = "gpt-5")]
-    pub llm: String,
-    #[arg(long = "hours_per_task", default_value_t = 5)]
-    pub hours_per_task: u64,
-    #[arg(long = "num_workers", default_value_t = 10)]
-    pub num_workers: usize,
-    #[arg(long = "n_tasks")]
-    pub n_tasks: Option<usize>,
-}
-
-#[derive(Clone, Debug, Args)]
-pub struct BestArgs {
-    #[arg(long = "run_dir")]
-    pub run_dir: PathBuf,
-    #[arg(long, default_value_t = 0.01)]
-    pub epsilon: f64,
 }

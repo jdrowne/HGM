@@ -28,14 +28,17 @@ use rand::rngs::StdRng;
 use serde_json::Value;
 
 use crate::agent_build::Builder;
-use crate::cli::{EvaluateArgs, RunArgs};
+use crate::best::{BEST_AGENT, check_epsilon, export, pick};
+use crate::cli::Cli;
 use crate::improve::SelfImprove;
 use crate::node::{Bench, Evaluator, at};
 use crate::search::{Search, Settings, State};
 
 pub const JITTER: Duration = Duration::from_secs(1);
 
-pub const EVALUATE_IMAGE: &str = "hgm-evaluate-agent:latest";
+pub const HOLDOUT_IMAGE: &str = "hgm-holdout-agent:latest";
+
+pub const HOLDOUT_DIR: &str = "holdout";
 
 fn builder(docker: &Docker, context: &Path, agent_name: &str) -> Builder {
     Builder {
@@ -218,10 +221,19 @@ pub fn settings(config: &HgmConfig, jitter: Duration) -> Settings {
     }
 }
 
-pub fn run(args: &RunArgs, root_dir: &Path, jitter: Duration) -> Result<(), String> {
+pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> {
     let config = HgmConfig::load(&args.config, &args.overrides());
     if config.paths.initial_agent_name.is_empty() {
         return Err("Initial agent name must be provided either in config.yaml or via --initial_agent_name.".to_owned());
+    }
+    check_epsilon(args.epsilon)?;
+    if config.evaluation.polyglot && args.holdout_split.is_some() {
+        return Err(
+            "--holdout_split scores on SWE-bench, so it cannot follow a --polyglot run".to_owned(),
+        );
+    }
+    if config.evaluation.polyglot {
+        prepare_polyglot(root_dir)?;
     }
     let now = Local::now().format("%Y%m%d%H%M%S_%6f").to_string();
     let (output_dir, run_id) = resolve_output_dir(&config.paths, root_dir, &now);
@@ -300,48 +312,87 @@ pub fn run(args: &RunArgs, root_dir: &Path, jitter: Duration) -> Result<(), Stri
         evaluate: &evaluate,
         log: &log,
     };
-    search.run()
+    search.run()?;
+    finish(args, &config, &output_dir)
 }
 
-pub fn evaluate(args: &EvaluateArgs, root_dir: &Path) -> Result<(), String> {
+pub fn finish(args: &Cli, config: &HgmConfig, output_dir: &Path) -> Result<(), String> {
+    let best = pick(output_dir, args.epsilon)?;
+    let agent_dir = output_dir.join(BEST_AGENT);
+    export(output_dir, &best.commit_id, &agent_dir)?;
+    println!(
+        "Best agent: {} solved {}/{} (score {})",
+        best.commit_id, best.successes, best.evals, best.quantile
+    );
+    println!("Best agent source: {}", agent_dir.display());
+    match &args.holdout_split {
+        None => Ok(()),
+        Some(split) => holdout(&Holdout {
+            agent_dir: &agent_dir,
+            results_dir: &output_dir.join(HOLDOUT_DIR),
+            split,
+            n_tasks: args.holdout_tasks,
+            llm: &config.llm.downstream_llm,
+            timeout: config.execution.evaluation_timeout,
+            max_workers: config.execution.max_workers,
+        }),
+    }
+}
+
+pub struct Holdout<'a> {
+    pub agent_dir: &'a Path,
+    pub results_dir: &'a Path,
+    pub split: &'a str,
+    pub n_tasks: Option<usize>,
+    pub llm: &'a str,
+    pub timeout: u64,
+    pub max_workers: usize,
+}
+
+pub fn holdout(h: &Holdout) -> Result<(), String> {
     let hub = Hub::from_env();
-    let dataset = format!("princeton-nlp/SWE-bench_{}", args.split);
+    let dataset = format!("princeton-nlp/SWE-bench_{}", h.split);
     let mut ids = hub
         .load(&dataset, "test")
         .map(|rows| instance_ids(&rows))
         .map_err(|e| e.to_string())?;
-    if let Some(n) = args.n_tasks {
+    if let Some(n) = h.n_tasks {
         ids.truncate(n);
     }
-    let results_dir = root_dir.join(&args.results_dir);
-    let agent_name = args
-        .agent_path
+    let agent_name = h
+        .agent_dir
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let node_dir = results_dir.join(&agent_name);
+    let node_dir = h.results_dir.join(&agent_name);
     fs::create_dir_all(&node_dir).map_err(|e| at(&node_dir, e))?;
     let bench = swe::Harness {
         docker: Docker::default(),
         swebench: Swebench::from_env(),
         hub,
-        llm: args.llm.clone(),
-        timeout: args.hours_per_task * 3600,
+        llm: h.llm.to_owned(),
+        timeout: h.timeout,
     };
     let builder = Builder {
         docker: bench.docker.clone(),
-        context: root_dir.join(&args.agent_path),
-        image_name: EVALUATE_IMAGE.to_owned(),
+        context: h.agent_dir.to_path_buf(),
+        image_name: HOLDOUT_IMAGE.to_owned(),
         rebuild: true,
     };
-    Evaluator {
+    let solved = Evaluator {
         bench: &bench,
-        output_dir: &results_dir,
-        max_workers: args.num_workers,
+        output_dir: h.results_dir,
+        max_workers: h.max_workers,
         builder: &builder,
     }
-    .eval_agent(&agent_name, &ids)
-    .map(drop)
+    .eval_agent(&agent_name, &ids)?;
+    println!(
+        "Held-out {}: solved {}/{}",
+        h.split,
+        solved.iter().filter(|s| **s > 0.0).count(),
+        ids.len()
+    );
+    Ok(())
 }
 
 pub fn prepare_polyglot(root_dir: &Path) -> Result<(), String> {

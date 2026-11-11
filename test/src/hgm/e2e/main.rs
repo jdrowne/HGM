@@ -25,14 +25,15 @@ fn hgm_binary_runs() {
 }
 
 #[test]
-fn hgm_without_a_known_command_exits_with_usage_status() {
-    let out = Command::new(binary("hgm")).output().expect("run hgm");
-    assert_eq!(out.status.code(), Some(2));
-    assert!(
-        String::from_utf8(out.stderr)
-            .unwrap()
-            .starts_with("Huxley-Godel Machine")
-    );
+fn hgm_with_an_unknown_argument_exits_with_usage_status() {
+    for arg in ["--no_such_flag", "run"] {
+        let out = Command::new(binary("hgm"))
+            .arg(arg)
+            .output()
+            .expect("run hgm");
+        assert_eq!(out.status.code(), Some(2));
+        assert!(String::from_utf8(out.stderr).unwrap().contains(arg));
+    }
 }
 
 fn hgm_in(dir: &std::path::Path) -> Command {
@@ -43,6 +44,14 @@ fn hgm_in(dir: &std::path::Path) -> Command {
         .env("HGM_DOCKER", "hgm-no-such-docker-program");
     cmd
 }
+
+fn seed_source(root: &std::path::Path) {
+    let src = root.join("initial_swe/agent/src");
+    std::fs::create_dir_all(&src).unwrap();
+    std::fs::write(src.join("lib.rs"), "seed\n").unwrap();
+}
+
+const CHILD_PATCH: &str = "--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1,2 @@\n seed\n+child\n";
 
 fn metadata(dir: &std::path::Path, commit: &str, extra: serde_json::Value) {
     let mut value = serde_json::json!({
@@ -67,22 +76,38 @@ fn metadata(dir: &std::path::Path, commit: &str, extra: serde_json::Value) {
     std::fs::write(node.join("metadata.json"), value.to_string()).unwrap();
 }
 
+fn finished_run(root: &std::path::Path) {
+    metadata(&root.join("initial_swe"), "agent", serde_json::json!({}));
+    seed_source(root);
+    let prev = root.join("output_hgm/prev");
+    metadata(&prev, "c1", serde_json::json!({"parent_commit": "initial"}));
+    std::fs::write(prev.join("c1/model_patch.diff"), CHILD_PATCH).unwrap();
+    std::fs::write(prev.join("init_evaluated_tasks.json"), "[]").unwrap();
+    std::fs::write(
+        prev.join("hgm_metadata.jsonl"),
+        "{\"n_task_evals\": 2, \"nodes\": [{\"commit_id\": \"c1\", \"id\": 1, \"parent_id\": 0, \"mean_utility\": 0.5, \"num_evals\": 2}]}\n",
+    )
+    .unwrap();
+}
+
+const FINISHED: [&str; 8] = [
+    "--initial_agent_name",
+    "agent",
+    "--continue_from",
+    "output_hgm/prev",
+    "--max_task_evals",
+    "2",
+    "--max_workers",
+    "1",
+];
+
 #[test]
 fn a_finished_run_can_be_continued_without_more_work() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    metadata(&root.join("initial_swe"), "agent", serde_json::json!({}));
-    let prev = root.join("output_hgm/prev");
-    metadata(&prev, "c1", serde_json::json!({"parent_commit": "initial"}));
-    std::fs::write(prev.join("init_evaluated_tasks.json"), "[]").unwrap();
-    std::fs::write(
-        prev.join("hgm_metadata.jsonl"),
-        "{\"n_task_evals\": 2, \"nodes\": [{\"commit_id\": \"c1\", \"id\": 1, \"parent_id\": 0}]}\n",
-    )
-    .unwrap();
+    finished_run(root);
     let out = hgm_in(root)
         .args([
-            "run",
             "--initial_agent_name",
             "agent",
             "--continue_from",
@@ -101,7 +126,22 @@ fn a_finished_run_can_be_continued_without_more_work() {
         String::from_utf8_lossy(&out.stderr)
     );
     assert!(stdout.contains("Output directory: "), "{stdout}");
+    assert!(
+        stdout.contains("Best agent: c1 solved 1/2 (score 0."),
+        "{stdout}"
+    );
     let output = root.join("output_hgm/prev");
+    assert!(
+        stdout.contains(&format!(
+            "{}\n",
+            std::path::Path::new("output_hgm/prev/best_agent").display()
+        )),
+        "{stdout}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(output.join("best_agent/lib.rs")).unwrap(),
+        "seed\nchild\n"
+    );
     assert!(output.join("initial/metadata.json").is_file());
     let log = std::fs::read_to_string(output.join("hgm_outer.log")).unwrap();
     assert!(
@@ -115,7 +155,7 @@ fn a_finished_run_can_be_continued_without_more_work() {
 fn a_run_without_an_agent_name_fails() {
     let tmp = tempfile::tempdir().unwrap();
     let out = hgm_in(tmp.path())
-        .args(["run", "--initial_agent_name", ""])
+        .args(["--initial_agent_name", ""])
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(1));
@@ -124,10 +164,7 @@ fn a_run_without_an_agent_name_fails() {
     );
 }
 
-#[test]
-fn evaluate_scores_an_agent_on_a_split() {
-    let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path();
+fn swe_cache(root: &std::path::Path) -> PathBuf {
     for split in ["SWE-bench_Lite", "SWE-bench"] {
         let cache = root.join("cache/princeton-nlp").join(split).join("test");
         std::fs::create_dir_all(&cache).unwrap();
@@ -150,64 +187,51 @@ fn evaluate_scores_an_agent_on_a_split() {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&python, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
-    std::fs::create_dir_all(root.join("agents/mine")).unwrap();
-    for agent in ["mine", "two"] {
-        let dir = root.join("results").join(agent);
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("hgm-agent"), "").unwrap();
-    }
-    let out = hgm_in(root)
-        .env("HGM_SWEBENCH_PYTHON", &python)
-        .args([
-            "evaluate",
-            "--agent_path",
-            "agents/mine",
-            "--num_workers",
-            "1",
-        ])
-        .output()
-        .unwrap();
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let text = std::fs::read_to_string(root.join("results/mine/metadata.json")).unwrap();
-    let metadata: serde_json::Value = serde_json::from_str(&text).unwrap();
-    assert_eq!(metadata["run_id"], "mine");
-    assert!(metadata["swe_dnames"].is_array(), "{metadata}");
-    assert_eq!(
-        metadata["overall_performance"]["total_submitted_ids"],
-        serde_json::json!([])
-    );
-    let out = hgm_in(root)
-        .env("HGM_SWEBENCH_PYTHON", &python)
-        .args(["evaluate", "--agent_path", "agents/two", "--n_tasks", "2"])
-        .output()
-        .unwrap();
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    std::fs::write(root.join("file"), "").unwrap();
-    let out = hgm_in(root)
-        .args(["evaluate", "--agent_path", "a", "--results_dir", "file"])
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&out.stderr).contains("file/a: "));
+    python
 }
 
 #[test]
-fn evaluate_needs_its_dataset() {
+fn a_holdout_split_scores_the_best_agent_after_the_run() {
     let tmp = tempfile::tempdir().unwrap();
-    let out = hgm_in(tmp.path())
-        .args(["evaluate", "--agent_path", "a"])
+    let root = tmp.path();
+    finished_run(root);
+    let python = swe_cache(root);
+    let holdout = root.join("output_hgm/prev/holdout/best_agent");
+    std::fs::create_dir_all(&holdout).unwrap();
+    std::fs::write(holdout.join("hgm-agent"), "").unwrap();
+    let out = hgm_in(root)
+        .env("HGM_SWEBENCH_PYTHON", &python)
+        .args(FINISHED)
+        .args(["--holdout_split", "Lite", "--holdout_tasks", "2"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "{stdout}{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(stdout.contains("Held-out Lite: solved 0/2\n"), "{stdout}");
+    let metadata: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(holdout.join("metadata.json")).unwrap())
+            .unwrap();
+    assert_eq!(metadata["run_id"], "best_agent");
+    assert!(metadata["swe_dnames"].is_array(), "{metadata}");
+}
+
+#[test]
+fn a_holdout_split_needs_its_dataset() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    finished_run(root);
+    let out = hgm_in(root)
+        .args(FINISHED)
+        .args(["--holdout_split", "Lite"])
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&out.stderr).starts_with("hgm: "));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("\nhgm: "));
+    assert!(root.join("output_hgm/prev/best_agent/lib.rs").is_file());
 }
 
 fn continued(root: &std::path::Path, nodes: &[&str], n_task_evals: usize) {
@@ -240,7 +264,6 @@ fn a_continued_run_evaluates_until_the_budget_is_spent() {
     continued(root, &["c1", "c2", "c3"], 1);
     let out = hgm_in(root)
         .args([
-            "run",
             "--initial_agent_name",
             "agent",
             "--continue_from",
@@ -262,45 +285,17 @@ fn runs_fail_when_their_tasks_or_records_are_missing() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     let out = hgm_in(root)
-        .args(["run", "--full_eval", "--output_dir", "full"])
+        .args(["--full_eval", "--output_dir", "full"])
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stderr).contains("hgm: downloading the dataset"));
     let out = hgm_in(root)
-        .args(["run", "--continue_from", "output_hgm/none"])
+        .args(["--continue_from", "output_hgm/none"])
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stderr).contains("init_evaluated_tasks.json"));
-}
-
-#[test]
-fn best_prints_the_best_belief_agent_of_a_run() {
-    let tmp = tempfile::tempdir().unwrap();
-    let run = tmp.path().join("run");
-    std::fs::create_dir_all(&run).unwrap();
-    let node = |commit: &str, mean: f64, evals: u64| serde_json::json!({"commit_id": commit, "id": 1, "parent_id": 0, "mean_utility": mean, "num_evals": evals});
-    let record =
-        serde_json::json!({"n_task_evals": 5, "nodes": [node("a", 1.0, 1), node("b", 0.75, 4)]});
-    std::fs::write(run.join("hgm_metadata.jsonl"), format!("{record:#}\n")).unwrap();
-    let out = hgm_in(tmp.path())
-        .args(["best", "--run_dir", "run"])
-        .output()
-        .unwrap();
-    assert!(
-        out.status.success(),
-        "{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.starts_with("b\t0."), "{stdout}");
-    assert!(stdout.ends_with("\t3/4\n"), "{stdout}");
-    let out = hgm_in(tmp.path())
-        .args(["best", "--run_dir", "none"])
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(1));
 }
 
 #[test]
@@ -310,7 +305,7 @@ fn hgm_needs_a_working_directory() {
     std::fs::create_dir(&gone).unwrap();
     let out = Command::new("/bin/sh")
         .arg("-c")
-        .arg("cd \"$1\" && rmdir \"$1\" && exec \"$2\" evaluate --agent_path a")
+        .arg("cd \"$1\" && rmdir \"$1\" && exec \"$2\"")
         .arg("sh")
         .arg(&gone)
         .arg(binary("hgm"))

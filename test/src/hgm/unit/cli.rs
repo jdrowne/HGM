@@ -1,21 +1,23 @@
 use clap::Parser;
-use hgm::cli::{Cli, Command, RunArgs};
+use hgm::cli::Cli;
 use hgm_core::config::OverrideValue::{Bool, Float, Int, Str};
 
-fn run_args(args: &[&str]) -> RunArgs {
-    let mut argv = vec!["hgm", "run"];
+fn run_args(args: &[&str]) -> Cli {
+    let mut argv = vec!["hgm"];
     argv.extend(args);
-    let Command::Run(args) = Cli::try_parse_from(argv).unwrap().command else {
-        panic!("not a run")
-    };
-    args
+    Cli::try_parse_from(argv).unwrap()
 }
 
 #[test]
-fn prepare_polyglot_takes_no_arguments() {
-    let cli = Cli::try_parse_from(["hgm", "prepare-polyglot"]).unwrap();
-    assert!(matches!(cli.command, Command::PreparePolyglot));
-    assert!(Cli::try_parse_from(["hgm", "prepare-polyglot", "x"]).is_err());
+fn hgm_takes_no_sub_commands_or_positional_arguments() {
+    for argv in [
+        &["hgm", "run"][..],
+        &["hgm", "best"],
+        &["hgm", "evaluate"],
+        &["hgm", "prepare-polyglot"],
+    ] {
+        assert!(Cli::try_parse_from(argv).is_err(), "{argv:?}");
+    }
 }
 
 #[test]
@@ -130,20 +132,26 @@ fn the_last_of_a_flag_and_its_negation_wins() {
 }
 
 #[test]
-fn evaluate_has_the_python_defaults() {
-    let cli = Cli::try_parse_from(["hgm", "evaluate", "--agent_path", "a/b"]).unwrap();
-    let Command::Evaluate(args) = cli.command else {
-        panic!("not an evaluate");
-    };
-    assert_eq!(args.agent_path.to_str(), Some("a/b"));
-    assert_eq!(args.results_dir.to_str(), Some("results"));
-    assert_eq!(args.split, "Lite");
-    assert_eq!(args.llm, "gpt-5");
-    assert_eq!(args.hours_per_task, 5);
-    assert_eq!(args.num_workers, 10);
-    assert_eq!(args.n_tasks, None);
-    let Command::Run(_) = Cli::try_parse_from(["hgm", "run"]).unwrap().command else {
-        panic!("not a run");
-    };
-    assert!(Cli::try_parse_from(["hgm", "evaluate"]).is_err());
+fn the_pick_and_holdout_flags_are_not_config_overrides() {
+    let args = run_args(&[]);
+    assert_eq!(args.epsilon, 0.01);
+    assert_eq!(args.holdout_split, None);
+    assert_eq!(args.holdout_tasks, None);
+    let args = run_args(&[
+        "--epsilon",
+        "0.05",
+        "--holdout_split",
+        "Lite",
+        "--holdout_tasks",
+        "3",
+    ]);
+    assert_eq!(args.epsilon, 0.05);
+    assert_eq!(args.holdout_split.as_deref(), Some("Lite"));
+    assert_eq!(args.holdout_tasks, Some(3));
+    assert_eq!(
+        args.overrides().iter().filter(|(_, v)| v.is_some()).count(),
+        1
+    );
+    assert_eq!(Cli::default().epsilon, 0.01);
+    assert_eq!(Cli::default().initial_agent_name, "default_agent");
 }

@@ -276,7 +276,6 @@ fn check_child(dir: &Path, unresolved: &[String]) {
 fn run_args(host: &str) -> Vec<String> {
     let llm = format!("vllm-model-{host}");
     [
-        "run",
         "--polyglot",
         "--max_task_evals",
         "1",
@@ -302,11 +301,20 @@ fn a_run_improves_the_agent_and_measures_its_child() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     copy_repo(root);
-    succeeded(&hgm(root).arg("prepare-polyglot").output().unwrap());
     let unresolved = seed_initial_agent(root);
     let seen = serve_llm();
-    succeeded(&hgm(root).args(run_args(&llm_host())).output().unwrap());
+    let stdout = succeeded(&hgm(root).args(run_args(&llm_host())).output().unwrap());
+    assert!(stdout.contains("Generated metadata for "), "{stdout}");
     let run = root.join("output_hgm/run");
+    assert!(
+        stdout.contains(&format!(
+            "{}\n",
+            Path::new("output_hgm/run/best_agent").display()
+        )),
+        "{stdout}"
+    );
+    let lib = fs::read_to_string(run.join("best_agent/src/agent/lib.rs")).unwrap();
+    assert!(lib.ends_with("pub const E2E: u8 = 1;\n"), "{lib}");
     assert_eq!(read_json(&run.join("init_evaluated_tasks.json")), json!([]));
     let child = check_records(&run);
     check_child(&run.join(&child), &unresolved);

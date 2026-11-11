@@ -2,11 +2,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use hgm::cli::RunArgs;
+use hgm::cli::Cli;
 use hgm::node::Evaluator;
 use hgm::run::{
-    Init, bench_for, improve_dataset, initial_folder, initialize_run, resolve_output_dir, run,
-    run_tasks, settings,
+    Init, bench_for, finish, improve_dataset, initial_folder, initialize_run, resolve_output_dir,
+    run, run_tasks, settings,
 };
 use hgm_bench::dataset::Hub;
 use hgm_bench::tasks::{polyglot_run_tasks, swe_run_tasks};
@@ -361,11 +361,11 @@ fn a_continued_run_needs_its_records() {
     assert!(go(&out).err().unwrap().contains("c1"));
 }
 
-fn run_args(root: &Path, extra: impl FnOnce(&mut RunArgs)) -> RunArgs {
-    let mut args = RunArgs {
+fn run_args(root: &Path, extra: impl FnOnce(&mut Cli)) -> Cli {
+    let mut args = Cli {
         config: root.join("none.yaml"),
         initial_agent_name: "agent".into(),
-        ..RunArgs::default()
+        ..Cli::default()
     };
     extra(&mut args);
     args
@@ -390,5 +390,61 @@ fn a_run_without_an_agent_name_or_output_directory_stops_early() {
         run(&no_log, root, Duration::ZERO)
             .unwrap_err()
             .contains("hgm_outer.log")
+    );
+}
+
+#[test]
+fn a_run_with_a_bad_epsilon_or_a_polyglot_holdout_stops_before_any_work() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let bad = run_args(root, |a| a.epsilon = 1.0);
+    assert!(
+        run(&bad, root, Duration::ZERO)
+            .unwrap_err()
+            .starts_with("epsilon must be between 0 and 1")
+    );
+    let polyglot_holdout = run_args(root, |a| {
+        a.polyglot = true;
+        a.holdout_split = Some("Lite".into());
+    });
+    assert!(
+        run(&polyglot_holdout, root, Duration::ZERO)
+            .unwrap_err()
+            .contains("--holdout_split")
+    );
+    assert!(!root.join("output_hgm").exists());
+    assert!(!root.join("polyglot").exists());
+}
+
+#[test]
+fn finish_writes_the_best_agent_source_into_the_run() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = tmp.path().join("run");
+    fs::create_dir_all(out.join("initial/src")).unwrap();
+    fs::write(out.join("initial/src/lib.rs"), "seed\n").unwrap();
+    fs::create_dir_all(out.join("c1")).unwrap();
+    fs::write(
+        out.join("c1/metadata.json"),
+        json!({"parent_commit": "initial"}).to_string(),
+    )
+    .unwrap();
+    fs::write(
+        out.join("c1/model_patch.diff"),
+        "--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1,2 @@\n seed\n+child\n",
+    )
+    .unwrap();
+    let record = json!({"n_task_evals": 2, "nodes": [{"commit_id": "c1", "id": 1, "parent_id": 0, "mean_utility": 0.5, "num_evals": 2}]});
+    fs::write(out.join("hgm_metadata.jsonl"), format!("{record}\n")).unwrap();
+    let args = run_args(tmp.path(), |_| {});
+    finish(&args, &HgmConfig::default(), &out).unwrap();
+    assert_eq!(
+        fs::read_to_string(out.join("best_agent/lib.rs")).unwrap(),
+        "seed\nchild\n"
+    );
+    fs::remove_file(out.join("hgm_metadata.jsonl")).unwrap();
+    assert!(
+        finish(&args, &HgmConfig::default(), &out)
+            .unwrap_err()
+            .contains("hgm_metadata.jsonl")
     );
 }

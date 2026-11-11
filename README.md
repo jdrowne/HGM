@@ -6,39 +6,37 @@ HGM is based on the paper [*Huxley-Gödel Machine: Human-Level Coding Agent Deve
 
 ## Commands
 
-RustyHGM is one command-line program, `hgm`, with four sub-commands. Build it, then run it from the repository root, since it looks for `config.yaml`, `Dockerfile`, `polyglot/` and `output_hgm/` relative to the working directory.
+RustyHGM is one command, `hgm`, with no sub-commands. You run it and get back a better agent. Build it, then run it from the repository root, since it looks for `config.yaml`, `Dockerfile`, `polyglot/` and `output_hgm/` relative to the working directory.
 
 ```sh
 cargo build --release -p hgm
-target/release/hgm <command> [flags]
+target/release/hgm [flags]
 ```
 
-| Command | What it does |
-| --- | --- |
-| `hgm run` | Runs a search: evolves the seed agent within the task budget, or resumes an earlier run |
-| `hgm best` | Picks the most reliable agent version from a finished run |
-| `hgm evaluate` | Scores one agent on a SWE-bench split, outside any search |
-| `hgm prepare-polyglot` | Downloads the Aider Polyglot benchmark and stages it for `--polyglot` runs |
+One run does the whole job:
 
-`hgm --help` and `hgm <command> --help` list the flags, and `hgm --version` prints the version. Flag names use underscores, as in `--max_task_evals 100`, and a value can also be joined with `=`, as in `--max_task_evals=100`.
-
-A short SWE-bench search, followed by picking its best version, looks like this:
+1. **Fetches task data** it doesn't have yet. For `--polyglot` runs, that means cloning the [Aider Polyglot benchmark](https://github.com/Aider-AI/polyglot-benchmark) into `polyglot/polyglot-benchmark` and writing its task list to `polyglot/polyglot_benchmark_metadata.json`.
+2. **Improves the agent** until the task budget is spent. On the first run with a given agent name, it also copies the seed agent and measures it on every task in the pool.
+3. **Picks the best version**: the one with the highest success rate it can trust, given how many tasks it was tried on.
+4. **Writes that version's source** to `output_hgm/<run>/best_agent/` and prints where it went. This folder is the improved agent: the seed with every patch on its line applied.
+5. **Optionally scores it on held-out tasks** with `--holdout_split`. These are SWE-bench tasks it never practised on, so the score shows whether it really got better.
 
 ```sh
-target/release/hgm run --max_task_evals 100
-target/release/hgm best --run_dir output_hgm/<run>
+target/release/hgm --max_task_evals 100 --holdout_split Lite --holdout_tasks 50
 ```
+
+`hgm --help` lists the flags, and `hgm --version` prints the version. Flag names use underscores, as in `--max_task_evals 100`, and a value can also be joined with `=`, as in `--max_task_evals=100`. If a run stops early, `--continue_from output_hgm/<run>` resumes it.
 
 ### Before a run
 
 - **Docker.** Every build, self-edit and task runs in a container. `HGM_DOCKER` names a different Docker-compatible program.
 - **A model API key.** Models whose names contain `gpt` or start with `o` use `OPENAI_API_KEY`. Every other model goes through OpenRouter with `OpenRouter_API_KEY`.
 - **Python 3 with the `swebench` package** for SWE-bench grading. `HGM_SWEBENCH_PYTHON` picks the interpreter.
-- **The Polyglot benchmark**, staged with `hgm prepare-polyglot`, only for `--polyglot` runs.
+- **git**, for fetching the Polyglot benchmark and writing the best agent's source.
 
-### `hgm run`
+### Flags
 
-Starts a search, or resumes one with `--continue_from`. Settings are read from `config.yaml` first, and each flag below replaces one key from it. The defaults shown are the ones in the repository's `config.yaml`.
+Settings are read from `config.yaml` first, and each flag with a config key replaces that key. The defaults shown are the ones in the repository's `config.yaml`.
 
 | Flag | Config key | Default | What it sets |
 | --- | --- | --- | --- |
@@ -61,35 +59,13 @@ Starts a search, or resumes one with `--continue_from`. Settings are read from `
 | `--output_dir <dir>` | `paths.output_dir` | `output_hgm/<timestamp>` | Where the run record goes |
 | `--continue_from <dir>` | `paths.continue_from` | none | An earlier run to resume; the record continues in `output_hgm/<its folder name>` unless `--output_dir` is given |
 | `--initial_agent_name <name>` | `paths.initial_agent_name` | `default_agent` | Name of the seed agent's folder and Docker image |
+| `--epsilon <p>` | | `0.01` | How cautious the final pick is: each version is scored by this percentile of its Beta posterior |
+| `--holdout_split <name>` | | none | After the run, scores the best agent on `princeton-nlp/SWE-bench_<name>`, such as `Lite`; not allowed with `--polyglot` |
+| `--holdout_tasks <n>` | | all | Scores only the first `n` held-out tasks |
 
 The first run with a given agent name copies the seed into `initial_swe/<name>/` or `initial_polyglot/<name>/` and measures it on every task in the pool. Later runs reuse that folder and its results, so delete it to measure a changed seed again.
 
-### `hgm best`
-
-Reads a run record and prints the version with the highest lower-confidence success rate, as three tab-separated fields: the version's commit ID, its score, and tasks solved over tasks tried.
-
-| Flag | Default | What it sets |
-| --- | --- | --- |
-| `--run_dir <dir>` | required | The run to read, such as `output_hgm/<run>` |
-| `--epsilon <p>` | `0.01` | The percentile of each version's Beta posterior used as its score |
-
-### `hgm evaluate`
-
-Builds one agent and scores it on a SWE-bench split, writing the results to `<results_dir>/<agent folder name>/`.
-
-| Flag | Default | What it sets |
-| --- | --- | --- |
-| `--agent_path <dir>` | required | The agent's source folder, holding its `Dockerfile`, such as `initial_swe/default_agent/src` |
-| `--split <name>` | `Lite` | The split, loaded as `princeton-nlp/SWE-bench_<name>` |
-| `--llm <model>` | `gpt-5` | Model the agent uses |
-| `--n_tasks <n>` | all | Scores only the first `n` tasks |
-| `--num_workers <n>` | `10` | Tasks run at the same time |
-| `--hours_per_task <n>` | `5` | Time limit for one task attempt |
-| `--results_dir <dir>` | `results` | Where results go |
-
-### `hgm prepare-polyglot`
-
-Takes no flags. Clones the [Aider Polyglot benchmark](https://github.com/Aider-AI/polyglot-benchmark) into `polyglot/polyglot-benchmark`, or reuses an existing clone, and writes the task list to `polyglot/polyglot_benchmark_metadata.json`. `HGM_POLYGLOT_REPO` clones from a different URL.
+The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout` limit and `--max_workers`, and writes its results to `output_hgm/<run>/holdout/best_agent/`.
 
 ### Environment variables
 
@@ -104,7 +80,7 @@ Takes no flags. Clones the [Aider Polyglot benchmark](https://github.com/Aider-A
 | `HGM_HF_ENDPOINT` | Hugging Face mirror for datasets, `https://huggingface.co` by default |
 | `HGM_DATA_DIR` | Dataset cache, `~/.cache/hgm/datasets` by default |
 | `HGM_DOCKER` | Container program, `docker` by default |
-| `HGM_POLYGLOT_REPO` | Clone URL used by `hgm prepare-polyglot` |
+| `HGM_POLYGLOT_REPO` | Clone URL for the Polyglot benchmark |
 
 ### The agent binary
 
@@ -256,7 +232,7 @@ The scheduler expands while $n^{\alpha} \geq c + p$, where $n$ is the number of 
 
 The 55 is a ceiling. Failed expansions add no node, so real trees are smaller. With `--cool_down`, $\beta$ sharpens every Beta draw as the budget runs out, which shifts the search from exploring toward exploiting.
 
-To choose the final agent, `hgm best` ranks versions by the 1st percentile ($\varepsilon = 0.01$) of $\mathrm{Beta}(1 + \text{solved}, 1 + \text{failed})$ on their own results. That rewards a high success rate backed by enough evaluations to trust it.
+To choose the final agent, `hgm` ranks versions by the 1st percentile ($\varepsilon = 0.01$) of $\mathrm{Beta}(1 + \text{solved}, 1 + \text{failed})$ on their own results. That rewards a high success rate backed by enough evaluations to trust it.
 
 ## Code
 
@@ -266,7 +242,7 @@ To choose the final agent, `hgm best` ranks versions by the 1st percentile ($\va
 | --- | --- |
 | Seed agent | `src/agent` (crate `hgm-agent`), copied through the `.dockerignore` filter into `initial_swe/<name>/src` or `initial_polyglot/<name>/src` |
 | Task suite | SWE-bench Verified from Hugging Face (a 60-task default pool, or all 500 with `--full_eval`), or the Aider Polyglot benchmark (59 tasks after de-duplication) |
-| Run settings | `config.yaml`, with every key overridable by an `hgm run` flag |
+| Run settings | `config.yaml`, with every key overridable by an `hgm` flag |
 | Archive tree | `hgm_core::tree`. A snapshot is appended to `hgm_metadata.jsonl` after every change, and each version has its own `metadata.json` |
 | Scheduler | `should_expand` in `src/core/scheduler.rs`. The tick loop is `Search::run` in `src/hgm/search.rs` |
 | Pickers | Thompson sampling over Beta posteriors in `src/core/sampling.rs` |
@@ -278,7 +254,7 @@ To choose the final agent, `hgm best` ranks versions by the 1st percentile ($\va
 | Language models | OpenAI, OpenRouter, or any compatible endpoint (`src/agent/llm.rs`) |
 | Containers | The Docker CLI, wrapped by `hgm-sandbox` (`src/sandbox/docker.rs`) |
 | Run record | `output_hgm/<run>/`, holding each version's patch, compiled binary, chat logs and predictions |
-| Best-agent pick | `hgm best` in `src/hgm/best.rs` |
+| Best-agent pick | `pick` and `export` in `src/hgm/best.rs`, writing `output_hgm/<run>/best_agent/` |
 
 ### Crates and the edit boundary
 
@@ -287,7 +263,7 @@ The workspace has five crates. Four are the harness, and they stay on the host. 
 ```mermaid
 flowchart TB
   subgraph harness ["Harness: stays on the host"]
-    hgm["hgm<br/>CLI, search loop, agent builds, best-agent pick"]
+    hgm["hgm<br/>CLI, search loop, agent builds, best-agent pick and export"]
     bench["hgm-bench<br/>datasets, task pools, graders"]
     sandbox["hgm-sandbox<br/>Docker wrapper, seed copy"]
     core["hgm-core<br/>tree, scheduler, sampling, prompts"]

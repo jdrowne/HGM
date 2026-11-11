@@ -1,7 +1,7 @@
 use std::fs;
+use std::path::Path;
 
-use hgm::best::{Belief, beliefs, best, best_belief, quantile};
-use hgm::cli::BestArgs;
+use hgm::best::{Belief, beliefs, best_belief, check_epsilon, export, pick, quantile};
 use serde_json::{Value, json};
 
 fn node(commit: &str, mean: Value, evals: u64) -> Value {
@@ -92,7 +92,7 @@ fn bad_records_and_epsilons_are_errors() {
 }
 
 #[test]
-fn best_reads_the_last_record_of_a_run() {
+fn pick_reads_the_last_record_of_a_run() {
     let tmp = tempfile::tempdir().unwrap();
     let run = tmp.path().join("run");
     fs::create_dir_all(&run).unwrap();
@@ -103,15 +103,71 @@ fn best_reads_the_last_record_of_a_run() {
         format!("{first:#}\n{last:#}\n"),
     )
     .unwrap();
-    let args = |dir: &str, epsilon: f64| BestArgs {
-        run_dir: dir.into(),
-        epsilon,
-    };
-    best(&args("run", 0.01), tmp.path()).unwrap();
-    assert!(best(&args("run", 0.0), tmp.path()).is_err());
+    assert_eq!(pick(&run, 0.01).unwrap().commit_id, "c");
+    assert!(pick(&run, 0.0).is_err());
     assert!(
-        best(&args("missing", 0.01), tmp.path())
+        pick(&tmp.path().join("missing"), 0.01)
             .unwrap_err()
             .contains("hgm_metadata.jsonl")
     );
+    assert!(check_epsilon(0.5).is_ok());
+    assert!(check_epsilon(1.0).is_err());
+}
+
+fn version(run: &Path, commit: &str, parent: &str, patch: Option<&str>) {
+    let dir = run.join(commit);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("metadata.json"),
+        json!({"parent_commit": parent}).to_string(),
+    )
+    .unwrap();
+    if let Some(patch) = patch {
+        fs::write(dir.join("model_patch.diff"), patch).unwrap();
+    }
+}
+
+const FIRST: &str = "--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1,2 @@\n seed\n+one\n";
+const SECOND: &str = "--- a/lib.rs\n+++ b/lib.rs\n@@ -1,2 +1,3 @@\n seed\n one\n+two\n";
+
+#[test]
+fn export_replays_the_patch_chain_onto_the_seed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let run = tmp.path().join("run");
+    let seed = run.join("initial/src");
+    fs::create_dir_all(seed.join("sub")).unwrap();
+    fs::write(seed.join("lib.rs"), "seed\n").unwrap();
+    fs::write(seed.join("sub/keep.txt"), "k").unwrap();
+    version(&run, "c1", "initial", Some(FIRST));
+    version(&run, "c2", "c1", Some(SECOND));
+    let dest = run.join("best_agent");
+    fs::create_dir_all(&dest).unwrap();
+    fs::write(dest.join("stale"), "").unwrap();
+    export(&run, "c2", &dest).unwrap();
+    assert_eq!(
+        fs::read_to_string(dest.join("lib.rs")).unwrap(),
+        "seed\none\ntwo\n"
+    );
+    assert_eq!(fs::read_to_string(dest.join("sub/keep.txt")).unwrap(), "k");
+    assert!(!dest.join("stale").exists());
+    assert!(!dest.join(".git").exists());
+    export(&run, "initial", &dest).unwrap();
+    assert_eq!(fs::read_to_string(dest.join("lib.rs")).unwrap(), "seed\n");
+}
+
+#[test]
+fn export_fails_without_a_seed_or_on_a_patch_that_does_not_apply() {
+    let tmp = tempfile::tempdir().unwrap();
+    let run = tmp.path().join("run");
+    let dest = run.join("best_agent");
+    assert!(
+        export(&run, "initial", &dest)
+            .unwrap_err()
+            .contains("the seed source is missing")
+    );
+    fs::create_dir_all(run.join("initial/src")).unwrap();
+    fs::write(run.join("initial/src/lib.rs"), "other\n").unwrap();
+    version(&run, "c1", "initial", Some(FIRST));
+    assert!(export(&run, "c1", &dest).unwrap_err().contains("git apply"));
+    assert!(export(&run, "missing", &dest).is_err());
 }
