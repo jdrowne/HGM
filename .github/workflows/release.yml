@@ -1,7 +1,7 @@
 ---
 concurrency:
   cancel-in-progress: true
-  group: rustyhgm-${{ github.ref }}
+  group: release-${{ github.ref }}
 defaults:
   run:
     shell: bash
@@ -25,7 +25,7 @@ jobs:
       - name: Assert no comments
         uses: 10U-Labs/assert-no-comments@latest
         with:
-          trees: .claude/statusline.sh .github/workflows/rustyhgm.yml config.yaml src test
+          trees: .claude/statusline.sh .github/workflows/release.yml config.yaml src test
           verbose: "true"
   build:
     name: build-${{ matrix.platform }}
@@ -198,7 +198,7 @@ jobs:
           assert-no-inline-directives
           --tools yamllint
           --verbose
-          .github/workflows/rustyhgm.yml
+          .github/workflows/release.yml
       - if: ${{ !cancelled() }}
         name: Lint YAML
         run: |
@@ -211,15 +211,15 @@ jobs:
           yamllint --strict \
             --config-data \
             "{extends: default, rules: {$RULES}}" \
-            .github/workflows/rustyhgm.yml
-name: rustyhgm
+            .github/workflows/release.yml
+name: release
 on:
   push:
     branches: [main]
     paths:
       - .claude/statusline.sh
       - .dockerignore
-      - .github/workflows/rustyhgm.yml
+      - .github/workflows/release.yml
       - Cargo.toml
       - Dockerfile
       - config.yaml
