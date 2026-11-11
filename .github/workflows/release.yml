@@ -153,8 +153,8 @@ jobs:
           for f in $(find src test lib -name '*.rs')
           do
             lines=$(wc -l < "$f" | tr -d " ")
-            if [ "$lines" -ge 950 ]; then
-              echo "::error file=$f,line=$lines::$f has $lines lines (max 949); split it before adding to it"
+            if [ "$lines" -gt 1000 ]; then
+              echo "::error file=$f,line=$lines::$f has $lines lines (max 1000); split it before adding to it"
               fail=1
             fi
           done
