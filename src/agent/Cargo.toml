@@ -1,0 +1,15 @@
+[package]
+name = "hgm-agent-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "hgm-agent"
+path = "src/main.rs"
+
+# Only crates inside the agent subtree may be listed here.
+[dependencies]
+hgm-agent = { path = "../../lib/agent" }

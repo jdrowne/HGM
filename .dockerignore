@@ -36,3 +36,5 @@ hgm_utils.py
 hgm.py
 evaluate_agent.py
 run.sh
+# Rust build output
+target/

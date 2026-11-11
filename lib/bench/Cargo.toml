@@ -1,0 +1,15 @@
+[package]
+name = "hgm-bench"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[test]]
+name = "unit"
+path = "../../test/unit/bench/main.rs"
+
+[[test]]
+name = "integration"
+path = "../../test/integration/bench/main.rs"
