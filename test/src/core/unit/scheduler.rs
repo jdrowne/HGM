@@ -72,6 +72,10 @@ fn evaluation_skips_nodes_that_were_given_every_task() {
     }
     let done: HashMap<usize, HashSet<String>> = (0..6).map(|id| (id, all.clone())).collect();
     assert_eq!(select_for_evaluation(&tree, &done, 2, None, &mut rng), None);
+    assert_eq!(
+        select_for_evaluation(&Tree::new(), &done, 2, None, &mut rng),
+        None
+    );
 }
 
 #[test]

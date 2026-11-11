@@ -269,3 +269,107 @@ fn relpath_normalizes_dot_and_dotdot() {
         "a"
     );
 }
+
+fn unreadable(path: &std::path::Path) {
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, [0xff, 0xfe]).unwrap();
+}
+
+#[test]
+fn unreadable_logs_are_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = tmp.path();
+    let pred = out.join("c/predictions/run");
+    let find = || prompts::find_selfimprove_eval_logs("i", out, "c", true);
+    assert!(find().is_err());
+    unreadable(&pred.join("i.md"));
+    assert!(find().is_err());
+    assert!(read_mdlog_file(&pred.join("i.md"), false).is_err());
+    fs::write(pred.join("i.md"), "ok").unwrap();
+    unreadable(&pred.join("i.json"));
+    assert!(find().is_err());
+    fs::write(pred.join("i.json"), "{").unwrap();
+    assert!(find().is_err());
+    fs::write(pred.join("i.json"), "{}").unwrap();
+    let report = out.join("c/logs/run_evaluation/run/run/i/report.json");
+    unreadable(&report);
+    assert!(find().is_err());
+    fs::write(&report, "[").unwrap();
+    assert!(find().is_err());
+    fs::write(&report, "{}").unwrap();
+    assert_eq!(find().unwrap().eval_logs.len(), 1);
+    unreadable(&pred.join("i_eval.md"));
+    assert!(find().is_err());
+    assert!(any_exceeding_context_length(out, "missing", &["i"]).is_err());
+}
+
+#[test]
+fn unreadable_code_and_patches_are_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    unreadable(&root.join("pkg/a.py"));
+    let none: [&str; 0] = [];
+    assert!(prompts::get_current_code(root, &["pkg"], &[], &none, false).is_err());
+    assert!(prompts::get_current_code(root, &["pkg/a.py"], &[], &none, false).is_err());
+    let missing = [root.join("missing.diff")];
+    assert!(prompts::get_current_code(root, &none, &missing, &none, false).is_err());
+    assert_eq!(
+        prompts::get_current_code(root, &none, &missing, &["missing.diff"], false).unwrap(),
+        ""
+    );
+    let pred = root.join("out/c/predictions/run");
+    fs::create_dir_all(&pred).unwrap();
+    let dataset = [json!({"instance_id": "i", "test_patch": "t"})];
+    let input = DiagnoseInput {
+        entry_id: "i",
+        commit: "c",
+        root_dir: root,
+        out_dir: &root.join("out"),
+        dataset: &dataset,
+        patch_files: &missing,
+    };
+    assert!(
+        get_diagnose_prompt_swe(&input)
+            .unwrap_err()
+            .contains("problem_statement")
+    );
+    assert!(
+        get_diagnose_prompt_polyglot(&input, &mut rng_drawing(false))
+            .unwrap_err()
+            .contains("problem_statement")
+    );
+    let dataset = [json!({"instance_id": "i", "test_patch": "t", "problem_statement": "p"})];
+    let input = DiagnoseInput {
+        dataset: &dataset,
+        ..input
+    };
+    assert!(get_diagnose_prompt_swe(&input).is_err());
+    assert!(get_diagnose_prompt_polyglot(&input, &mut rng_drawing(false)).is_err());
+    let input = DiagnoseInput {
+        entry_id: "solve_empty_patches",
+        ..input
+    };
+    assert!(get_diagnose_prompt_swe(&input).is_err());
+}
+
+#[test]
+fn a_diagnosis_without_its_fields_is_an_error() {
+    for response in [
+        json!({"problem_description": "p"}),
+        json!({"implementation_suggestion": "s"}),
+    ] {
+        assert!(
+            get_problem_description_prompt(&response, false)
+                .unwrap_err()
+                .starts_with("missing ")
+        );
+    }
+}
+
+#[test]
+fn relpath_of_an_empty_path_is_taken_as_is() {
+    assert_eq!(
+        relpath(std::path::Path::new(""), std::path::Path::new("")),
+        "."
+    );
+}

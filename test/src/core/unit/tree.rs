@@ -95,3 +95,15 @@ fn lookups_of_unknown_nodes_find_nothing() {
     assert!(!tree.is_empty());
     assert_eq!(tree.sub_tree(0), [0, child]);
 }
+
+#[test]
+fn reinserting_an_id_and_linking_to_unknown_parents_change_nothing() {
+    let mut tree = Tree::with_root();
+    tree.insert("again", None, Some(0));
+    assert_eq!(tree.len(), 1);
+    assert_eq!(tree.get(0).unwrap().commit_id, "again");
+    let orphan = tree.add_child(9, "orphan");
+    tree.link_children();
+    assert_eq!(tree.sub_tree(0), [0]);
+    assert_eq!(tree.get(orphan).unwrap().parent_id, Some(9));
+}

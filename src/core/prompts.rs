@@ -299,7 +299,6 @@ pub fn relpath(path: &Path, start: &Path) -> String {
                     out.pop();
                 }
                 Component::Normal(s) => out.push(s.to_string_lossy().into_owned()),
-                Component::CurDir => {}
                 other => out.push(other.as_os_str().to_string_lossy().into_owned()),
             }
         }
@@ -316,11 +315,10 @@ pub fn relpath(path: &Path, start: &Path) -> String {
     }
 }
 
-fn walk_py(dir: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
+fn walk_py(dir: &Path, out: &mut Vec<PathBuf>) {
     let mut files = Vec::new();
     let mut dirs = Vec::new();
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
+    for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
         let path = entry.path();
         if path.is_dir() {
             dirs.push(path);
@@ -336,9 +334,8 @@ fn walk_py(dir: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
             .filter(|p| p.extension().is_some_and(|e| e == "py")),
     );
     for d in dirs {
-        walk_py(&d, out)?;
+        walk_py(&d, out);
     }
-    Ok(())
 }
 
 fn code_file_text(
@@ -361,7 +358,7 @@ fn code_file_text(
         files.push((relpath(&full, current_dir), read));
     } else if full.is_dir() {
         let mut found = Vec::new();
-        walk_py(&full, &mut found)?;
+        walk_py(&full, &mut found);
         files.extend(found.into_iter().map(|f| (relpath(&f, current_dir), f)));
     }
     let mut code = Vec::new();

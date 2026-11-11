@@ -242,3 +242,21 @@ fn a_results_file_overrides_the_computed_fields_and_may_be_a_list() {
     assert!(get_all_performance(tmp.path(), "run").is_err());
     assert!(get_all_performance(&tmp.path().join("missing"), "run").is_err());
 }
+
+#[test]
+fn missing_and_unreadable_files_are_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+    let missing = tmp.path().join("missing");
+    assert!(load_hgm_metadata(&missing).is_err());
+    assert!(load_last_hgm_metadata(&missing).is_err());
+    assert!(load_init_evaluated_tasks(&missing).is_err());
+    assert!(read_overall_performance(&missing).is_err());
+    assert!(update_metadata(&missing, &hgm_core::tree::Tree::with_root(), 0, &[]).is_err());
+    fs::create_dir(tmp.path().join("run_dir.json")).unwrap();
+    assert!(get_all_performance(tmp.path(), "run").is_err());
+    let run = tmp.path().join("h");
+    assert!(model_patch_paths(tmp.path(), "h", "c").is_err());
+    fs::create_dir_all(run.join("c")).unwrap();
+    fs::write(run.join("c/metadata.json"), "{").unwrap();
+    assert!(model_patch_paths(tmp.path(), "h", "c").is_err());
+}

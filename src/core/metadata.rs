@@ -37,32 +37,30 @@ pub fn update_metadata(
     n_task_evals: usize,
     init_evaluated_tasks: &[String],
 ) -> io::Result<()> {
-    let mut jsonl = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(output_dir.join(HGM_METADATA_FILE))?;
     let mut line = pyjson::dumps(&record(tree, n_task_evals), Some(2));
     line.push('\n');
-    jsonl.write_all(line.as_bytes())?;
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(output_dir.join(HGM_METADATA_FILE))
+        .and_then(|mut jsonl| jsonl.write_all(line.as_bytes()))?;
     fs::write(
         output_dir.join(INIT_EVALUATED_TASKS_FILE),
         pyjson::dumps(&PyValue::list_of_str(init_evaluated_tasks), None),
     )
 }
 
+fn parse_entry(entry: &str) -> io::Result<Value> {
+    let entry = if entry.starts_with('{') {
+        entry.to_string()
+    } else {
+        format!("{{{entry}")
+    };
+    pyjson::parse_lenient(&entry).map_err(invalid)
+}
+
 pub fn parse_hgm_metadata(content: &str) -> io::Result<Vec<Value>> {
-    content
-        .trim()
-        .split("\n{")
-        .map(|entry| {
-            let entry = if entry.starts_with('{') {
-                entry.to_string()
-            } else {
-                format!("{{{entry}")
-            };
-            pyjson::parse_lenient(&entry).map_err(invalid)
-        })
-        .collect()
+    content.trim().split("\n{").map(parse_entry).collect()
 }
 
 pub fn load_hgm_metadata(path: &Path) -> io::Result<Vec<Value>> {
@@ -70,9 +68,8 @@ pub fn load_hgm_metadata(path: &Path) -> io::Result<Vec<Value>> {
 }
 
 pub fn load_last_hgm_metadata(path: &Path) -> io::Result<Value> {
-    load_hgm_metadata(path)?
-        .pop()
-        .ok_or_else(|| invalid("hgm_metadata.jsonl holds no record"))
+    let content = fs::read_to_string(path)?;
+    parse_entry(content.trim().rsplit("\n{").next().unwrap_or_default())
 }
 
 pub fn load_init_evaluated_tasks(path: &Path) -> io::Result<Vec<String>> {
@@ -221,7 +218,8 @@ pub fn get_all_performance(
     run_keyword: &str,
 ) -> io::Result<(Vec<PyValue>, OverallPerformance)> {
     let mut matching: Vec<String> = fs::read_dir(results_dir)?
-        .filter_map(|e| e.ok()?.file_name().into_string().ok())
+        .flatten()
+        .filter_map(|e| e.file_name().into_string().ok())
         .filter(|name| name.ends_with(".json") && name.contains(run_keyword))
         .collect();
     matching.sort();
