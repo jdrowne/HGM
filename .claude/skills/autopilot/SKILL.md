@@ -21,19 +21,19 @@ gh issue list -R jdrowne/RustyHGM --state open --limit 10000 --json number,label
 
 ## Reminder
 
-Cron `*/10 * * * *`, recurring, prompt:
+Cron `*/10 * * * *`, recurring. The prompt carries everything it needs, with
+the work list command written out and `<first>` the first skip label:
 
 ```text
-REMINDER (autopilot): follow "When a reminder fires" in .claude/skills/autopilot/SKILL.md. Priority: #X. Skip labels: <labels>.
+REMINDER (autopilot) Priority: #X. Skip labels: <labels>.
+1. Run: <work list command>
+2. Empty: load the Cron tools with ToolSearch, delete every job whose prompt starts with "REMINDER (autopilot)", tell the user.
+3. Otherwise work on #X if listed, else the lowest number, until it closes.
+4. If it needs a person: add the label "<first>" to it, comment why, move on to the next.
 ```
 
-Omit `Priority: #X.` without `X`. Keep at most one such job.
-
-## When a reminder fires
-
-1. Empty work list: run `stop` and tell the user.
-2. Work on `X` if listed, else the lowest number, until it closes.
-3. Needs a person: add the first skip label, comment why, move on.
+Omit `Priority: #X.` without `X`, and the `#X if listed, else` wording with it.
+Keep at most one such job.
 
 ## `start`
 
