@@ -25,6 +25,7 @@ fn repo() -> (tempfile::TempDir, String) {
     git(dir, &["init", "-q"]);
     git(dir, &["config", "user.email", "hgm@example.com"]);
     git(dir, &["config", "user.name", "hgm"]);
+    git(dir, &["config", "core.autocrlf", "false"]);
     fs::write(dir.join("tracked.txt"), "one\n").unwrap();
     fs::write(dir.join(".gitignore"), "ignored.txt\n").unwrap();
     git(dir, &["add", "."]);

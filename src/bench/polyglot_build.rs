@@ -15,7 +15,7 @@ fn message(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
-fn copy_tree(from: &Path, to: &Path) -> io::Result<()> {
+pub fn copy_tree(from: &Path, to: &Path) -> io::Result<()> {
     fs::create_dir_all(to)
         .and_then(|()| fs::read_dir(from))
         .and_then(|entries| {

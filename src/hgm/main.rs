@@ -1,20 +1,22 @@
 use std::process::ExitCode;
 
+use clap::Parser;
+use hgm::cli::{Cli, Command};
+use hgm::run::{JITTER, evaluate, run};
+
 fn main() -> ExitCode {
-    match std::env::args().nth(1).as_deref() {
-        Some("--version") => {
-            println!("hgm {}", env!("CARGO_PKG_VERSION"));
-            println!(
-                "crates: {} {} {}",
-                hgm_core::CRATE_NAME,
-                hgm_sandbox::CRATE_NAME,
-                hgm_bench::CRATE_NAME
-            );
-            ExitCode::SUCCESS
-        }
-        _ => {
-            eprintln!("hgm: not implemented yet; the Python hgm.py is still the entry point");
-            ExitCode::from(2)
+    let cli = Cli::parse();
+    let result = std::env::current_dir()
+        .map_err(|e| e.to_string())
+        .and_then(|cwd| match &cli.command {
+            Command::Run(args) => run(args, &cwd, JITTER),
+            Command::Evaluate(args) => evaluate(args, &cwd),
+        });
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("hgm: {e}");
+            ExitCode::FAILURE
         }
     }
 }

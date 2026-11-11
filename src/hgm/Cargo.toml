@@ -8,15 +8,35 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[lib]
+path = "lib.rs"
+
 [[bin]]
 name = "hgm"
 path = "main.rs"
+
+[[test]]
+name = "unit"
+path = "../../test/src/hgm/unit/main.rs"
+
+[[test]]
+name = "integration"
+path = "../../test/src/hgm/integration/main.rs"
 
 [[test]]
 name = "e2e"
 path = "../../test/src/hgm/e2e/main.rs"
 
 [dependencies]
+chrono = "*"
+clap = { version = "*", features = ["derive"] }
+hgm-agent = { path = "../agent" }
+hgm-bench = { path = "../bench" }
 hgm-core = { path = "../core" }
 hgm-sandbox = { path = "../sandbox" }
-hgm-bench = { path = "../bench" }
+rand = "*"
+serde_json = { version = "*", features = ["preserve_order"] }
+
+[dev-dependencies]
+serde_json = { version = "*", features = ["preserve_order"] }
+tempfile = "*"

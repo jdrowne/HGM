@@ -86,11 +86,11 @@ pub fn prediction(
     )
 }
 
-pub(crate) fn message(e: hgm_sandbox::Error) -> String {
+pub fn message(e: hgm_sandbox::Error) -> String {
     e.to_string()
 }
 
-pub(crate) fn run_logged(
+pub fn run_logged(
     container: &Container,
     argv: &[&str],
     opts: &ExecOptions,
@@ -101,18 +101,15 @@ pub(crate) fn run_logged(
         .and_then(|r| r.log(log, true).map(|()| r.text()))
 }
 
-pub(crate) enum Step {
+pub enum Step {
     Info(&'static str),
     CopyIn(PathBuf, &'static str),
     Run(&'static [&'static str], &'static str),
     Command(String, &'static str),
+    Quiet(&'static [&'static str], &'static str),
 }
 
-pub(crate) fn run_step(
-    container: &Container,
-    step: &Step,
-    log: &Log,
-) -> Result<(), hgm_sandbox::Error> {
+pub fn run_step(container: &Container, step: &Step, log: &Log) -> Result<(), hgm_sandbox::Error> {
     match step {
         Step::Info(message) => {
             log.info(*message);
@@ -125,6 +122,9 @@ pub(crate) fn run_step(
         Step::Command(cmd, workdir) => container
             .exec_str(cmd, &ExecOptions::workdir(*workdir))
             .and_then(|r| r.log(log, true)),
+        Step::Quiet(argv, workdir) => container
+            .exec(argv, &ExecOptions::workdir(*workdir))
+            .map(drop),
     }
 }
 
