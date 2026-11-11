@@ -4,7 +4,7 @@
 - [Commit directly to main](commit-directly-to-main.md) — no branches or PRs; push straight to origin main; commits need not be small
 - [Always use latest versions](always-use-latest-versions.md) — never pin toolchains, crates, actions or images; stable / "*" / @main / :latest; no committed Cargo.lock
 - [No comments in any file](no-comments-in-any-file.md) — no comments, doc comments, docstrings or fixture notes anywhere in the port; reasons go in commits and issues
-- [CI follows 10U-Labs conventions](ci-follows-10u-labs-conventions.md) — one workflow per thing guarded (release.yml, markdownlint.yml); build per platform; unit, integration and e2e each need only build; coverage tiers each need only build-coverage and assert-coverage only merges
+- [CI follows 10U-Labs conventions](ci-follows-10u-labs-conventions.md) — one workflow per thing guarded (release.yml, markdownlint.yml); build per platform; unit, integration and e2e each need only build; coverage tiers each need only build-coverage, assert-coverage only merges and gates the platform builds
 - [Layout follows 10U-Labs](layout-follows-10u-labs.md) — crates in `src/<component>/` with flat files, no nested src; `lib/<language>/<pkg>` for shared support; `test/src/<component>/<tier>`
 - [Supported platforms](supported-platforms.md) — Linux x86_64 and arm64 only, in CI and in releases; no macOS or Windows legs, files or README rows
 - [User words are never recorded verbatim](user-words-are-never-recorded-verbatim.md) — restate what the user says in fresh words in memories, issues, commits and summaries; never quote or copy it

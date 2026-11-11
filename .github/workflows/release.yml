@@ -232,6 +232,7 @@ jobs:
           verbose: "true"
   build:
     name: build-${{ matrix.platform }}
+    needs: assert-coverage
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
@@ -456,7 +457,6 @@ jobs:
       && github.event_name == 'push'
     needs:
       - agent-subtree
-      - assert-coverage
       - assert-file-and-registration-sets-agree
       - assert-no-comments
       - assert-no-empty-test-files
