@@ -10,9 +10,9 @@ use serde_json::{Value, json};
 use super::{binary, flags};
 
 const TASK: &str = "javascript__queen-attack";
-const HGM: &str = "hgm";
+const HGM: &str = "rustyhgm";
 const IMPROVE_COMMAND: &str =
-    "cd /hgm && printf 'pub const E2E: u8 = 1;\\n' >> src/coding-agent/lib.rs && echo ok";
+    "cd /rustyhgm && printf 'pub const E2E: u8 = 1;\\n' >> src/coding-agent/lib.rs && echo ok";
 const SOLVE_COMMAND: &str =
     "cd /testbed && printf 'export const e2e = 1;\\n' >> queen-attack.js && echo ok";
 const DIAGNOSIS: &str = "```json\n{\"log_summarization\": \"s\", \"potential_improvements\": [\"p\"], \"improvement_proposal\": \"i\", \"implementation_suggestion\": \"do it\", \"problem_description\": \"broken\"}\n```";
@@ -129,12 +129,12 @@ fn repo_root() -> PathBuf {
         .join("../..")
 }
 
-fn hgm(root: &Path) -> Command {
+fn rustyhgm(root: &Path) -> Command {
     let mut cmd = Command::new(root.join(HGM));
     cmd.current_dir(root);
     for key in ["AUTHOR", "COMMITTER"] {
-        cmd.env(format!("GIT_{key}_NAME"), "hgm")
-            .env(format!("GIT_{key}_EMAIL"), "hgm@example.com")
+        cmd.env(format!("GIT_{key}_NAME"), "rustyhgm")
+            .env(format!("GIT_{key}_EMAIL"), "rustyhgm@example.com")
             .env(format!("GIT_{key}_DATE"), "2024-01-01T00:00:00Z");
     }
     cmd
@@ -175,7 +175,7 @@ fn seed_initial_agent(seed: &Path) {
         "total_submitted_ids": tasks,
     }});
     fs::write(agent.join("metadata.json"), metadata.to_string()).unwrap();
-    hgm::seed::write(&agent.join("src")).unwrap();
+    rustyhgm::seed::write(&agent.join("src")).unwrap();
 }
 
 fn records(path: &Path) -> Vec<Value> {
@@ -212,13 +212,13 @@ fn run_args(host: &str, key: &str, seed: &str) -> Vec<String> {
         ("--diagnose_provider", "vllm"),
         ("--diagnose_base_url", "http://127.0.0.1:8000/v1"),
         ("--initial_agent_name", "default_agent"),
-        ("--output_dir", "output_hgm/run"),
+        ("--output_dir", "output_rustyhgm/run"),
     ])
 }
 
 fn once(name: &str, build: impl FnOnce(&Path)) -> PathBuf {
     let run = std::env::var("NEXTEST_RUN_ID").unwrap_or_else(|_| std::process::id().to_string());
-    let dir = std::env::temp_dir().join(format!("hgm-e2e-{name}-{run}"));
+    let dir = std::env::temp_dir().join(format!("rustyhgm-e2e-{name}-{run}"));
     fs::create_dir_all(&dir).unwrap();
     let lock = fs::File::create(dir.join("lock")).unwrap();
     lock.lock().unwrap();
@@ -247,14 +247,14 @@ fn names(dir: &Path) -> Vec<String> {
 }
 
 fn scenario(root: &Path) {
-    fs::copy(binary("hgm"), root.join(HGM)).unwrap();
+    fs::copy(binary("rustyhgm"), root.join(HGM)).unwrap();
     let seed = root.with_extension("seed");
     seed_initial_agent(&seed);
     let before = names(root);
     let seen = serve_llm();
     let key = root.with_extension("key");
     fs::write(&key, "k\n").unwrap();
-    let out: Output = hgm(root)
+    let out: Output = rustyhgm(root)
         .args(run_args(
             &llm_host(),
             &key.to_string_lossy(),
@@ -289,11 +289,11 @@ impl Shared {
     }
 
     fn run(&self) -> PathBuf {
-        self.root.join("output_hgm/run")
+        self.root.join("output_rustyhgm/run")
     }
 
     fn records(&self) -> Vec<Value> {
-        records(&self.run().join("hgm_metadata.jsonl"))
+        records(&self.run().join("rustyhgm_metadata.jsonl"))
     }
 
     fn child(&self) -> String {
@@ -337,7 +337,7 @@ fn a_run_improves_the_agent_and_measures_its_child() {
 }
 
 #[test]
-fn the_run_starts_from_a_folder_holding_only_hgm() {
+fn the_run_starts_from_a_folder_holding_only_rustyhgm() {
     assert_eq!(shared().outcome["before"], json!([HGM]));
 }
 
@@ -348,7 +348,7 @@ fn the_run_prepares_the_polyglot_dataset() {
 
 #[test]
 fn the_run_prints_where_the_best_agent_is() {
-    let best = Path::new("output_hgm").join("run").join("best_agent");
+    let best = Path::new("output_rustyhgm").join("run").join("best_agent");
     assert!(shared().stdout().contains(&format!("{}\n", best.display())));
 }
 
@@ -459,7 +459,7 @@ fn the_child_keeps_its_agent_patch() {
 
 #[test]
 fn the_child_keeps_its_built_agent() {
-    assert!(shared().child_dir().join("hgm-coding-agent").is_file());
+    assert!(shared().child_dir().join("rustyhgm-coding-agent").is_file());
 }
 
 #[test]

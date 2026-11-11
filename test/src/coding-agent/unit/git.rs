@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use hgm_coding_agent::git::{diff_versus_commit, diff_versus_commit_with};
+use rustyhgm_coding_agent::git::{diff_versus_commit, diff_versus_commit_with};
 
 fn git(dir: &Path, args: &[&str]) -> String {
     let out = Command::new("git")
@@ -21,8 +21,8 @@ fn repo() -> (tempfile::TempDir, String) {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path();
     git(dir, &["init", "-q"]);
-    git(dir, &["config", "user.email", "hgm@example.com"]);
-    git(dir, &["config", "user.name", "hgm"]);
+    git(dir, &["config", "user.email", "rustyhgm@example.com"]);
+    git(dir, &["config", "user.name", "rustyhgm"]);
     git(dir, &["config", "core.autocrlf", "false"]);
     fs::write(dir.join("tracked.txt"), "one\n").unwrap();
     fs::write(dir.join(".gitignore"), "ignored.txt\n").unwrap();
@@ -141,7 +141,7 @@ fn a_bad_commit_still_lists_untracked_files() {
 #[test]
 fn a_missing_git_program_is_an_error() {
     let (tmp, commit) = repo();
-    assert!(diff_versus_commit_with("hgm-no-such-git", tmp.path(), &commit).is_err());
+    assert!(diff_versus_commit_with("rustyhgm-no-such-git", tmp.path(), &commit).is_err());
 }
 
 #[cfg(unix)]

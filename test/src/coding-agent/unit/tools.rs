@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{MAIN_SEPARATOR, Path, PathBuf};
 
-use hgm_coding_agent::tools::{
+use rustyhgm_coding_agent::tools::{
     Tools, bash_info, editor, editor_info, expand_tabs, filter_error, format_output,
     maybe_truncate, tool_infos,
 };

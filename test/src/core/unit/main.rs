@@ -34,7 +34,7 @@ fn golden_cases(doc: &Value) -> &Vec<Value> {
 
 #[test]
 fn crate_is_linked() {
-    assert_eq!(hgm_core::CRATE_NAME, "hgm-core");
+    assert_eq!(rustyhgm_core::CRATE_NAME, "rustyhgm-core");
 }
 
 #[test]

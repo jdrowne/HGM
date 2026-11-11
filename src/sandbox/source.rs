@@ -1,9 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm_core::log::Log;
-use hgm_core::metadata::NODE_METADATA_FILE;
-use hgm_core::pyjson::{self, PyValue};
+use rustyhgm_core::log::Log;
+use rustyhgm_core::metadata::NODE_METADATA_FILE;
+use rustyhgm_core::pyjson::{self, PyValue};
 
 use crate::docker::Docker;
 use crate::error::Error;

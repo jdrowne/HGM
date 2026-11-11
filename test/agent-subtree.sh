@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-dest="$(mktemp -d "${TMPDIR:-/tmp}/hgm-coding-agent-subtree.XXXXXX")"
+dest="$(mktemp -d "${TMPDIR:-/tmp}/rustyhgm-coding-agent-subtree.XXXXXX")"
 trap 'rm -rf "$dest"' EXIT
 
 paths=(
@@ -20,4 +20,4 @@ done
 cd "$dest"
 cargo build --workspace --all-targets
 cargo test --workspace --lib --bins --test unit --test integration
-echo "agent subtree OK: $(cargo metadata --no-deps --format-version 1 | grep -o '"name":"hgm[a-z-]*"' | sort -u | tr '\n' ' ')"
+echo "agent subtree OK: $(cargo metadata --no-deps --format-version 1 | grep -o '"name":"rustyhgm[a-z-]*"' | sort -u | tr '\n' ' ')"

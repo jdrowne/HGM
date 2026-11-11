@@ -2,11 +2,11 @@ use std::fmt::Display;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm_bench::polyglot;
-use hgm_bench::report::Report;
-use hgm_bench::swe::{self, Run};
-use hgm_core::metadata::{self, NODE_METADATA_FILE, OverallPerformance};
-use hgm_core::pyjson::{self, PyValue};
+use rustyhgm_bench::polyglot;
+use rustyhgm_bench::report::Report;
+use rustyhgm_bench::swe::{self, Run};
+use rustyhgm_core::metadata::{self, NODE_METADATA_FILE, OverallPerformance};
+use rustyhgm_core::pyjson::{self, PyValue};
 
 use crate::agent_build::{AGENT_BINARY, Build};
 

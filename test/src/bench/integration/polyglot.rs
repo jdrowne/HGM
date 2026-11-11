@@ -3,10 +3,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use hgm_bench::polyglot::{Harness, Outcome};
-use hgm_bench::polyglot_spec::host_arch;
-use hgm_bench::swe::Run;
-use hgm_sandbox::Docker;
+use rustyhgm_bench::polyglot::{Harness, Outcome};
+use rustyhgm_bench::polyglot_spec::host_arch;
+use rustyhgm_bench::swe::Run;
+use rustyhgm_sandbox::Docker;
 use serde_json::{Value, json};
 
 const BASH: &str = "#!/bin/sh\nexec /bin/sh \"$@\"\n";
@@ -36,17 +36,17 @@ done
 id=$(basename "$chat" .md)
 [ "$mode" = fail ] && { echo agent failed; exit 1; }
 [ "$mode" = nochat ] || echo "chat $id $kind $lang $(pwd) $(cat "$key")" > "$chat"
-echo "more $id" > "/hgm/${id}_1.md"
-[ "$mode" = space ] && echo x > "/hgm/${id}_ x.md"
+echo "more $id" > "/rustyhgm/${id}_1.md"
+[ "$mode" = space ] && echo x > "/rustyhgm/${id}_ x.md"
 case "$mode" in
   nopatch) ;;
-  empty) : > /hgm/model_patch.diff ;;
-  *) echo "patch $id" > /hgm/model_patch.diff ;;
+  empty) : > /rustyhgm/model_patch.diff ;;
+  *) echo "patch $id" > /rustyhgm/model_patch.diff ;;
 esac
 exit 0
 "#;
 
-const FAKE: &str = "hgm-fake";
+const FAKE: &str = "rustyhgm-fake";
 
 const PYTEST: &str = r#"#!/bin/sh
 [ "$(cat /testbed/mode 2>/dev/null)" = unresolved ] && { echo 1 failed; exit 1; }
@@ -72,7 +72,7 @@ fn base_image() {
     fs::write(
         dir.path().join("Dockerfile"),
         format!(
-            "FROM busybox:latest\nLABEL hgm.fake=polyglot\nRUN echo {stamp} > /stamp\nCOPY bash /bin/bash\nCOPY git python pytest conda /usr/local/bin/\nRUN chmod 755 /bin/bash /usr/local/bin/git /usr/local/bin/python /usr/local/bin/pytest /usr/local/bin/conda && mkdir -p /opt/miniconda3/bin && echo export CONDA_DEFAULT_ENV=testbed > /opt/miniconda3/bin/activate && touch /root/.bashrc\n"
+            "FROM busybox:latest\nLABEL rustyhgm.fake=polyglot\nRUN echo {stamp} > /stamp\nCOPY bash /bin/bash\nCOPY git python pytest conda /usr/local/bin/\nRUN chmod 755 /bin/bash /usr/local/bin/git /usr/local/bin/python /usr/local/bin/pytest /usr/local/bin/conda && mkdir -p /opt/miniconda3/bin && echo export CONDA_DEFAULT_ENV=testbed > /opt/miniconda3/bin/activate && touch /root/.bashrc\n"
         ),
     )
     .unwrap();
@@ -140,7 +140,7 @@ fn harness(root: &Path, dataset: PathBuf) -> Harness {
 }
 
 fn agent(root: &Path) -> Run {
-    let path = root.join("agent/hgm-coding-agent");
+    let path = root.join("agent/rustyhgm-coding-agent");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     crate::executable(&path, AGENT);
     Run {
@@ -499,7 +499,7 @@ impl Setup {
 
     fn gone(&self) -> Harness {
         Harness {
-            docker: Docker::new("hgm-no-such-docker-program"),
+            docker: Docker::new("rustyhgm-no-such-docker-program"),
             ..harness(self.root(), self.dataset.clone())
         }
     }

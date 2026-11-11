@@ -4,9 +4,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use hgm_coding_agent::git::diff_versus_commit;
-use hgm_core::pool;
-use hgm_core::pyjson::{PyValue, dumps};
+use rustyhgm_coding_agent::git::diff_versus_commit;
+use rustyhgm_core::pool;
+use rustyhgm_core::pyjson::{PyValue, dumps};
 use serde_json::{Map, Value, json};
 
 use crate::polyglot::DATASET;

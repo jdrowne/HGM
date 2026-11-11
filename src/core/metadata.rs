@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 use crate::pyjson::{self, PyValue};
 use crate::tree::{ROOT_COMMIT, Tree};
 
-pub const HGM_METADATA_FILE: &str = "hgm_metadata.jsonl";
+pub const HGM_METADATA_FILE: &str = "rustyhgm_metadata.jsonl";
 
 pub const INIT_EVALUATED_TASKS_FILE: &str = "init_evaluated_tasks.json";
 
@@ -59,15 +59,15 @@ fn parse_entry(entry: &str) -> io::Result<Value> {
     pyjson::parse_lenient(&entry).map_err(invalid)
 }
 
-pub fn parse_hgm_metadata(content: &str) -> io::Result<Vec<Value>> {
+pub fn parse_rustyhgm_metadata(content: &str) -> io::Result<Vec<Value>> {
     content.trim().split("\n{").map(parse_entry).collect()
 }
 
-pub fn load_hgm_metadata(path: &Path) -> io::Result<Vec<Value>> {
-    parse_hgm_metadata(&fs::read_to_string(path)?)
+pub fn load_rustyhgm_metadata(path: &Path) -> io::Result<Vec<Value>> {
+    parse_rustyhgm_metadata(&fs::read_to_string(path)?)
 }
 
-pub fn load_last_hgm_metadata(path: &Path) -> io::Result<Value> {
+pub fn load_last_rustyhgm_metadata(path: &Path) -> io::Result<Value> {
     let content = fs::read_to_string(path)?;
     parse_entry(content.trim().rsplit("\n{").next().unwrap_or_default())
 }
@@ -267,13 +267,13 @@ pub fn get_all_performance(
 
 pub fn model_patch_paths(
     root_dir: &Path,
-    hgm_dir: &str,
+    rustyhgm_dir: &str,
     parent_commit: &str,
 ) -> io::Result<Vec<PathBuf>> {
     let mut commit = parent_commit.to_string();
     let mut patches = Vec::new();
     while commit != ROOT_COMMIT {
-        let dir = root_dir.join(hgm_dir).join(&commit);
+        let dir = root_dir.join(rustyhgm_dir).join(&commit);
         let patch = dir.join(MODEL_PATCH_FILE);
         if patch.exists() {
             patches.push(patch);

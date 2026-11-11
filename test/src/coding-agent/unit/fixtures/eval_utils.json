@@ -2,9 +2,9 @@
   "source": "utils/eval_utils.py: parse_eval_output, get_report_score, msg_history_to_report",
   "cases": [
     {
-      "name": "parse_eval_output_hgm",
+      "name": "parse_eval_output_rustyhgm",
       "input": {
-        "instance_id": "hgm",
+        "instance_id": "rustyhgm",
         "eval_output": "============================= test session starts ==============================\ncollected 6 items\n\ntests/test_a.py::test_one PASSED                                         [ 16%]\nPASSED tests/test_a.py::test_one\nPASSED tests/test_a.py::test_param[1-2]\nFAILED tests/test_a.py::test_two - AssertionError: boom\nERROR tests/test_b.py::test_three - fixture 'x' not found\nSKIPPED [1] tests/test_c.py:12: no reason\nXFAIL tests/test_c.py::test_xfail - known\nPASSED\nFAILED\n=========================== short test summary info ============================\n"
       },
       "output": {
@@ -108,7 +108,7 @@
     {
       "name": "msg_history_to_report_openai",
       "input": {
-        "instance_id": "hgm",
+        "instance_id": "rustyhgm",
         "model": "gpt-5",
         "msg_history": [
           {
@@ -143,7 +143,7 @@
     {
       "name": "msg_history_to_report_open_router",
       "input": {
-        "instance_id": "hgm",
+        "instance_id": "rustyhgm",
         "model": "anthropic/claude-sonnet-4",
         "msg_history": [
           {

@@ -53,10 +53,10 @@ fn prepare(root: &Path, repo: &str) -> Output {
 fn prepare_with(root: &Path, repo: Option<&str>, path: Option<&Path>) -> Output {
     fs::create_dir_all(root).unwrap();
     key_file(root);
-    let mut cmd = Command::new(binary("hgm"));
+    let mut cmd = Command::new(binary("rustyhgm"));
     cmd.args(flags(&[
         ("--polyglot", "true"),
-        ("--continue_from", "output_hgm/none"),
+        ("--continue_from", "output_rustyhgm/none"),
         ("--polyglot_repo", repo.unwrap_or("no-such-repo")),
     ]))
     .current_dir(root);
@@ -64,8 +64,8 @@ fn prepare_with(root: &Path, repo: Option<&str>, path: Option<&Path>) -> Output 
         cmd.env("PATH", path);
     }
     for key in ["AUTHOR", "COMMITTER"] {
-        cmd.env(format!("GIT_{key}_NAME"), "hgm")
-            .env(format!("GIT_{key}_EMAIL"), "hgm@example.com");
+        cmd.env(format!("GIT_{key}_NAME"), "rustyhgm")
+            .env(format!("GIT_{key}_EMAIL"), "rustyhgm@example.com");
     }
     cmd.output().unwrap()
 }
@@ -687,7 +687,7 @@ fn a_lost_commits_file_fails_the_run() {
 #[test]
 fn a_lost_commits_file_is_reported() {
     let e = stderr(&lost_commits().out);
-    assert!(e.starts_with("hgm: Commits file not found: "), "{e}");
+    assert!(e.starts_with("rustyhgm: Commits file not found: "), "{e}");
 }
 
 fn source_repo(source: &Path) {
@@ -704,9 +704,9 @@ fn source_repo(source: &Path) {
         source,
         &[
             "-c",
-            "user.name=hgm",
+            "user.name=rustyhgm",
             "-c",
-            "user.email=hgm@example.com",
+            "user.email=rustyhgm@example.com",
             "commit",
             "-qm",
             "benchmark",
@@ -771,7 +771,7 @@ fn a_failing_clone_fails_the_run() {
 #[test]
 fn a_failing_clone_is_reported() {
     let e = stderr(&clone_failure(None));
-    assert!(e.starts_with("hgm: git clone "), "{e}");
+    assert!(e.starts_with("rustyhgm: git clone "), "{e}");
 }
 
 #[test]
@@ -782,7 +782,7 @@ fn a_clone_without_git_fails_the_run() {
 #[test]
 fn a_clone_without_git_is_reported() {
     let e = stderr(&clone_failure(Some("no-git")));
-    assert!(e.starts_with("hgm: "), "{e}");
+    assert!(e.starts_with("rustyhgm: "), "{e}");
 }
 
 fn stop(name: &str, prepare_root: impl FnOnce(&Path), expected: &str) -> Option<String> {

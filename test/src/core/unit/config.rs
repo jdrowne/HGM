@@ -1,4 +1,4 @@
-use hgm_core::config::{
+use rustyhgm_core::config::{
     EvaluationConfig, ExecutionConfig, ExpansionStatistic, HgmConfig, LlmConfig,
     OptimizationConfig, PathConfig,
 };

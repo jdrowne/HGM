@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
-use hgm_core::config::ExpansionStatistic;
-use hgm_core::scheduler::{
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use rustyhgm_core::config::ExpansionStatistic;
+use rustyhgm_core::scheduler::{
     NoExpandableNode, initial_expansions, pick_task, sample_budget, select_for_evaluation,
     select_for_expansion, should_expand,
 };
-use hgm_core::tree::Tree;
-use rand::SeedableRng;
-use rand::rngs::StdRng;
+use rustyhgm_core::tree::Tree;
 
 use crate::common::{build_tree, case};
 

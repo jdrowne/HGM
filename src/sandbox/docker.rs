@@ -4,7 +4,7 @@ use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use hgm_core::log::Log;
+use rustyhgm_core::log::Log;
 
 use crate::error::Error;
 

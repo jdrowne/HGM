@@ -1,4 +1,4 @@
-use hgm_bench::tasks::{
+use rustyhgm_bench::tasks::{
     Subset, dedup, get_eval_script, polyglot_run_tasks, polyglot_subset, swe_run_tasks, swe_subset,
 };
 

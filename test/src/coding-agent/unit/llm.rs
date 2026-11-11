@@ -1,4 +1,4 @@
-use hgm_coding_agent::llm::{
+use rustyhgm_coding_agent::llm::{
     Client, Error, MAX_OUTPUT_TOKENS, Provider, Service, create_client,
     extract_json_between_markers, get_response_from_llm, message, read_api_key,
 };

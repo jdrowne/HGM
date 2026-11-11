@@ -236,7 +236,7 @@ pub fn parser_name(repo: &str) -> Option<&'static str> {
         | "pytest-dev/pytest"
         | "pyvista/pyvista"
         | "sqlfluff/sqlfluff"
-        | "hgm" => "parse_log_pytest",
+        | "rustyhgm" => "parse_log_pytest",
         _ => return None,
     })
 }

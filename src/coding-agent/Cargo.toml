@@ -1,5 +1,5 @@
 [package]
-name = "hgm-coding-agent"
+name = "rustyhgm-coding-agent"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,7 +12,7 @@ workspace = true
 path = "lib.rs"
 
 [[bin]]
-name = "hgm-coding-agent"
+name = "rustyhgm-coding-agent"
 path = "main.rs"
 
 [[test]]

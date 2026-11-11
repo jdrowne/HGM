@@ -1,6 +1,6 @@
-use hgm_core::sampling::{CoolDown, argmax, beta_params, thompson_sample};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rustyhgm_core::sampling::{CoolDown, argmax, beta_params, thompson_sample};
 use serde_json::Value;
 
 use crate::common::{cases, floats};

@@ -1,4 +1,4 @@
-use hgm_core::log::{Level, Log};
+use rustyhgm_core::log::{Level, Log};
 
 fn written_lines() -> Vec<String> {
     let tmp = tempfile::tempdir().unwrap();

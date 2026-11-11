@@ -1,11 +1,11 @@
 use std::fs;
 use std::path::Path;
 
-use hgm_core::log::Log;
-use hgm_sandbox::{Container, Docker, Error, ExecOptions, RunOptions};
+use rustyhgm_core::log::Log;
+use rustyhgm_sandbox::{Container, Docker, Error, ExecOptions, RunOptions};
 
 fn missing() -> Docker {
-    Docker::new("hgm-no-such-docker-program")
+    Docker::new("rustyhgm-no-such-docker-program")
 }
 
 fn container() -> Container {
@@ -141,7 +141,7 @@ fn cleanup_without_docker_logs_the_failed_removal() {
 #[test]
 fn copying_in_a_missing_source_is_not_found() {
     let c = missing().container("c");
-    let r = c.copy_in(Path::new("hgm-no-such-source"), "/x", &Log::discard());
+    let r = c.copy_in(Path::new("rustyhgm-no-such-source"), "/x", &Log::discard());
     assert!(matches!(r, Err(Error::NotFound(_))), "{r:?}");
 }
 

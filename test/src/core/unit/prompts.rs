@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm_core::prompts::{
+use rustyhgm_core::prompts::{
     self, DiagnoseInput, EvalLogs, any_exceeding_context_length, format_named,
     get_diagnose_prompt_polyglot, get_diagnose_prompt_swe, get_eval_log_text,
     get_problem_description_prompt, process_selfimprove_eval_logs, read_mdlog_file, relpath,

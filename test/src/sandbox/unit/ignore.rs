@@ -1,7 +1,7 @@
 use std::fs;
 
-use hgm_sandbox::Error;
-use hgm_sandbox::ignore::{Spec, parse_dockerignore, read_dockerignore};
+use rustyhgm_sandbox::Error;
+use rustyhgm_sandbox::ignore::{Spec, parse_dockerignore, read_dockerignore};
 use serde_json::Value;
 
 use crate::{case, strings};

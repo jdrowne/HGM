@@ -2,18 +2,18 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm::FAILED;
-use hgm::improve::{Improver, SelfImprove, child_performance, choose_entry, diagnose_problem};
-use hgm_coding_agent::llm::{Client, Provider};
-use hgm_core::log::Log;
-use hgm_core::prompts::{
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use rustyhgm::FAILED;
+use rustyhgm::improve::{Improver, SelfImprove, child_performance, choose_entry, diagnose_problem};
+use rustyhgm_coding_agent::llm::{Client, Provider};
+use rustyhgm_core::log::Log;
+use rustyhgm_core::prompts::{
     CONTEXT_LENGTH_ERRORS, DiagnoseInput, SOLVE_CONTEXTLENGTH, SOLVE_EMPTY_PATCHES,
     SOLVE_STOCHASTICITY,
 };
-use hgm_core::pyjson::dumps;
-use hgm_sandbox::Docker;
-use rand::SeedableRng;
-use rand::rngs::StdRng;
+use rustyhgm_core::pyjson::dumps;
+use rustyhgm_sandbox::Docker;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -319,7 +319,7 @@ fn improver(out: &Path, docker: Docker, dataset: Result<Vec<Value>, String>) -> 
         output_dir: out.to_path_buf(),
         polyglot: false,
         dataset,
-        image_name: "hgm-no-such-image:latest".into(),
+        image_name: "rustyhgm-no-such-image:latest".into(),
         diagnose: client("http://127.0.0.1:9/v1".into()),
         self_improve_llm: "m".into(),
         self_improve_service: service(),
@@ -347,7 +347,7 @@ fn child_without_data() -> (TempDir, PathBuf, String) {
     fs::create_dir_all(&out).unwrap();
     let no_data = improver(
         &out,
-        Docker::new("hgm-no-such-docker-program"),
+        Docker::new("rustyhgm-no-such-docker-program"),
         Err("no dataset".into()),
     );
     let commit = no_data.sample_child("p");
@@ -399,7 +399,7 @@ fn child_without_docker() -> (TempDir, PathBuf, String) {
     fs::create_dir_all(&out).unwrap();
     let no_docker = improver(
         &out,
-        Docker::new("hgm-no-such-docker-program"),
+        Docker::new("rustyhgm-no-such-docker-program"),
         Ok(Vec::new()),
     );
     let commit = no_docker.sample_child("p");
@@ -424,7 +424,7 @@ fn a_child_fails_when_its_run_directory_cannot_be_made() {
     fs::write(&file, "").unwrap();
     let blocked = improver(
         &file,
-        Docker::new("hgm-no-such-docker-program"),
+        Docker::new("rustyhgm-no-such-docker-program"),
         Ok(Vec::new()),
     );
     assert_eq!(blocked.sample_child("p"), FAILED);
@@ -438,7 +438,7 @@ fn child_with_unsavable_metadata() -> (TempDir, String) {
     let docker = out.join("docker");
     fs::write(
         &docker,
-        "#!/bin/sh\nfor a in \"$@\"; do case \"$a\" in hgm-container-*) mkdir -p \"$(dirname \"$0\")/${a#hgm-container-}/metadata.json\" ;; esac; done\nexit 1\n",
+        "#!/bin/sh\nfor a in \"$@\"; do case \"$a\" in rustyhgm-container-*) mkdir -p \"$(dirname \"$0\")/${a#rustyhgm-container-}/metadata.json\" ;; esac; done\nexit 1\n",
     )
     .unwrap();
     fs::set_permissions(&docker, fs::Permissions::from_mode(0o755)).unwrap();

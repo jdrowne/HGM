@@ -3,8 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use hgm::seed;
-use hgm_sandbox::source::copy_filtered;
+use rustyhgm::seed;
+use rustyhgm_sandbox::source::copy_filtered;
 
 fn repo_root() -> PathBuf {
     PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("../..")

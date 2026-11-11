@@ -2,9 +2,9 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use hgm_bench::polyglot_build::copy_tree;
-use hgm_core::metadata::{HGM_METADATA_FILE, load_last_hgm_metadata, model_patch_paths};
-use hgm_core::tree::ROOT_COMMIT;
+use rustyhgm_bench::polyglot_build::copy_tree;
+use rustyhgm_core::metadata::{HGM_METADATA_FILE, load_last_rustyhgm_metadata, model_patch_paths};
+use rustyhgm_core::tree::ROOT_COMMIT;
 use serde_json::Value;
 use statrs::distribution::{Beta, ContinuousCDF};
 
@@ -77,7 +77,7 @@ pub fn best_belief(record: &Value, epsilon: f64) -> Result<Belief, String> {
 
 pub fn pick(run_dir: &Path, epsilon: f64) -> Result<Belief, String> {
     let path = run_dir.join(HGM_METADATA_FILE);
-    let record = load_last_hgm_metadata(&path).map_err(|e| at(&path, e))?;
+    let record = load_last_rustyhgm_metadata(&path).map_err(|e| at(&path, e))?;
     best_belief(&record, epsilon)
 }
 

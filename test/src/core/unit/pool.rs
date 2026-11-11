@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use hgm_core::pool::map;
+use rustyhgm_core::pool::map;
 
 const WORKER_COUNTS: [usize; 4] = [0, 1, 3, 100];
 

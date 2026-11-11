@@ -4,7 +4,7 @@ use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use hgm_bench::dataset::{Error, Hub, instance_ids, read_parquet};
+use rustyhgm_bench::dataset::{Error, Hub, instance_ids, read_parquet};
 use serde_json::Value;
 
 use crate::common::cases;

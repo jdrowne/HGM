@@ -242,9 +242,9 @@
       "output": "In the repository folder, the tests can be run with the following bash command(s):\n\n```cargo test```"
     },
     {
-      "name": "get_test_description_hgm",
+      "name": "get_test_description_rustyhgm",
       "input": "",
-      "output": "The tests in the repository can be run with the bash command `cd /hgm/ && pytest -rA <specific test files>`. If no specific test files are provided, all tests will be run. The given command-line options must be used EXACTLY as specified. Do not use any other command-line options. ONLY test tools and utils. NEVER try to test or run agentic_system.forward()."
+      "output": "The tests in the repository can be run with the bash command `cd /rustyhgm/ && pytest -rA <specific test files>`. If no specific test files are provided, all tests will be run. The given command-line options must be used EXACTLY as specified. Do not use any other command-line options. ONLY test tools and utils. NEVER try to test or run agentic_system.forward()."
     },
     {
       "name": "get_tooluse_prompt",

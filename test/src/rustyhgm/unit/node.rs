@@ -1,14 +1,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm::agent_build::Build;
-use hgm::node::{Bench, Eval, Evaluator, empty_metadata, load_metadata, put, save_metadata};
-use hgm_bench::dataset::Hub;
-use hgm_bench::polyglot;
-use hgm_bench::swe;
-use hgm_bench::swebench::Swebench;
-use hgm_core::pyjson::PyValue;
-use hgm_sandbox::Docker;
+use rustyhgm::agent_build::Build;
+use rustyhgm::node::{Bench, Eval, Evaluator, empty_metadata, load_metadata, put, save_metadata};
+use rustyhgm_bench::dataset::Hub;
+use rustyhgm_bench::polyglot;
+use rustyhgm_bench::swe;
+use rustyhgm_bench::swebench::Swebench;
+use rustyhgm_core::pyjson::PyValue;
+use rustyhgm_sandbox::Docker;
 use serde_json::json;
 
 use crate::common::{FakeBench, FakeBuild, node, performance, read_json, service, write_json};
@@ -35,7 +35,7 @@ fn evaluator<'a>(
     }
 }
 
-fn put_twice() -> hgm::node::Metadata {
+fn put_twice() -> rustyhgm::node::Metadata {
     let mut m = empty_metadata("c");
     put(&mut m, "run_id", PyValue::str("d"));
     put(&mut m, "extra", PyValue::Int(1));
@@ -81,7 +81,7 @@ fn missing_metadata_is_an_error_naming_the_file() {
     assert!(e.contains("metadata.json"), "{e}");
 }
 
-fn metadata_of(text: &str) -> Result<hgm::node::Metadata, String> {
+fn metadata_of(text: &str) -> Result<rustyhgm::node::Metadata, String> {
     let tmp = tempfile::tempdir().unwrap();
     fs::write(tmp.path().join("metadata.json"), text).unwrap();
     load_metadata(tmp.path())
@@ -138,7 +138,7 @@ fn evaluated() -> Evaluated {
     let bench = FakeBench::resolving(&["a"]);
     let builder = FakeBuild::default();
     let accs = eval(evaluator(&bench, out, 8, &builder), "child", &["a", "b"]).unwrap();
-    fs::write(out.join("parent/hgm-coding-agent"), "").unwrap();
+    fs::write(out.join("parent/rustyhgm-coding-agent"), "").unwrap();
     eval(evaluator(&bench, out, 8, &builder), "parent", &["a", "b"]).unwrap();
     Evaluated {
         tmp,
@@ -164,7 +164,7 @@ fn eval_agent_builds_a_missing_agent_from_the_patch_chain() {
                 out.join("parent/model_patch.diff"),
                 out.join("child/model_patch.diff")
             ],
-            out.join("child/hgm-coding-agent")
+            out.join("child/rustyhgm-coding-agent")
         )]
     );
 }
@@ -187,13 +187,19 @@ fn eval_agent_caps_workers_at_the_task_count() {
 #[test]
 fn eval_agent_runs_the_built_agent() {
     let e = evaluated();
-    assert_eq!(e.seen()[0].agent, e.out().join("child/hgm-coding-agent"));
+    assert_eq!(
+        e.seen()[0].agent,
+        e.out().join("child/rustyhgm-coding-agent")
+    );
 }
 
 #[test]
 fn eval_agent_runs_an_existing_agent() {
     let e = evaluated();
-    assert_eq!(e.seen()[1].agent, e.out().join("parent/hgm-coding-agent"));
+    assert_eq!(
+        e.seen()[1].agent,
+        e.out().join("parent/rustyhgm-coding-agent")
+    );
 }
 
 #[test]
@@ -384,7 +390,7 @@ fn polyglot_harness(root: &Path) -> polyglot::Harness {
     write_json(&root.join("meta.json"), &json!([]));
     fs::create_dir_all(root.join("out/c")).unwrap();
     polyglot::Harness {
-        docker: Docker::new("hgm-no-such-docker-program"),
+        docker: Docker::new("rustyhgm-no-such-docker-program"),
         root: root.to_path_buf(),
         dataset: root.join("meta.json"),
         machine: "x86_64".into(),
@@ -454,9 +460,9 @@ fn the_swe_bench_fails_when_the_dataset_cannot_load() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     let harness = swe::Harness {
-        docker: Docker::new("hgm-no-such-docker-program"),
+        docker: Docker::new("rustyhgm-no-such-docker-program"),
         swebench: Swebench {
-            python: "hgm-no-such-python".into(),
+            python: "rustyhgm-no-such-python".into(),
         },
         hub: Hub {
             endpoint: "http://127.0.0.1:9".into(),
@@ -496,7 +502,7 @@ fn swe_run() -> (tempfile::TempDir, Vec<f64>) {
     .unwrap();
     fs::set_permissions(&python, fs::Permissions::from_mode(0o755)).unwrap();
     let harness = swe::Harness {
-        docker: Docker::new("hgm-no-such-docker-program"),
+        docker: Docker::new("rustyhgm-no-such-docker-program"),
         swebench: Swebench {
             python: python.to_string_lossy().into_owned(),
         },

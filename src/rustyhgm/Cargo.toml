@@ -1,5 +1,5 @@
 [package]
-name = "hgm"
+name = "rustyhgm"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,28 +12,28 @@ workspace = true
 path = "lib.rs"
 
 [[bin]]
-name = "hgm"
+name = "rustyhgm"
 path = "main.rs"
 
 [[test]]
 name = "unit"
-path = "../../test/src/hgm/unit/main.rs"
+path = "../../test/src/rustyhgm/unit/main.rs"
 
 [[test]]
 name = "integration"
-path = "../../test/src/hgm/integration/main.rs"
+path = "../../test/src/rustyhgm/integration/main.rs"
 
 [[test]]
 name = "e2e"
-path = "../../test/src/hgm/e2e/main.rs"
+path = "../../test/src/rustyhgm/e2e/main.rs"
 
 [dependencies]
 chrono = "*"
 clap = { version = "*", features = ["derive"] }
-hgm-coding-agent = { path = "../coding-agent" }
-hgm-bench = { path = "../bench" }
-hgm-core = { path = "../core" }
-hgm-sandbox = { path = "../sandbox" }
+rustyhgm-coding-agent = { path = "../coding-agent" }
+rustyhgm-bench = { path = "../bench" }
+rustyhgm-core = { path = "../core" }
+rustyhgm-sandbox = { path = "../sandbox" }
 include_dir = "*"
 rand = "*"
 serde_json = { version = "*", features = ["preserve_order"] }

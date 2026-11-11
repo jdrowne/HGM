@@ -1,9 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use hgm_core::log::Log;
-use hgm_sandbox::source::prepare_initial_agent;
-use hgm_sandbox::{Error, ExecOptions};
+use rustyhgm_core::log::Log;
+use rustyhgm_sandbox::source::prepare_initial_agent;
+use rustyhgm_sandbox::{Error, ExecOptions};
 
 use tempfile::TempDir;
 
@@ -32,14 +32,14 @@ fn prepared() -> Prepared {
     fs::write(
         repo.join("Dockerfile"),
         format!(
-            "FROM {BASE_IMAGE}\nWORKDIR /hgm\nCOPY . .\nCMD [\"tail\", \"-f\", \"/dev/null\"]\n"
+            "FROM {BASE_IMAGE}\nWORKDIR /rustyhgm\nCOPY . .\nCMD [\"tail\", \"-f\", \"/dev/null\"]\n"
         ),
     )
     .unwrap();
     fs::write(repo.join(".dockerignore"), "logs/\n").unwrap();
     fs::write(repo.join("agent.txt"), "v1").unwrap();
     fs::write(repo.join("logs/secret.log"), "no").unwrap();
-    let name = unique("hgm-initial");
+    let name = unique("rustyhgm-initial");
     let dest = dir.path().join(&name).join("src");
     let image = Image(name);
     let report = prepare_initial_agent(&repo, &dest, Some(&d), &Log::discard()).unwrap();
@@ -57,7 +57,7 @@ fn rerun(p: &Prepared, rebuild: bool) -> Running {
     fs::write(p.dest.join("agent.txt"), "v2").unwrap();
     d.ensure_image(&p.dest, &p.image.0, rebuild, &log).unwrap();
     Running(
-        d.run_detached(&p.image.0, &unique("hgm-run"), &log)
+        d.run_detached(&p.image.0, &unique("rustyhgm-run"), &log)
             .unwrap(),
     )
 }
@@ -102,7 +102,7 @@ fn ignored_files_stay_out_of_the_image() {
     let p = prepared();
     let c = rerun(&p, false);
     assert!(
-        !c.0.sh("test -e /hgm/logs", &ExecOptions::default())
+        !c.0.sh("test -e /rustyhgm/logs", &ExecOptions::default())
             .unwrap()
             .success()
     );
@@ -112,7 +112,7 @@ fn ignored_files_stay_out_of_the_image() {
 fn ensuring_an_image_with_rebuild_builds_it_again() {
     let p = prepared();
     let c = rerun(&p, true);
-    assert_eq!(c.0.read_file("/hgm/agent.txt").unwrap(), b"v2");
+    assert_eq!(c.0.read_file("/rustyhgm/agent.txt").unwrap(), b"v2");
 }
 
 fn broken() -> (TempDir, String, Error) {
@@ -122,7 +122,7 @@ fn broken() -> (TempDir, String, Error) {
         "FROM busybox:latest\nRUN exit 7\n",
     )
     .unwrap();
-    let tag = unique("hgm-broken");
+    let tag = unique("rustyhgm-broken");
     let err = docker()
         .build(dir.path(), &tag, false, &Log::discard())
         .unwrap_err();
@@ -146,7 +146,7 @@ fn running_an_image_that_failed_to_build_is_an_error() {
     let (_dir, tag, _err) = broken();
     assert!(
         docker()
-            .run_detached(&tag, &unique("hgm-none"), &Log::discard())
+            .run_detached(&tag, &unique("rustyhgm-none"), &Log::discard())
             .is_err()
     );
 }

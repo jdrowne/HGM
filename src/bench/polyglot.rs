@@ -3,11 +3,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use hgm_coding_agent::llm::Service;
-use hgm_coding_agent::testrepo::{TestRepo, get_test_description};
-use hgm_core::log::Log;
-use hgm_core::pyjson::{PyValue, dumps};
-use hgm_sandbox::{Container, Docker, ExecOptions};
+use rustyhgm_coding_agent::llm::Service;
+use rustyhgm_coding_agent::testrepo::{TestRepo, get_test_description};
+use rustyhgm_core::log::Log;
+use rustyhgm_core::pyjson::{PyValue, dumps};
+use rustyhgm_sandbox::{Container, Docker, ExecOptions};
 use serde_json::Value;
 
 use crate::polyglot_build::Images;
@@ -98,7 +98,7 @@ impl Harness {
     fn solve(&self, job: &Job, container: &Container, log: &Log) -> Result<(), String> {
         let instance_id = text(job.entry, "instance_id");
         let language = text(job.entry, "language");
-        let chat_history = format!("/hgm/{instance_id}.md");
+        let chat_history = format!("/rustyhgm/{instance_id}.md");
         let timeout = self.timeout.to_string();
         let problem_statement = text(job.entry, "problem_statement");
         let base_commit = text(job.entry, "base_commit");
@@ -118,7 +118,7 @@ impl Harness {
             "--base_commit",
             &base_commit,
             "--outdir",
-            "/hgm/",
+            "/rustyhgm/",
             "--test_description",
             &test_description,
             "--self_improve",
@@ -141,9 +141,9 @@ impl Harness {
     fn collect(&self, job: &Job, container: &Container, log: &Log) -> Result<String, String> {
         let instance_id = text(job.entry, "instance_id");
         log.info("Copying output files back to host");
-        let chat_history = format!("/hgm/{instance_id}.md");
+        let chat_history = format!("/rustyhgm/{instance_id}.md");
         let pattern = format!("{instance_id}_*.md");
-        let find = ["find", "/hgm/", "-name", &pattern];
+        let find = ["find", "/rustyhgm/", "-name", &pattern];
         container
             .copy_out(
                 &chat_history,
@@ -161,7 +161,7 @@ impl Harness {
         log.info("Getting model_patch");
         run_logged(
             container,
-            &["cat", "/hgm/model_patch.diff"],
+            &["cat", "/rustyhgm/model_patch.diff"],
             &ExecOptions::default(),
             log,
         )
@@ -321,7 +321,7 @@ impl Harness {
                 run,
             })
             .collect();
-        hgm_core::pool::map(&jobs, run.max_workers, |job| {
+        rustyhgm_core::pool::map(&jobs, run.max_workers, |job| {
             let outcome = self.process_entry(job);
             if outcome.success {
                 println!(

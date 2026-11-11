@@ -2,13 +2,13 @@ use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
-use hgm_core::metadata::{
-    OverallPerformance, get_all_performance, is_compiled_self_improve, load_hgm_metadata,
-    load_init_evaluated_tasks, load_last_hgm_metadata, model_patch_paths, read_overall_performance,
-    tree_from_record, update_metadata,
+use rustyhgm_core::metadata::{
+    OverallPerformance, get_all_performance, is_compiled_self_improve, load_init_evaluated_tasks,
+    load_last_rustyhgm_metadata, load_rustyhgm_metadata, model_patch_paths,
+    read_overall_performance, tree_from_record, update_metadata,
 };
-use hgm_core::pyjson::PyValue;
-use hgm_core::tree::Tree;
+use rustyhgm_core::pyjson::PyValue;
+use rustyhgm_core::tree::Tree;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -62,7 +62,7 @@ fn written_matches_fixture(written: &str, key: &str) -> (String, String) {
 
 #[test]
 fn run_metadata_jsonl_matches_the_python_byte_for_byte() {
-    let (actual, expected) = written_matches_fixture("hgm_metadata.jsonl", "jsonl_file");
+    let (actual, expected) = written_matches_fixture("rustyhgm_metadata.jsonl", "jsonl_file");
     assert_eq!(actual, expected);
 }
 
@@ -76,14 +76,14 @@ fn run_metadata_init_tasks_match_the_python_byte_for_byte() {
 #[test]
 fn loading_every_record_matches_the_python() {
     let output = run_output();
-    let all = Value::Array(load_hgm_metadata(&fixture_file(&output, "jsonl_file")).unwrap());
+    let all = Value::Array(load_rustyhgm_metadata(&fixture_file(&output, "jsonl_file")).unwrap());
     assert_eq!(differs(&all, &output["load_all"], "load_all"), None);
 }
 
 #[test]
 fn loading_the_last_record_matches_the_python() {
     let output = run_output();
-    let last = load_last_hgm_metadata(&fixture_file(&output, "jsonl_file")).unwrap();
+    let last = load_last_rustyhgm_metadata(&fixture_file(&output, "jsonl_file")).unwrap();
     assert_eq!(
         differs(&last, &output["load_last_only"], "load_last_only"),
         None
@@ -100,8 +100,8 @@ fn loading_init_evaluated_tasks_reads_the_list() {
 }
 
 fn saved_tree() -> Tree {
-    let jsonl = fixtures_dir().join("run_metadata/hgm_metadata.jsonl");
-    tree_from_record(&load_last_hgm_metadata(&jsonl).unwrap()).unwrap()
+    let jsonl = fixtures_dir().join("run_metadata/rustyhgm_metadata.jsonl");
+    tree_from_record(&load_last_rustyhgm_metadata(&jsonl).unwrap()).unwrap()
 }
 
 #[test]
@@ -278,18 +278,18 @@ fn file_with(name: &str, text: &str) -> (TempDir, PathBuf) {
 
 #[test]
 fn an_empty_metadata_file_has_no_last_record() {
-    let (_tmp, path) = file_with("hgm_metadata.jsonl", "");
+    let (_tmp, path) = file_with("rustyhgm_metadata.jsonl", "");
     assert_eq!(
-        load_last_hgm_metadata(&path).unwrap_err().kind(),
+        load_last_rustyhgm_metadata(&path).unwrap_err().kind(),
         ErrorKind::InvalidData
     );
 }
 
 #[test]
 fn a_broken_metadata_line_is_invalid_data() {
-    let (_tmp, path) = file_with("hgm_metadata.jsonl", "{\"a\": }");
+    let (_tmp, path) = file_with("rustyhgm_metadata.jsonl", "{\"a\": }");
     assert_eq!(
-        load_hgm_metadata(&path).unwrap_err().kind(),
+        load_rustyhgm_metadata(&path).unwrap_err().kind(),
         ErrorKind::InvalidData
     );
 }
@@ -427,13 +427,13 @@ fn missing() -> (TempDir, PathBuf) {
 #[test]
 fn loading_missing_metadata_is_an_error() {
     let (_tmp, path) = missing();
-    assert!(load_hgm_metadata(&path).is_err());
+    assert!(load_rustyhgm_metadata(&path).is_err());
 }
 
 #[test]
 fn loading_the_last_record_of_missing_metadata_is_an_error() {
     let (_tmp, path) = missing();
-    assert!(load_last_hgm_metadata(&path).is_err());
+    assert!(load_last_rustyhgm_metadata(&path).is_err());
 }
 
 #[test]

@@ -4,15 +4,15 @@ use std::path::Path;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use hgm::FAILED;
-use hgm::improve::Improver;
-use hgm::search::{Search, Settings, State};
-use hgm_core::config::ExpansionStatistic;
-use hgm_core::log::Log;
-use hgm_core::metadata::load_hgm_metadata;
-use hgm_core::tree::Tree;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rustyhgm::FAILED;
+use rustyhgm::improve::Improver;
+use rustyhgm::search::{Search, Settings, State};
+use rustyhgm_core::config::ExpansionStatistic;
+use rustyhgm_core::log::Log;
+use rustyhgm_core::metadata::load_rustyhgm_metadata;
+use rustyhgm_core::tree::Tree;
 
 struct Children {
     made: Mutex<Vec<String>>,
@@ -82,7 +82,7 @@ fn search_in(
     setup: &Setup<'_>,
     settings: Settings,
     state: State,
-    evaluate: &hgm::search::Evaluate<'_>,
+    evaluate: &rustyhgm::search::Evaluate<'_>,
 ) -> (Result<(), String>, State) {
     let search = Search {
         settings,
@@ -160,7 +160,7 @@ fn every_child_made_joins_the_tree() {
 }
 
 fn records(big: &Big) -> Vec<serde_json::Value> {
-    load_hgm_metadata(&big.tmp.path().join("hgm_metadata.jsonl")).unwrap()
+    load_rustyhgm_metadata(&big.tmp.path().join("rustyhgm_metadata.jsonl")).unwrap()
 }
 
 #[test]
@@ -249,7 +249,7 @@ fn failed_children_leave_the_root_alone() {
 #[test]
 fn failed_children_are_not_recorded() {
     let (tmp, _) = failing_children();
-    assert!(!tmp.path().join("hgm_metadata.jsonl").exists());
+    assert!(!tmp.path().join("rustyhgm_metadata.jsonl").exists());
 }
 
 fn unexpandable() -> (tempfile::TempDir, Result<(), String>, State) {
@@ -333,7 +333,7 @@ fn failed_evaluations_record_no_measures() {
 fn blocked_run(improver: &dyn Improver, start: State) -> Result<(), String> {
     let tmp = tempfile::tempdir().unwrap();
     let blocked = tmp.path().join("blocked");
-    fs::create_dir_all(blocked.join("hgm_metadata.jsonl")).unwrap();
+    fs::create_dir_all(blocked.join("rustyhgm_metadata.jsonl")).unwrap();
     let ok = |_: &str, _: &[String]| Ok(vec![1.0]);
     search_in(
         &Setup {

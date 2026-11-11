@@ -1,4 +1,4 @@
-use hgm_bench::pyrandom::PyRandom;
+use rustyhgm_bench::pyrandom::PyRandom;
 
 use crate::common::cases;
 

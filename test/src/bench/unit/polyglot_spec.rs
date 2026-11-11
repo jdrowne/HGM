@@ -1,4 +1,4 @@
-use hgm_bench::polyglot_spec::{
+use rustyhgm_bench::polyglot_spec::{
     LANGUAGES, TestSpec, arch_for, get_eval_script, host_arch, make_test_spec, test_cmd,
     test_commands,
 };

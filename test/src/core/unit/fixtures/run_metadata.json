@@ -25,7 +25,7 @@
         ]
       },
       "output": {
-        "jsonl_file": "run_metadata/hgm_metadata.jsonl",
+        "jsonl_file": "run_metadata/rustyhgm_metadata.jsonl",
         "init_evaluated_tasks_file": "run_metadata/init_evaluated_tasks.json",
         "load_all": [
           {

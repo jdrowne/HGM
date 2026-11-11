@@ -2,8 +2,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use hgm_core::log::Log;
-use hgm_sandbox::{BuildOptions, Container, Docker, RunOptions};
+use rustyhgm_core::log::Log;
+use rustyhgm_sandbox::{BuildOptions, Container, Docker, RunOptions};
 
 use crate::polyglot_spec::TestSpec;
 
@@ -224,7 +224,7 @@ impl Images<'_> {
             return Ok((Vec::new(), Vec::new()));
         }
         println!("Total environment images to build: {}", configs.len());
-        let results = hgm_core::pool::map(&configs, max_workers, |(image, spec)| {
+        let results = rustyhgm_core::pool::map(&configs, max_workers, |(image, spec)| {
             build_image(
                 self.docker,
                 &ImageBuild {

@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm_coding_agent::patch::remove_patches_to_tests;
-use hgm_core::pyjson::{PyValue, dumps};
+use rustyhgm_coding_agent::patch::remove_patches_to_tests;
+use rustyhgm_core::pyjson::{PyValue, dumps};
 use serde_json::{Map, Value};
 
 use crate::swebench::{EvaluationRun, Swebench};
@@ -136,7 +136,7 @@ impl Report {
         };
         let workers = self.dnames_workers.unwrap_or(dnames.len());
         let jobs: Vec<(&PathBuf, &String)> = dnames.iter().zip(&run_ids).collect();
-        let results = hgm_core::pool::map(&jobs, workers, |(dname, run_id)| {
+        let results = rustyhgm_core::pool::map(&jobs, workers, |(dname, run_id)| {
             let result = self.single(swebench, dname, run_id);
             if let Err(e) = &result {
                 println!("Report failed for {}: {e}", dname.display());

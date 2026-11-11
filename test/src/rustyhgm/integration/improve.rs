@@ -3,18 +3,18 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-use hgm::FAILED;
-use hgm::improve::{Improver, SelfImprove};
-use hgm_coding_agent::llm::{Client, Provider, Service};
-use hgm_sandbox::Docker;
+use rustyhgm::FAILED;
+use rustyhgm::improve::{Improver, SelfImprove};
+use rustyhgm_coding_agent::llm::{Client, Provider, Service};
+use rustyhgm_sandbox::Docker;
 use serde_json::{Value, json};
 
 use crate::common::{DIAGNOSIS, node, performance, read_json, reply, serve};
 
-pub const IMAGE: &str = "hgm-fake-improve-agent:latest";
+pub const IMAGE: &str = "rustyhgm-fake-improve-agent:latest";
 
 const GIT: &str = r#"#!/bin/sh
-mode=$(cat /hgm/mode 2>/dev/null)
+mode=$(cat /rustyhgm/mode 2>/dev/null)
 case "$*" in
   log) [ "$mode" = nolog ] || printf 'commit 0123abc\nAuthor: user\n' ;;
 esac
@@ -22,18 +22,18 @@ exit 0
 "#;
 
 const CARGO: &str = r#"#!/bin/sh
-mode=$(cat /hgm/mode 2>/dev/null)
+mode=$(cat /rustyhgm/mode 2>/dev/null)
 count=$(( $(cat /tmp/builds 2>/dev/null || echo 0) + 1 ))
 echo "$count" > /tmp/builds
 [ "$mode" = buildfail ] && { echo build failed; exit 1; }
 [ "$mode" = childfail ] && [ "$count" -ge 2 ] && { echo child build failed; exit 1; }
 out="target/$(uname -m)-unknown-linux-musl/release"
 mkdir -p "$out"
-cp /usr/local/lib/fake-agent "$out/hgm-coding-agent"
+cp /usr/local/lib/fake-agent "$out/rustyhgm-coding-agent"
 "#;
 
 const AGENT: &str = r#"#!/bin/sh
-mode=$(cat /hgm/mode 2>/dev/null)
+mode=$(cat /rustyhgm/mode 2>/dev/null)
 while [ $# -gt 0 ]; do
   case "$1" in
     --chat_history_file) chat=$2; shift ;;
@@ -45,23 +45,23 @@ while [ $# -gt 0 ]; do
 done
 [ "$mode" = nochat ] || echo "improved from $base$kind with $(cat "$key")" > "$chat"
 if [ "$mode" = nopatch ]; then
-  : > /hgm/model_patch.diff
+  : > /rustyhgm/model_patch.diff
 else
-  echo "patch from $base" > /hgm/model_patch.diff
+  echo "patch from $base" > /rustyhgm/model_patch.diff
 fi
 "#;
 
 pub fn image() {
     let dir = tempfile::tempdir().unwrap();
     let ctx = dir.path();
-    fs::create_dir_all(ctx.join("hgm")).unwrap();
-    fs::write(ctx.join("hgm/Cargo.toml"), "").unwrap();
+    fs::create_dir_all(ctx.join("rustyhgm")).unwrap();
+    fs::write(ctx.join("rustyhgm/Cargo.toml"), "").unwrap();
     fs::write(ctx.join("git"), GIT).unwrap();
     fs::write(ctx.join("cargo"), CARGO).unwrap();
     fs::write(ctx.join("agent"), AGENT).unwrap();
     fs::write(
         ctx.join("Dockerfile"),
-        "FROM busybox:latest\nCOPY hgm /hgm\nCOPY git cargo /usr/local/bin/\nCOPY agent /usr/local/lib/fake-agent\nRUN chmod 755 /usr/local/bin/git /usr/local/bin/cargo /usr/local/lib/fake-agent\nCMD [\"tail\", \"-f\", \"/dev/null\"]\n",
+        "FROM busybox:latest\nCOPY rustyhgm /rustyhgm\nCOPY git cargo /usr/local/bin/\nCOPY agent /usr/local/lib/fake-agent\nRUN chmod 755 /usr/local/bin/git /usr/local/bin/cargo /usr/local/lib/fake-agent\nCMD [\"tail\", \"-f\", \"/dev/null\"]\n",
     )
     .unwrap();
     let status = Command::new("docker")
@@ -251,7 +251,7 @@ fn a_polyglot_child_keeps_its_built_agent() {
     assert!(
         polyglot_child()
             .child_dir()
-            .join("hgm-coding-agent")
+            .join("rustyhgm-coding-agent")
             .is_file()
     );
 }
@@ -314,7 +314,7 @@ fn a_polyglot_child_removes_its_container() {
         .unwrap();
     assert!(
         !String::from_utf8_lossy(&containers.stdout)
-            .contains(&format!("hgm-container-{}", a.child))
+            .contains(&format!("rustyhgm-container-{}", a.child))
     );
 }
 

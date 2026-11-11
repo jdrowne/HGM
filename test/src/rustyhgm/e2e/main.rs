@@ -8,7 +8,7 @@ fn binary(name: &str) -> PathBuf {
     std::env::var_os(format!("NEXTEST_BIN_EXE_{name}"))
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            PathBuf::from(env!("CARGO_BIN_EXE_hgm"))
+            PathBuf::from(env!("CARGO_BIN_EXE_rustyhgm"))
                 .with_file_name(format!("{name}{}", std::env::consts::EXE_SUFFIX))
         })
 }
@@ -24,8 +24,8 @@ const SETTINGS: [(&str, &str); 32] = [
     ("--diagnose_provider", "openrouter"),
     ("--diagnose_base_url", "http://127.0.0.1:9/v1"),
     ("--api_key_file", "key"),
-    ("--docker", "hgm-no-such-docker-program"),
-    ("--swebench_python", "hgm-no-such-python"),
+    ("--docker", "rustyhgm-no-such-docker-program"),
+    ("--swebench_python", "rustyhgm-no-such-python"),
     ("--dataset_endpoint", "http://127.0.0.1:9"),
     ("--dataset_dir", "cache"),
     ("--polyglot_repo", "no-such-repo"),
@@ -88,35 +88,35 @@ fn ran(tmp: tempfile::TempDir, out: std::process::Output) -> Ran {
     }
 }
 
-fn hgm_with(args: &[&str]) -> Ran {
+fn rustyhgm_with(args: &[&str]) -> Ran {
     let tmp = tempfile::tempdir().unwrap();
-    let out = Command::new(binary("hgm"))
+    let out = Command::new(binary("rustyhgm"))
         .args(args)
         .output()
-        .expect("run hgm");
+        .expect("run rustyhgm");
     ran(tmp, out)
 }
 
 #[test]
-fn hgm_binary_runs() {
-    assert_eq!(hgm_with(&["--version"]).code, Some(0));
+fn rustyhgm_binary_runs() {
+    assert_eq!(rustyhgm_with(&["--version"]).code, Some(0));
 }
 
 #[test]
-fn hgm_prints_its_name_and_version() {
-    let ran = hgm_with(&["--version"]);
-    assert!(ran.stdout.starts_with("hgm "), "{}", ran.stdout);
+fn rustyhgm_prints_its_name_and_version() {
+    let ran = rustyhgm_with(&["--version"]);
+    assert!(ran.stdout.starts_with("rustyhgm "), "{}", ran.stdout);
 }
 
 #[test]
-fn hgm_with_an_unknown_flag_exits_with_usage_status() {
-    assert_eq!(hgm_with(&["--no_such_flag"]).code, Some(2));
+fn rustyhgm_with_an_unknown_flag_exits_with_usage_status() {
+    assert_eq!(rustyhgm_with(&["--no_such_flag"]).code, Some(2));
 }
 
 #[test]
-fn hgm_with_an_unknown_flag_names_it() {
+fn rustyhgm_with_an_unknown_flag_names_it() {
     assert!(
-        hgm_with(&["--no_such_flag"])
+        rustyhgm_with(&["--no_such_flag"])
             .stderr
             .contains("--no_such_flag")
     );
@@ -125,36 +125,40 @@ fn hgm_with_an_unknown_flag_names_it() {
 fn stray() -> Ran {
     let mut args = flags(&[]);
     args.push("run".to_owned());
-    hgm_with(&args.iter().map(String::as_str).collect::<Vec<_>>())
+    rustyhgm_with(&args.iter().map(String::as_str).collect::<Vec<_>>())
 }
 
 #[test]
-fn hgm_with_a_stray_argument_exits_with_usage_status() {
+fn rustyhgm_with_a_stray_argument_exits_with_usage_status() {
     assert_eq!(stray().code, Some(2));
 }
 
 #[test]
-fn hgm_with_a_stray_argument_names_it() {
+fn rustyhgm_with_a_stray_argument_names_it() {
     assert!(stray().stderr.contains("'run'"));
 }
 
 #[test]
-fn hgm_without_its_flags_exits_with_usage_status() {
-    assert_eq!(hgm_with(&[]).code, Some(2));
+fn rustyhgm_without_its_flags_exits_with_usage_status() {
+    assert_eq!(rustyhgm_with(&[]).code, Some(2));
 }
 
 #[test]
-fn hgm_without_its_flags_names_them() {
-    assert!(hgm_with(&[]).stderr.contains("--initial_agent_name <NAME>"));
+fn rustyhgm_without_its_flags_names_them() {
+    assert!(
+        rustyhgm_with(&[])
+            .stderr
+            .contains("--initial_agent_name <NAME>")
+    );
 }
 
 fn key_file(dir: &std::path::Path) {
     std::fs::write(dir.join("key"), "k\n").unwrap();
 }
 
-fn hgm_in(dir: &std::path::Path) -> Command {
+fn rustyhgm_in(dir: &std::path::Path) -> Command {
     key_file(dir);
-    let mut cmd = Command::new(binary("hgm"));
+    let mut cmd = Command::new(binary("rustyhgm"));
     cmd.current_dir(dir);
     cmd
 }
@@ -197,27 +201,27 @@ fn finished_run(root: &std::path::Path) {
         serde_json::json!({}),
     );
     seed_source(root);
-    let prev = root.join("output_hgm/prev");
+    let prev = root.join("output_rustyhgm/prev");
     metadata(&prev, "c1", serde_json::json!({"parent_commit": "initial"}));
     std::fs::write(prev.join("c1/model_patch.diff"), CHILD_PATCH).unwrap();
     std::fs::write(prev.join("init_evaluated_tasks.json"), "[]").unwrap();
     std::fs::write(
-        prev.join("hgm_metadata.jsonl"),
+        prev.join("rustyhgm_metadata.jsonl"),
         "{\"n_task_evals\": 2, \"nodes\": [{\"commit_id\": \"c1\", \"id\": 1, \"parent_id\": 0, \"mean_utility\": 0.5, \"num_evals\": 2}]}\n",
     )
     .unwrap();
 }
 
 const FINISHED: [(&str, &str); 3] = [
-    ("--continue_from", "output_hgm/prev"),
-    ("--output_dir", "output_hgm/prev"),
+    ("--continue_from", "output_rustyhgm/prev"),
+    ("--output_dir", "output_rustyhgm/prev"),
     ("--max_task_evals", "2"),
 ];
 
 fn in_root(prepare: impl FnOnce(&std::path::Path), cmd: impl FnOnce(&mut Command)) -> Ran {
     let tmp = tempfile::tempdir().unwrap();
     prepare(tmp.path());
-    let mut command = hgm_in(tmp.path());
+    let mut command = rustyhgm_in(tmp.path());
     cmd(&mut command);
     let out = command.output().unwrap();
     ran(tmp, out)
@@ -251,7 +255,7 @@ fn a_continued_run_prints_the_best_agent() {
 
 #[test]
 fn a_continued_run_prints_where_the_best_agent_is() {
-    let best = std::path::Path::new("output_hgm/prev").join("best_agent");
+    let best = std::path::Path::new("output_rustyhgm/prev").join("best_agent");
     assert!(
         continued_finished()
             .stdout
@@ -262,7 +266,7 @@ fn a_continued_run_prints_where_the_best_agent_is() {
 #[test]
 fn a_continued_run_writes_the_best_agent_source() {
     assert_eq!(
-        continued_finished().file("output_hgm/prev/best_agent/lib.rs"),
+        continued_finished().file("output_rustyhgm/prev/best_agent/lib.rs"),
         "seed\nchild\n"
     );
 }
@@ -272,7 +276,7 @@ fn a_continued_run_records_the_initial_node() {
     assert!(
         continued_finished()
             .root()
-            .join("output_hgm/prev/initial/metadata.json")
+            .join("output_rustyhgm/prev/initial/metadata.json")
             .is_file()
     );
 }
@@ -281,7 +285,7 @@ fn a_continued_run_records_the_initial_node() {
 fn a_continued_run_logs_its_configuration() {
     assert!(
         continued_finished()
-            .file("output_hgm/prev/hgm_outer.log")
+            .file("output_rustyhgm/prev/rustyhgm_outer.log")
             .contains("Starting HGM run prev with configuration: {")
     );
 }
@@ -290,7 +294,7 @@ fn a_continued_run_logs_its_configuration() {
 fn a_continued_run_logs_its_budget() {
     assert!(
         continued_finished()
-            .file("output_hgm/prev/hgm_outer.log")
+            .file("output_rustyhgm/prev/rustyhgm_outer.log")
             .contains("\"max_task_evals\":2")
     );
 }
@@ -314,7 +318,7 @@ fn a_run_without_an_agent_name_says_so() {
     assert!(
         unnamed()
             .stderr
-            .contains("hgm: --initial_agent_name must not be empty")
+            .contains("rustyhgm: --initial_agent_name must not be empty")
     );
 }
 
@@ -347,9 +351,9 @@ fn held_out() -> Ran {
     in_root(
         |root| {
             finished_run(root);
-            let holdout = root.join("output_hgm/prev/holdout/best_agent");
+            let holdout = root.join("output_rustyhgm/prev/holdout/best_agent");
             std::fs::create_dir_all(&holdout).unwrap();
-            std::fs::write(holdout.join("hgm-coding-agent"), "").unwrap();
+            std::fs::write(holdout.join("rustyhgm-coding-agent"), "").unwrap();
         },
         |c| {
             let python = swe_cache(&PathBuf::from(c.get_current_dir().unwrap()));
@@ -364,7 +368,7 @@ fn held_out() -> Ran {
 
 #[cfg(unix)]
 fn holdout_metadata() -> serde_json::Value {
-    serde_json::from_str(&held_out().file("output_hgm/prev/holdout/best_agent/metadata.json"))
+    serde_json::from_str(&held_out().file("output_rustyhgm/prev/holdout/best_agent/metadata.json"))
         .unwrap()
 }
 
@@ -408,7 +412,7 @@ fn a_holdout_split_needs_its_dataset() {
 #[test]
 fn a_missing_holdout_dataset_is_reported() {
     let ran = holdout_without_dataset();
-    assert!(ran.stderr.starts_with("hgm: "), "{}", ran.stderr);
+    assert!(ran.stderr.starts_with("rustyhgm: "), "{}", ran.stderr);
 }
 
 #[test]
@@ -416,13 +420,13 @@ fn a_missing_holdout_dataset_still_writes_the_best_agent() {
     assert!(
         holdout_without_dataset()
             .root()
-            .join("output_hgm/prev/best_agent/lib.rs")
+            .join("output_rustyhgm/prev/best_agent/lib.rs")
             .is_file()
     );
 }
 
 fn continued(root: &std::path::Path, nodes: &[&str], n_task_evals: usize) {
-    let prev = root.join("output_hgm/prev");
+    let prev = root.join("output_rustyhgm/prev");
     metadata(
         &root.join("seed/initial_swe"),
         "agent",
@@ -439,7 +443,7 @@ fn continued(root: &std::path::Path, nodes: &[&str], n_task_evals: usize) {
     }
     std::fs::write(prev.join("init_evaluated_tasks.json"), "[]").unwrap();
     std::fs::write(
-        prev.join("hgm_metadata.jsonl"),
+        prev.join("rustyhgm_metadata.jsonl"),
         format!(
             "{}\n",
             serde_json::json!({"n_task_evals": n_task_evals, "nodes": records})
@@ -453,8 +457,8 @@ fn overspent() -> Ran {
         |root| continued(root, &["c1", "c2", "c3"], 1),
         |c| {
             c.args(flags(&[
-                ("--continue_from", "output_hgm/prev"),
-                ("--output_dir", "output_hgm/prev"),
+                ("--continue_from", "output_rustyhgm/prev"),
+                ("--output_dir", "output_rustyhgm/prev"),
                 ("--max_task_evals", "7"),
             ]));
         },
@@ -470,7 +474,7 @@ fn a_continued_run_evaluates_until_the_budget_is_spent() {
 fn a_continued_run_logs_the_evaluation_error() {
     assert!(
         overspent()
-            .file("output_hgm/prev/hgm_outer.log")
+            .file("output_rustyhgm/prev/rustyhgm_outer.log")
             .contains("Error: ")
     );
 }
@@ -491,14 +495,18 @@ fn a_full_evaluation_without_its_dataset_fails() {
 
 #[test]
 fn a_full_evaluation_without_its_dataset_says_so() {
-    assert!(full_eval().stderr.contains("hgm: downloading the dataset"));
+    assert!(
+        full_eval()
+            .stderr
+            .contains("rustyhgm: downloading the dataset")
+    );
 }
 
 fn missing_records() -> Ran {
     in_root(
         |_| {},
         |c| {
-            c.args(flags(&[("--continue_from", "output_hgm/none")]));
+            c.args(flags(&[("--continue_from", "output_rustyhgm/none")]));
         },
     )
 }
@@ -523,7 +531,7 @@ fn a_run_without_its_key_file_names_it() {
     let named = format!("{}gone: ", std::path::MAIN_SEPARATOR);
     assert!(
         ran.stderr
-            .strip_prefix("hgm: ")
+            .strip_prefix("rustyhgm: ")
             .is_some_and(|rest| rest.contains(&named)),
         "{}",
         ran.stderr
@@ -559,7 +567,13 @@ fn a_fresh_run_gives_the_seed_its_dockerfile() {
 
 #[test]
 fn a_fresh_run_leaves_the_controller_out_of_the_seed() {
-    assert!(!fresh().root().join(FRESH_SEED).join("src/hgm").exists());
+    assert!(
+        !fresh()
+            .root()
+            .join(FRESH_SEED)
+            .join("src/rustyhgm")
+            .exists()
+    );
 }
 
 #[test]
@@ -585,7 +599,7 @@ fn homeless() -> Ran {
         .arg("cd \"$1\" && rmdir \"$1\" && shift && exec \"$@\"")
         .arg("sh")
         .arg(&gone)
-        .arg(binary("hgm"))
+        .arg(binary("rustyhgm"))
         .args(flags(&[]))
         .output()
         .unwrap();
@@ -593,11 +607,11 @@ fn homeless() -> Ran {
 }
 
 #[test]
-fn hgm_needs_a_working_directory() {
+fn rustyhgm_needs_a_working_directory() {
     assert_eq!(homeless().code, Some(1));
 }
 
 #[test]
 fn a_missing_working_directory_is_reported() {
-    assert!(homeless().stderr.starts_with("hgm: "));
+    assert!(homeless().stderr.starts_with("rustyhgm: "));
 }

@@ -1,17 +1,17 @@
 use std::path::{Path, PathBuf};
 
 use clap::{ArgAction, Parser};
-use hgm_bench::dataset::Hub;
-use hgm_bench::swebench::Swebench;
-use hgm_coding_agent::llm::{Provider, Service, read_api_key};
-use hgm_core::config::{
+use rustyhgm_bench::dataset::Hub;
+use rustyhgm_bench::swebench::Swebench;
+use rustyhgm_coding_agent::llm::{Provider, Service, read_api_key};
+use rustyhgm_core::config::{
     EvaluationConfig, ExecutionConfig, ExpansionStatistic, HgmConfig, LlmConfig,
     OptimizationConfig, PathConfig,
 };
-use hgm_sandbox::Docker;
+use rustyhgm_sandbox::Docker;
 
 #[derive(Clone, Debug, Parser)]
-#[command(name = "hgm", version, about = "Huxley-Godel Machine")]
+#[command(name = "rustyhgm", version, about = "Huxley-Godel Machine")]
 pub struct Cli {
     #[arg(long = "self_improve_llm", value_name = "MODEL")]
     pub self_improve_llm: String,

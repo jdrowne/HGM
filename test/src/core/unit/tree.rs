@@ -1,6 +1,6 @@
-use hgm_core::config::ExpansionStatistic;
-use hgm_core::pyjson::PyValue;
-use hgm_core::tree::Tree;
+use rustyhgm_core::config::ExpansionStatistic;
+use rustyhgm_core::pyjson::PyValue;
+use rustyhgm_core::tree::Tree;
 use serde_json::{Value, json};
 
 use crate::common::{build_tree, case, cases, differs, py};

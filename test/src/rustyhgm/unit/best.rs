@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm::best::{Belief, beliefs, best_belief, check_epsilon, export, pick, quantile};
+use rustyhgm::best::{Belief, beliefs, best_belief, check_epsilon, export, pick, quantile};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -172,7 +172,7 @@ fn two_record_run() -> (TempDir, PathBuf) {
     let first = json!({"n_task_evals": 0, "nodes": []});
     let last = json!({"n_task_evals": 2, "nodes": [node("c", json!(1.0), 2)]});
     fs::write(
-        run.join("hgm_metadata.jsonl"),
+        run.join("rustyhgm_metadata.jsonl"),
         format!("{first:#}\n{last:#}\n"),
     )
     .unwrap();
@@ -197,7 +197,7 @@ fn pick_on_a_missing_run_names_the_metadata_file() {
     assert!(
         pick(&tmp.path().join("missing"), 0.01)
             .unwrap_err()
-            .contains("hgm_metadata.jsonl")
+            .contains("rustyhgm_metadata.jsonl")
     );
 }
 

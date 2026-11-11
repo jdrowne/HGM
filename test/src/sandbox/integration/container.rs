@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use hgm_core::log::Log;
-use hgm_sandbox::{Error, ExecOptions, ExecResult, RunOptions};
+use rustyhgm_core::log::Log;
+use rustyhgm_sandbox::{Error, ExecOptions, ExecResult, RunOptions};
 use tempfile::TempDir;
 
 use crate::{BASE_IMAGE, Running, docker, start, unique};
@@ -76,7 +76,7 @@ fn copied_in() -> (Running, TempDir) {
     let dir = tempfile::tempdir().unwrap();
     let src = dir.path().join("patch.txt");
     fs::write(&src, "line\n").unwrap();
-    c.0.copy_in(&src, "/hgm/deep/parent_patch.txt", &Log::discard())
+    c.0.copy_in(&src, "/rustyhgm/deep/parent_patch.txt", &Log::discard())
         .unwrap();
     (c, dir)
 }
@@ -85,7 +85,7 @@ fn copied_in() -> (Running, TempDir) {
 fn a_file_copied_in_lands_at_its_path() {
     let (c, _dir) = copied_in();
     assert_eq!(
-        c.0.read_file("/hgm/deep/parent_patch.txt").unwrap(),
+        c.0.read_file("/rustyhgm/deep/parent_patch.txt").unwrap(),
         b"line\n"
     );
 }
@@ -94,7 +94,7 @@ fn a_file_copied_in_lands_at_its_path() {
 fn a_file_copied_out_lands_in_new_folders() {
     let (c, dir) = copied_in();
     let back = dir.path().join("out/nested/back.txt");
-    c.0.copy_out("/hgm/deep/parent_patch.txt", &back, &Log::discard())
+    c.0.copy_out("/rustyhgm/deep/parent_patch.txt", &back, &Log::discard())
         .unwrap();
     assert_eq!(fs::read_to_string(back).unwrap(), "line\n");
 }
@@ -106,27 +106,29 @@ fn tools_copied_in() -> (Running, TempDir) {
     fs::create_dir_all(tools.join("sub")).unwrap();
     fs::write(tools.join("a.py"), "a").unwrap();
     fs::write(tools.join("sub/b.py"), "b").unwrap();
-    c.0.copy_in(&tools, "/hgm/tools/", &Log::discard()).unwrap();
+    c.0.copy_in(&tools, "/rustyhgm/tools/", &Log::discard())
+        .unwrap();
     (c, dir)
 }
 
 #[test]
 fn a_directory_copied_in_lands_at_the_destination() {
     let (c, _dir) = tools_copied_in();
-    assert_eq!(c.0.read_file("/hgm/tools/a.py").unwrap(), b"a");
+    assert_eq!(c.0.read_file("/rustyhgm/tools/a.py").unwrap(), b"a");
 }
 
 #[test]
 fn a_directory_copied_in_keeps_its_subfolders() {
     let (c, _dir) = tools_copied_in();
-    assert_eq!(c.0.read_file("/hgm/tools/sub/b.py").unwrap(), b"b");
+    assert_eq!(c.0.read_file("/rustyhgm/tools/sub/b.py").unwrap(), b"b");
 }
 
 #[test]
 fn a_directory_copied_out_keeps_its_subfolders() {
     let (c, dir) = tools_copied_in();
     let back = dir.path().join("back");
-    c.0.copy_out("/hgm/tools", &back, &Log::discard()).unwrap();
+    c.0.copy_out("/rustyhgm/tools", &back, &Log::discard())
+        .unwrap();
     assert_eq!(fs::read_to_string(back.join("sub/b.py")).unwrap(), "b");
 }
 
@@ -204,7 +206,7 @@ fn cleanup_removes_the_container() {
 #[test]
 fn removing_a_missing_container_logs_that_none_was_found() {
     let (dir, log) = docker_log();
-    let missing = unique("hgm-sandbox-missing");
+    let missing = unique("rustyhgm-sandbox-missing");
     docker().remove_existing_container(&missing, &log).unwrap();
     assert!(log_text(&dir).contains(&format!(
         " - INFO - No existing container with name {missing} found."
@@ -229,7 +231,7 @@ fn unbalanced_quotes_are_rejected_before_running() {
 #[test]
 fn exec_in_a_missing_container_fails() {
     let d = docker();
-    let gone = d.container(&unique("hgm-sandbox-gone"));
+    let gone = d.container(&unique("rustyhgm-sandbox-gone"));
     let r = gone.exec(&["true"], &ExecOptions::default()).unwrap();
     assert!(!r.success());
 }
@@ -253,7 +255,7 @@ fn run_detached_as_applies_the_user_platform_and_cpus() {
         docker
             .run_detached_as(
                 BASE_IMAGE,
-                &unique("hgm-sandbox-as"),
+                &unique("rustyhgm-sandbox-as"),
                 &opts,
                 &Log::discard(),
             )
@@ -277,7 +279,7 @@ fn mounted() -> (tempfile::TempDir, Running) {
     let c = docker()
         .run_detached_as(
             BASE_IMAGE,
-            &unique("hgm-sandbox-mount"),
+            &unique("rustyhgm-sandbox-mount"),
             &opts,
             &Log::discard(),
         )
@@ -309,8 +311,8 @@ fn a_read_only_mount_cannot_be_written_in_the_container() {
 #[test]
 fn run_detached_as_with_a_missing_image_is_a_command_error() {
     let bad = docker().run_detached_as(
-        "hgm-no-such-image:never",
-        &unique("hgm-bad"),
+        "rustyhgm-no-such-image:never",
+        &unique("rustyhgm-bad"),
         &RunOptions::default(),
         &Log::discard(),
     );

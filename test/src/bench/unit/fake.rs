@@ -2,8 +2,8 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use hgm_bench::report::Report;
-use hgm_bench::swebench::{Error, EvaluationRun, Swebench};
+use rustyhgm_bench::report::Report;
+use rustyhgm_bench::swebench::{Error, EvaluationRun, Swebench};
 use serde_json::json;
 
 pub fn python(dir: &Path, body: &str) -> Swebench {
@@ -17,7 +17,7 @@ pub fn python(dir: &Path, body: &str) -> Swebench {
 
 const SPEC: &str = r#"{"instance_id": "i", "eval_script": "e", "image": "img", "platform": "p", "user": "root", "nano_cpus": null}"#;
 
-fn read_specs() -> (tempfile::TempDir, Vec<hgm_bench::swebench::TestSpec>) {
+fn read_specs() -> (tempfile::TempDir, Vec<rustyhgm_bench::swebench::TestSpec>) {
     let tmp = tempfile::tempdir().unwrap();
     let swebench = python(
         tmp.path(),

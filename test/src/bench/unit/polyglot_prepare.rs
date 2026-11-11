@@ -1,6 +1,6 @@
 use std::fs;
 
-use hgm_bench::polyglot_prepare::modify_cmake_file;
+use rustyhgm_bench::polyglot_prepare::modify_cmake_file;
 
 const MARKER: &str = "get_filename_component(exercise ${CMAKE_CURRENT_SOURCE_DIR} NAME)";
 

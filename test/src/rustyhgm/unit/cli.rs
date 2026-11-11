@@ -1,7 +1,7 @@
 use clap::Parser;
-use hgm::cli::{Cli, Services};
-use hgm_bench::dataset::Hub;
-use hgm_coding_agent::llm::{Provider, Service};
+use rustyhgm::cli::{Cli, Services};
+use rustyhgm_bench::dataset::Hub;
+use rustyhgm_coding_agent::llm::{Provider, Service};
 use serde_json::json;
 
 use crate::common::{SETTINGS, argv, cli};
@@ -13,7 +13,7 @@ fn parse_error(changes: &[(&str, &str)], without: &[&str]) -> String {
 }
 
 #[test]
-fn hgm_takes_no_sub_commands_or_positional_arguments() {
+fn rustyhgm_takes_no_sub_commands_or_positional_arguments() {
     let rejected: Vec<bool> = ["run", "best", "evaluate", "prepare-polyglot"]
         .into_iter()
         .map(|word| {

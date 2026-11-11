@@ -234,7 +234,7 @@
         "sqlfluff/sqlfluff": "parse_log_pytest",
         "sphinx-doc/sphinx": "parse_log_pytest_v2",
         "sympy/sympy": "parse_log_sympy",
-        "hgm": "parse_log_pytest"
+        "rustyhgm": "parse_log_pytest"
       }
     }
   ]

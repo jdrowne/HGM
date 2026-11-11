@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use hgm_coding_agent::tools::{Bash, Tools};
+use rustyhgm_coding_agent::tools::{Bash, Tools};
 use serde_json::json;
 
 fn bash(command: &str) -> String {

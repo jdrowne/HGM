@@ -2,13 +2,13 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use hgm_bench::polyglot_build::{
+use rustyhgm_bench::polyglot_build::{
     ENV_IMAGE_BUILD_DIR, INSTANCE_IMAGE_BUILD_DIR, ImageBuild, Images, build_dir, build_image,
     find_dependent_images, remove_image_quietly,
 };
-use hgm_bench::polyglot_spec::{TestSpec, make_test_spec};
-use hgm_core::log::Log;
-use hgm_sandbox::Docker;
+use rustyhgm_bench::polyglot_spec::{TestSpec, make_test_spec};
+use rustyhgm_core::log::Log;
+use rustyhgm_sandbox::Docker;
 use serde_json::json;
 
 const FAKE: &str = r#"#!/bin/sh
@@ -129,7 +129,7 @@ fn plain_build<'a>(dir: &Path, repo: Option<(PathBuf, &'a str)>) -> ImageBuild<'
 }
 
 fn gone() -> Docker {
-    Docker::new("hgm-no-such-docker-program")
+    Docker::new("rustyhgm-no-such-docker-program")
 }
 
 fn staged() -> (Fake, PathBuf) {

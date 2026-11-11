@@ -6,22 +6,22 @@ HGM is based on the paper [*Huxley-Gödel Machine: Human-Level Coding Agent Deve
 
 ## Commands
 
-RustyHGM is one command, `hgm`, with no sub-commands. You run it and get back a better agent. It is a single file that carries the seed agent and everything needed to build it, so it runs from any folder. It is released for Linux. Download it for your platform from the [latest release](https://github.com/jdrowne/RustyHGM/releases/latest):
+RustyHGM is one command, `rustyhgm`, with no sub-commands. You run it and get back a better agent. It is a single file that carries the seed agent and everything needed to build it, so it runs from any folder. It is released for Linux. Download it for your platform from the [latest release](https://github.com/jdrowne/RustyHGM/releases/latest):
 
 | Platform | File |
 | --- | --- |
-| Linux x86_64 | `hgm-linux-x86-64` |
-| Linux arm64 | `hgm-linux-arm64` |
+| Linux x86_64 | `rustyhgm-linux-x86-64` |
+| Linux arm64 | `rustyhgm-linux-arm64` |
 
 ```sh
-curl -L -o hgm https://github.com/jdrowne/RustyHGM/releases/latest/download/hgm-linux-x86-64
-chmod +x hgm
-./hgm [flags]
+curl -L -o rustyhgm https://github.com/jdrowne/RustyHGM/releases/latest/download/rustyhgm-linux-x86-64
+chmod +x rustyhgm
+./rustyhgm [flags]
 ```
 
-Or build it from a clone with `cargo build --release -p hgm`, which puts it at `target/release/hgm`.
+Or build it from a clone with `cargo build --release -p rustyhgm`, which puts it at `target/release/rustyhgm`.
 
-Every folder and file `hgm` uses comes from a flag. A relative path is taken from the folder you run it in, as usual, and nothing else is looked up there.
+Every folder and file `rustyhgm` uses comes from a flag. A relative path is taken from the folder you run it in, as usual, and nothing else is looked up there.
 
 One run does the whole job:
 
@@ -32,15 +32,15 @@ One run does the whole job:
 5. **Optionally scores it on held-out tasks** with `--holdout_split`. These are SWE-bench tasks it never practised on, so the score shows whether it really got better.
 
 ```sh
-./hgm \
+./rustyhgm \
   --self_improve_llm gpt-5-mini --self_improve_provider openai --self_improve_base_url https://api.openai.com/v1 \
   --downstream_llm gpt-5-mini --downstream_provider openai --downstream_base_url https://api.openai.com/v1 \
   --diagnose_llm gpt-5-mini --diagnose_provider openai --diagnose_base_url https://api.openai.com/v1 \
-  --api_key_file ~/.config/hgm/api_key \
+  --api_key_file ~/.config/rustyhgm/api_key \
   --docker docker --swebench_python python3 \
-  --dataset_endpoint https://huggingface.co --dataset_dir ~/.cache/hgm/datasets \
-  --polyglot_repo https://github.com/Aider-AI/polyglot-benchmark.git --polyglot_dir hgm/polyglot \
-  --seed_dir hgm/seeds \
+  --dataset_endpoint https://huggingface.co --dataset_dir ~/.cache/rustyhgm/datasets \
+  --polyglot_repo https://github.com/Aider-AI/polyglot-benchmark.git --polyglot_dir rustyhgm/polyglot \
+  --seed_dir rustyhgm/seeds \
   --alpha 0.6 --beta 1.0 --cool_down false --eval_random_level 1.0 \
   --n_pseudo_descendant_evals 10000 --expansion_statistic clade --epsilon 0.01 \
   --max_workers 20 --max_task_evals 100 --self_improve_timeout 3600 --evaluation_timeout 3600 \
@@ -49,19 +49,19 @@ One run does the whole job:
   --holdout_split Lite --holdout_tasks 50
 ```
 
-`hgm --help` lists the flags, and `hgm --version` prints the version. Flag names use underscores, as in `--max_task_evals 100`, and a value can also be joined with `=`, as in `--max_task_evals=100`. If a run stops early, `--continue_from runs/first --output_dir runs/first` resumes it in the same folder.
+`rustyhgm --help` lists the flags, and `rustyhgm --version` prints the version. Flag names use underscores, as in `--max_task_evals 100`, and a value can also be joined with `=`, as in `--max_task_evals=100`. If a run stops early, `--continue_from runs/first --output_dir runs/first` resumes it in the same folder.
 
 ### Before a run
 
 - **Docker.** Every build, self-edit and task runs in a container. `--docker` names the program, `docker` or any compatible one.
-- **A model API key in a file.** `--api_key_file` names a file that holds only the key. `hgm` checks it can read the file before any work starts, and mounts it read-only into each container that runs the agent. Keep it outside the repository, so it never ends up in an agent's source or image.
+- **A model API key in a file.** `--api_key_file` names a file that holds only the key. `rustyhgm` checks it can read the file before any work starts, and mounts it read-only into each container that runs the agent. Keep it outside the repository, so it never ends up in an agent's source or image.
 - **Python 3 with the `swebench` package** for SWE-bench grading. `--swebench_python` names the interpreter.
 - **git**, for fetching the Polyglot benchmark from `--polyglot_repo` and writing the best agent's source.
 - **A dataset source and cache.** SWE-bench tasks come from the Hugging Face server at `--dataset_endpoint`, `https://huggingface.co` or a mirror, and are kept under `--dataset_dir`.
 
 ### Flags
 
-Every setting is a required flag with no default, so the command line alone says what a run will do. Leaving one out stops `hgm` with an error that names it. Yes/no settings take `true` or `false`, as in `--cool_down false`.
+Every setting is a required flag with no default, so the command line alone says what a run will do. Leaving one out stops `rustyhgm` with an error that names it. Yes/no settings take `true` or `false`, as in `--cool_down false`.
 
 | Flag | What it sets |
 | --- | --- |
@@ -73,7 +73,7 @@ Every setting is a required flag with no default, so the command line alone says
 | `--downstream_base_url <url>` | Address of that service, as the agent's container reaches it |
 | `--diagnose_llm <model>` | Model that turns a failure into a change request |
 | `--diagnose_provider <openai\|openrouter\|vllm>` | Service that serves `--diagnose_llm` |
-| `--diagnose_base_url <url>` | Address of that service, as `hgm` reaches it |
+| `--diagnose_base_url <url>` | Address of that service, as `rustyhgm` reaches it |
 | `--api_key_file <file>` | File holding the key sent to every service |
 | `--docker <program>` | Docker-compatible program that runs every container |
 | `--swebench_python <program>` | Python interpreter with `swebench` that grades SWE-bench tasks |
@@ -106,13 +106,13 @@ These flags ask for an extra step, so they are given only when that step is want
 | `--holdout_split <name>` | After the run, scores the best agent on `princeton-nlp/SWE-bench_<name>`, such as `Lite`; needs `--holdout_tasks` and is not allowed with `--polyglot true` |
 | `--holdout_tasks <n>` | Scores the first `n` held-out tasks; needs `--holdout_split` |
 
-The first run with a given agent name writes the seed into `initial_swe/<name>/` or `initial_polyglot/<name>/` in the `--seed_dir` folder and measures it on every task in the pool. The seed is the `hgm-coding-agent` source as it was when `hgm` was built, with the builder `Dockerfile` beside it. Later runs with the same `--seed_dir` reuse that folder and its results, so delete it to measure a newer seed. A seed folder written by a release from before the agent was named `hgm-coding-agent` holds the old name and paths, which this `hgm` cannot build or patch, so delete it too.
+The first run with a given agent name writes the seed into `initial_swe/<name>/` or `initial_polyglot/<name>/` in the `--seed_dir` folder and measures it on every task in the pool. The seed is the `rustyhgm-coding-agent` source as it was when `rustyhgm` was built, with the builder `Dockerfile` beside it. Later runs with the same `--seed_dir` reuse that folder and its results, so delete it to measure a newer seed. A seed folder written by a release from before the program was named `rustyhgm` and the agent `rustyhgm-coding-agent` holds the old names and paths, which this `rustyhgm` cannot build or patch, so delete it too. A run made by such a release cannot be continued with `--continue_from` either.
 
 The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout` limit and `--max_workers`, and writes its results to `holdout/best_agent/` in the `--output_dir` folder.
 
 ### The coding agent
 
-The harness also builds `hgm-coding-agent`, the agent being evolved, and runs it inside containers. Releases carry only `hgm`, so to watch one attempt by hand, run the agent from a clone of this repository with `cargo run -p hgm-coding-agent -- <flags>`. It reads no environment variables, and every flag but `--instance_id` is required.
+The harness also builds `rustyhgm-coding-agent`, the agent being evolved, and runs it inside containers. Releases carry only `rustyhgm`, so to watch one attempt by hand, run the agent from a clone of this repository with `cargo run -p rustyhgm-coding-agent -- <flags>`. It reads no environment variables, and every flag but `--instance_id` is required.
 
 | Flag | What it sets |
 | --- | --- |

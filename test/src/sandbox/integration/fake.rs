@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm_core::log::Log;
-use hgm_sandbox::{Docker, Error};
+use rustyhgm_core::log::Log;
+use rustyhgm_sandbox::{Docker, Error};
 
 #[cfg(unix)]
 fn script(dir: &Path, sh: &str, _cmd: &str) -> PathBuf {
@@ -33,7 +33,7 @@ fn an_exec_killed_by_a_signal_is_a_command_error() {
     let (_dir, docker, _) = fake("kill -9 $$", "");
     let r = docker
         .container("c")
-        .exec(&["true"], &hgm_sandbox::ExecOptions::default());
+        .exec(&["true"], &rustyhgm_sandbox::ExecOptions::default());
     match r {
         Err(e @ Error::Command { code: None, .. }) => {
             assert!(e.to_string().contains("failed with a signal"), "{e}");
@@ -97,7 +97,11 @@ fn a_failed_docker_cp_out_still_creates_the_destination_folder() {
 fn copying_out_to_a_bare_file_name_creates_no_directory() {
     let (_dir, docker, _) = fake("exit 0", "exit /b 0");
     let c = docker.container("c");
-    c.copy_out("/x", Path::new("hgm-fake-copy-target"), &Log::discard())
-        .unwrap();
-    assert!(!Path::new("hgm-fake-copy-target").exists());
+    c.copy_out(
+        "/x",
+        Path::new("rustyhgm-fake-copy-target"),
+        &Log::discard(),
+    )
+    .unwrap();
+    assert!(!Path::new("rustyhgm-fake-copy-target").exists());
 }

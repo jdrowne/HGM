@@ -1,7 +1,7 @@
 use std::error::Error as _;
 use std::io;
 
-use hgm_sandbox::Error;
+use rustyhgm_sandbox::Error;
 
 fn command(code: Option<i32>) -> Error {
     Error::Command {

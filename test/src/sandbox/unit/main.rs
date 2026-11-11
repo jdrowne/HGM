@@ -34,5 +34,5 @@ pub fn strings(v: &Value) -> Vec<String> {
 
 #[test]
 fn crate_is_linked() {
-    assert_eq!(hgm_sandbox::CRATE_NAME, "hgm-sandbox");
+    assert_eq!(rustyhgm_sandbox::CRATE_NAME, "rustyhgm-sandbox");
 }

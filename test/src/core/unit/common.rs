@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use hgm_core::pyjson::{self, PyValue};
-use hgm_core::tree::Tree;
+use rustyhgm_core::pyjson::{self, PyValue};
+use rustyhgm_core::tree::Tree;
 use serde_json::Value;
 
 pub fn fixtures_dir() -> PathBuf {

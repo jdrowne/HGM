@@ -3,19 +3,19 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use hgm_coding_agent::llm::Service;
-use hgm_coding_agent::testrepo::{TestRepo, get_test_description};
-use hgm_core::log::Log;
-use hgm_core::pyjson::{PyValue, dumps};
-use hgm_sandbox::{Container, Docker, ExecOptions, RunOptions};
+use rustyhgm_coding_agent::llm::Service;
+use rustyhgm_coding_agent::testrepo::{TestRepo, get_test_description};
+use rustyhgm_core::log::Log;
+use rustyhgm_core::pyjson::{PyValue, dumps};
+use rustyhgm_sandbox::{Container, Docker, ExecOptions, RunOptions};
 use serde_json::Value;
 
 use crate::dataset::{self, Hub, SWE_BENCH};
 use crate::swebench::{Swebench, TestSpec};
 
-pub const AGENT_PATH: &str = "/hgm/hgm-coding-agent";
+pub const AGENT_PATH: &str = "/rustyhgm/rustyhgm-coding-agent";
 
-pub const AGENT_KEY: &str = "/run/hgm/api_key";
+pub const AGENT_KEY: &str = "/run/rustyhgm/api_key";
 
 pub fn key_mount(service: &Service) -> Vec<(PathBuf, String)> {
     vec![(service.api_key_file.clone(), AGENT_KEY.to_owned())]
@@ -83,7 +83,7 @@ pub fn prediction(
     )
 }
 
-pub fn message(e: hgm_sandbox::Error) -> String {
+pub fn message(e: rustyhgm_sandbox::Error) -> String {
     e.to_string()
 }
 
@@ -92,7 +92,7 @@ pub fn run_logged(
     argv: &[&str],
     opts: &ExecOptions,
     log: &Log,
-) -> Result<String, hgm_sandbox::Error> {
+) -> Result<String, rustyhgm_sandbox::Error> {
     container
         .exec(argv, opts)
         .and_then(|r| r.log(log, true).map(|()| r.text()))
@@ -106,7 +106,11 @@ pub enum Step {
     Quiet(&'static [&'static str], &'static str),
 }
 
-pub fn run_step(container: &Container, step: &Step, log: &Log) -> Result<(), hgm_sandbox::Error> {
+pub fn run_step(
+    container: &Container,
+    step: &Step,
+    log: &Log,
+) -> Result<(), rustyhgm_sandbox::Error> {
     match step {
         Step::Info(message) => {
             log.info(*message);
@@ -164,7 +168,7 @@ impl Harness {
 
     fn solve(&self, job: &Job, container: &Container, log: &Log) -> Result<(), String> {
         let instance_id = &job.spec.instance_id;
-        let chat_history = format!("/hgm/{instance_id}.md");
+        let chat_history = format!("/rustyhgm/{instance_id}.md");
         let timeout = self.timeout.to_string();
         let problem_statement = text(job.entry, "problem_statement");
         let base_commit = text(job.entry, "base_commit");
@@ -184,7 +188,7 @@ impl Harness {
             "--base_commit",
             &base_commit,
             "--outdir",
-            "/hgm/",
+            "/rustyhgm/",
             "--test_description",
             &test_description,
             "--instance_id",
@@ -212,7 +216,7 @@ impl Harness {
         let md_pattern = format!("{instance_id}_*.md");
         let argv = [
             "find",
-            "/hgm/",
+            "/rustyhgm/",
             "-name",
             &md_pattern,
             "-o",
@@ -223,7 +227,7 @@ impl Harness {
             run_logged(container, &argv, &ExecOptions::workdir("/"), log).map_err(message)?;
         let (mds, diffs): (Vec<&str>, Vec<&str>) =
             found.split_whitespace().partition(|f| f.ends_with(".md"));
-        let chat_history = format!("/hgm/{instance_id}.md");
+        let chat_history = format!("/rustyhgm/{instance_id}.md");
         std::iter::once(chat_history.as_str())
             .chain(mds)
             .try_for_each(|file| {
@@ -233,7 +237,7 @@ impl Harness {
             .map_err(message)?;
         log.info("Getting model_patch");
         let none = ExecOptions::default();
-        let mut patches = std::iter::once("/hgm/model_patch.diff")
+        let mut patches = std::iter::once("/rustyhgm/model_patch.diff")
             .chain(diffs)
             .map(|file| run_logged(container, &["cat", file], &none, log))
             .collect::<Result<Vec<String>, _>>()
@@ -314,7 +318,7 @@ impl Harness {
                 run,
             })
             .collect();
-        hgm_core::pool::map(&jobs, run.max_workers, |job| {
+        rustyhgm_core::pool::map(&jobs, run.max_workers, |job| {
             let result = self.process_entry(job);
             match &result.error {
                 None => println!(

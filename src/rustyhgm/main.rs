@@ -1,8 +1,8 @@
 use std::process::ExitCode;
 
 use clap::Parser;
-use hgm::cli::Cli;
-use hgm::run::{JITTER, run};
+use rustyhgm::cli::Cli;
+use rustyhgm::run::{JITTER, run};
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -12,7 +12,7 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("hgm: {e}");
+            eprintln!("rustyhgm: {e}");
             ExitCode::FAILURE
         }
     }

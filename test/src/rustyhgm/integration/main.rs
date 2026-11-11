@@ -4,5 +4,5 @@ mod improve;
 
 #[test]
 fn crate_is_linked() {
-    assert_eq!(hgm::FAILED, "failed");
+    assert_eq!(rustyhgm::FAILED, "failed");
 }

@@ -4,7 +4,7 @@ mod swe;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm_coding_agent::llm::{Provider, Service};
+use rustyhgm_coding_agent::llm::{Provider, Service};
 
 pub fn executable(path: &Path, body: &str) {
     fs::write(path, body).unwrap();
@@ -55,5 +55,5 @@ pub fn once(name: &str, build: impl FnOnce(&Path)) -> PathBuf {
 
 #[test]
 fn crate_is_linked() {
-    assert_eq!(hgm_bench::CRATE_NAME, "hgm-bench");
+    assert_eq!(rustyhgm_bench::CRATE_NAME, "rustyhgm-bench");
 }

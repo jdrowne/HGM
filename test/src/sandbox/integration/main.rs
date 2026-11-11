@@ -4,8 +4,8 @@ mod image;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use hgm_core::log::Log;
-use hgm_sandbox::{Container, Docker};
+use rustyhgm_core::log::Log;
+use rustyhgm_sandbox::{Container, Docker};
 
 pub const BASE_IMAGE: &str = "busybox:latest";
 
@@ -35,7 +35,7 @@ impl Drop for Running {
 }
 
 pub fn start() -> Running {
-    let name = unique("hgm-sandbox-test");
+    let name = unique("rustyhgm-sandbox-test");
     let c = docker()
         .run_detached_with(
             BASE_IMAGE,
@@ -49,5 +49,5 @@ pub fn start() -> Running {
 
 #[test]
 fn crate_is_linked() {
-    assert_eq!(hgm_sandbox::CRATE_NAME, "hgm-sandbox");
+    assert_eq!(rustyhgm_sandbox::CRATE_NAME, "rustyhgm-sandbox");
 }

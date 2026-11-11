@@ -1,4 +1,4 @@
-use hgm_coding_agent::parsers::{parser, parser_for_repo, parser_name};
+use rustyhgm_coding_agent::parsers::{parser, parser_for_repo, parser_name};
 use serde_json::{Value, json};
 
 use crate::common::cases;
@@ -57,8 +57,8 @@ fn an_unknown_repo_has_no_parser() {
 }
 
 #[test]
-fn the_hgm_repo_has_a_parser() {
-    assert!(parser_for_repo("hgm").is_some());
+fn the_rustyhgm_repo_has_a_parser() {
+    assert!(parser_for_repo("rustyhgm").is_some());
 }
 
 #[test]

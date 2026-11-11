@@ -1,5 +1,5 @@
 [package]
-name = "hgm-core"
+name = "rustyhgm-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

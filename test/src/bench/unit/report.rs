@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use hgm_bench::report::{default_run_ids, load_predictions, preds_to_jsonl};
-use hgm_bench::swe::{next_run_name, prediction};
+use rustyhgm_bench::report::{default_run_ids, load_predictions, preds_to_jsonl};
+use rustyhgm_bench::swe::{next_run_name, prediction};
 use serde_json::Value;
 
 use crate::common::{cases, strings};

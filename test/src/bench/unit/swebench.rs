@@ -1,4 +1,4 @@
-use hgm_bench::swebench::{Swebench, TestSpec};
+use rustyhgm_bench::swebench::{Swebench, TestSpec};
 
 #[test]
 fn container_names_follow_swebench() {
@@ -18,7 +18,7 @@ fn container_names_follow_swebench() {
 
 fn missing() -> Swebench {
     Swebench {
-        python: "hgm-no-such-python".to_owned(),
+        python: "rustyhgm-no-such-python".to_owned(),
     }
 }
 
@@ -41,7 +41,7 @@ fn preparing_no_images_needs_no_interpreter() {
 #[test]
 fn errors_say_what_failed() {
     assert_eq!(
-        hgm_bench::swebench::Error::from(std::io::Error::other("x")).to_string(),
+        rustyhgm_bench::swebench::Error::from(std::io::Error::other("x")).to_string(),
         "running swebench: x"
     );
 }

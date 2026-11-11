@@ -2,13 +2,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use hgm_bench::dataset::{Hub, SWE_BENCH};
-use hgm_bench::swe::{EntryResult, Harness, Run};
-use hgm_bench::swebench::{Swebench, TestSpec};
-use hgm_sandbox::Docker;
+use rustyhgm_bench::dataset::{Hub, SWE_BENCH};
+use rustyhgm_bench::swe::{EntryResult, Harness, Run};
+use rustyhgm_bench::swebench::{Swebench, TestSpec};
+use rustyhgm_sandbox::Docker;
 use serde_json::{Value, json};
 
-const IMAGE: &str = "hgm-bench-fake-swe:latest";
+const IMAGE: &str = "rustyhgm-bench-fake-swe:latest";
 
 const AGENT: &str = r#"#!/bin/sh
 mode=$(cat /mode 2>/dev/null)
@@ -22,12 +22,12 @@ while [ $# -gt 0 ]; do
 done
 case "$mode" in
   fail) echo agent failed; exit 1 ;;
-  nohgm) rm -rf /hgm; exit 0 ;;
+  norustyhgm) rm -rf /rustyhgm; exit 0 ;;
 esac
 [ "$mode" = nochat ] || echo "chat $id $(cat "$key")" > "$chat"
-echo "more $id" > "/hgm/${id}_1.md"
-[ "$mode" = nopatch ] || echo base > /hgm/model_patch.diff
-echo "proposal $id" > /hgm/model_patch_1.diff
+echo "more $id" > "/rustyhgm/${id}_1.md"
+[ "$mode" = nopatch ] || echo base > /rustyhgm/model_patch.diff
+echo "proposal $id" > /rustyhgm/model_patch_1.diff
 "#;
 
 fn platform() -> String {
@@ -105,7 +105,7 @@ fn agent_run(root: &Path) -> Run {
         model_name_or_path: "agent".into(),
         agent: PathBuf::from(script(
             &dir,
-            "hgm-coding-agent",
+            "rustyhgm-coding-agent",
             AGENT.trim_start_matches("#!/bin/sh\n"),
         )),
         max_workers: 4,
@@ -307,10 +307,10 @@ fn steps() -> [TestSpec; 6] {
     [
         spec("evalfail", "exit 3", IMAGE),
         spec("agentfail", &mode("fail"), IMAGE),
-        spec("nohgm", &mode("nohgm"), IMAGE),
+        spec("norustyhgm", &mode("norustyhgm"), IMAGE),
         spec("nochat", &mode("nochat"), IMAGE),
         spec("nopatch", &mode("nopatch"), IMAGE),
-        spec("noimage", "true", "hgm-no-such-image:never"),
+        spec("noimage", "true", "rustyhgm-no-such-image:never"),
     ]
 }
 
@@ -339,7 +339,7 @@ fn each_failing_step_reports_why() {
         "Script failed with exit code 3",
         "Script failed with exit code 1",
         "Script failed with exit code 1",
-        "Source path /hgm/nochat.md in container not found",
+        "Source path /rustyhgm/nochat.md in container not found",
         "Script failed with exit code 1",
         "`docker run -d --name sweb.eval.noimage.",
     ];
@@ -469,7 +469,7 @@ fn without_docker() -> Evaluated {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     let h = Harness {
-        docker: Docker::new("hgm-no-such-docker-program"),
+        docker: Docker::new("rustyhgm-no-such-docker-program"),
         ..harness(root, swebench(root, "exit 0", "exit 0"))
     };
     let out = root.join("out");

@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use std::fs;
 
-use hgm_coding_agent::eval::{
+use rustyhgm_coding_agent::eval::{
     TIE_BREAKER_SYSTEM, get_acc_on_tasks, get_report_score, msg_history_to_report,
     parse_eval_output, repo_of, score_tie_breaker, tie_breaker_prompt,
 };
-use hgm_coding_agent::llm::{Client, Provider};
+use rustyhgm_coding_agent::llm::{Client, Provider};
 use serde_json::{Value, json};
 
 use crate::common::{Seen, cases, content, ok, refused, serve};
@@ -99,7 +99,7 @@ fn every_eval_fixture_belongs_to_a_helper() {
 
 #[test]
 fn an_instance_id_without_separators_is_its_own_repo() {
-    assert_eq!(repo_of("hgm"), "hgm");
+    assert_eq!(repo_of("rustyhgm"), "rustyhgm");
 }
 
 #[test]

@@ -2,20 +2,22 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use hgm_bench::swe::{Step, key_mount, message, run_logged, run_step, service_flags};
-use hgm_coding_agent::llm::{Client, Service, extract_json_between_markers, get_response_from_llm};
-use hgm_coding_agent::testrepo::{TestRepo, get_test_description};
-use hgm_core::log::Log;
-use hgm_core::metadata::{MODEL_PATCH_FILE, model_patch_paths, read_overall_performance};
-use hgm_core::prompts::{
+use rand::seq::IndexedRandom;
+use rand::{Rng, RngExt};
+use rustyhgm_bench::swe::{Step, key_mount, message, run_logged, run_step, service_flags};
+use rustyhgm_coding_agent::llm::{
+    Client, Service, extract_json_between_markers, get_response_from_llm,
+};
+use rustyhgm_coding_agent::testrepo::{TestRepo, get_test_description};
+use rustyhgm_core::log::Log;
+use rustyhgm_core::metadata::{MODEL_PATCH_FILE, model_patch_paths, read_overall_performance};
+use rustyhgm_core::prompts::{
     DiagnoseInput, SOLVE_CONTEXTLENGTH, SOLVE_EMPTY_PATCHES, SOLVE_STOCHASTICITY,
     any_exceeding_context_length, get_diagnose_prompt_polyglot, get_diagnose_prompt_swe,
     get_problem_description_prompt,
 };
-use hgm_core::pyjson::PyValue;
-use hgm_sandbox::{Container, Docker, ExecOptions, RunOptions};
-use rand::seq::IndexedRandom;
-use rand::{Rng, RngExt};
+use rustyhgm_core::pyjson::PyValue;
+use rustyhgm_sandbox::{Container, Docker, ExecOptions, RunOptions};
 use serde_json::Value;
 
 use crate::FAILED;
@@ -23,7 +25,7 @@ use crate::agent_build::{AGENT_BINARY, INSTALLED_AGENT, compile, copy_binary, pa
 use crate::node::{Metadata, put, save_metadata};
 
 pub const DIAGNOSE_ATTEMPTS: usize = 3;
-pub const CHAT_HISTORY: &str = "/hgm/self_evo.md";
+pub const CHAT_HISTORY: &str = "/rustyhgm/self_evo.md";
 
 pub trait Improver: Sync {
     fn sample_child(&self, parent_commit: &str) -> String;
@@ -141,8 +143,8 @@ impl SelfImprove {
     ) -> Result<String, String> {
         let mut steps = patch_steps(patches);
         steps.extend([
-            Step::Quiet(&["git", "init"], "/hgm/"),
-            Step::Run(&["git", "add", "--all"], "/hgm/"),
+            Step::Quiet(&["git", "init"], "/rustyhgm/"),
+            Step::Run(&["git", "add", "--all"], "/rustyhgm/"),
             Step::Quiet(
                 &[
                     "git",
@@ -154,7 +156,7 @@ impl SelfImprove {
                     "-m",
                     "a nonsense commit message",
                 ],
-                "/hgm/",
+                "/rustyhgm/",
             ),
         ]);
         steps
@@ -189,13 +191,13 @@ impl SelfImprove {
             "--problem_statement",
             statement,
             "--git_dir",
-            "/hgm/",
+            "/rustyhgm/",
             "--chat_history_file",
             CHAT_HISTORY,
             "--base_commit",
             commit_hash,
             "--outdir",
-            "/hgm/",
+            "/rustyhgm/",
             "--test_description",
             &test_description,
             "--self_improve",
@@ -218,7 +220,7 @@ impl SelfImprove {
             .and_then(|()| {
                 container.copy_out(CHAT_HISTORY, &attempt.run_dir.join("self_evo.md"), log)
             })
-            .and_then(|()| container.copy_out("/hgm/model_patch.diff", &patch, log))
+            .and_then(|()| container.copy_out("/rustyhgm/model_patch.diff", &patch, log))
             .map_err(message)
     }
 
@@ -230,7 +232,7 @@ impl SelfImprove {
     ) -> Result<bool, String> {
         let log = attempt.log;
         let dataset = self.dataset.as_ref().map_err(Clone::clone)?;
-        let name = format!("hgm-container-{}", attempt.run_id);
+        let name = format!("rustyhgm-container-{}", attempt.run_id);
         let started = self
             .docker
             .remove_existing_container(&name, log)

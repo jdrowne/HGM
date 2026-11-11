@@ -4,7 +4,7 @@ use serde_json::Value;
 
 #[test]
 fn crate_is_linked() {
-    assert_eq!(hgm_bench::CRATE_NAME, "hgm-bench");
+    assert_eq!(rustyhgm_bench::CRATE_NAME, "rustyhgm-bench");
 }
 
 fn golden_cases() -> Vec<(String, Vec<Value>)> {

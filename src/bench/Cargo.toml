@@ -1,5 +1,5 @@
 [package]
-name = "hgm-bench"
+name = "rustyhgm-bench"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -21,9 +21,9 @@ path = "../../test/src/bench/integration/main.rs"
 
 [dependencies]
 chrono = "*"
-hgm-coding-agent = { path = "../coding-agent" }
-hgm-core = { path = "../core" }
-hgm-sandbox = { path = "../sandbox" }
+rustyhgm-coding-agent = { path = "../coding-agent" }
+rustyhgm-core = { path = "../core" }
+rustyhgm-sandbox = { path = "../sandbox" }
 parquet = { version = "*", default-features = false, features = ["snap"] }
 serde = { version = "*", features = ["derive"] }
 serde_json = { version = "*", features = ["preserve_order"] }

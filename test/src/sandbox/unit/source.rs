@@ -1,12 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm_core::log::Log;
-use hgm_core::pyjson;
-use hgm_sandbox::source::{
+use rustyhgm_core::log::Log;
+use rustyhgm_core::pyjson;
+use rustyhgm_sandbox::source::{
     CopyReport, copy_filtered, image_name_for, initial_metadata, prepare_initial_agent,
 };
-use hgm_sandbox::{Docker, Error};
+use rustyhgm_sandbox::{Docker, Error};
 
 #[test]
 fn initial_metadata_matches_json_dump() {
@@ -160,7 +160,7 @@ fn copying_with_an_unreadable_dockerignore_is_an_error() {
 #[test]
 fn building_needs_a_parent_folder() {
     let dir = tree();
-    let docker = Docker::new("hgm-no-such-docker-program");
+    let docker = Docker::new("rustyhgm-no-such-docker-program");
     let r = prepare_initial_agent(
         &dir.path().join("repo"),
         Path::new(""),
@@ -183,7 +183,7 @@ fn the_root_has_no_image_name() {
 #[test]
 fn building_needs_docker() {
     let dir = tree();
-    let docker = Docker::new("hgm-no-such-docker-program");
+    let docker = Docker::new("rustyhgm-no-such-docker-program");
     let r = prepare_initial_agent(
         &dir.path().join("repo"),
         &dir.path().join("out/initial/src"),
@@ -199,7 +199,7 @@ fn building_needs_a_dockerfile() {
     let src = dir.path().join("repo");
     fs::write(src.join(".dockerignore"), "").unwrap();
     fs::remove_file(src.join("Dockerfile")).unwrap();
-    let docker = Docker::new("hgm-no-such-docker-program");
+    let docker = Docker::new("rustyhgm-no-such-docker-program");
     let r = prepare_initial_agent(
         &src,
         &dir.path().join("out/initial/src"),

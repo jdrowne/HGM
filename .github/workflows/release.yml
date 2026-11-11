@@ -256,11 +256,11 @@ jobs:
           path: build.tar.zst
           retention-days: 1
       - name: Build the release binary
-        run: cargo build --release -p hgm --bin hgm
+        run: cargo build --release -p rustyhgm --bin rustyhgm
       - name: Stage the release binary
         run: |
           mkdir dist
-          cp target/release/hgm "dist/hgm-${{ matrix.platform }}"
+          cp target/release/rustyhgm "dist/rustyhgm-${{ matrix.platform }}"
       - name: Upload the release binary
         uses: actions/upload-artifact@main
         with:

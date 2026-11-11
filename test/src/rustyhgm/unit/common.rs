@@ -5,10 +5,10 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use clap::Parser;
-use hgm::agent_build::Build;
-use hgm::cli::Cli;
-use hgm::node::{Bench, Eval};
-use hgm_coding_agent::llm::{Provider, Service};
+use rustyhgm::agent_build::Build;
+use rustyhgm::cli::Cli;
+use rustyhgm::node::{Bench, Eval};
+use rustyhgm_coding_agent::llm::{Provider, Service};
 use serde_json::{Value, json};
 
 pub const SETTINGS: [(&str, &str); 32] = [
@@ -22,8 +22,8 @@ pub const SETTINGS: [(&str, &str); 32] = [
     ("--diagnose_provider", "openrouter"),
     ("--diagnose_base_url", "http://dg/v1"),
     ("--api_key_file", "key"),
-    ("--docker", "hgm-no-such-docker-program"),
-    ("--swebench_python", "hgm-no-such-python"),
+    ("--docker", "rustyhgm-no-such-docker-program"),
+    ("--swebench_python", "rustyhgm-no-such-python"),
     ("--dataset_endpoint", "http://127.0.0.1:9"),
     ("--dataset_dir", "cache"),
     ("--polyglot_repo", "no-such-repo"),
@@ -47,7 +47,7 @@ pub const SETTINGS: [(&str, &str); 32] = [
 ];
 
 pub fn argv(changes: &[(&str, &str)], without: &[&str]) -> Vec<String> {
-    let mut argv = vec!["hgm".to_owned()];
+    let mut argv = vec!["rustyhgm".to_owned()];
     let set = SETTINGS
         .iter()
         .filter(|(flag, _)| !without.contains(flag))

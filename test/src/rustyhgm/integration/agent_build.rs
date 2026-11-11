@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use hgm::agent_build::{BUILD_LOG, Build, Builder};
-use hgm_sandbox::Docker;
+use rustyhgm::agent_build::{BUILD_LOG, Build, Builder};
+use rustyhgm_sandbox::Docker;
 
 use crate::improve::{IMAGE, image, mode_patch};
 
@@ -29,7 +29,7 @@ fn built() -> (tempfile::TempDir, PathBuf) {
     image();
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    let binary = root.join("node/hgm-coding-agent");
+    let binary = root.join("node/rustyhgm-coding-agent");
     let ok = patch(root, "ok", &mode_patch("ok"));
     builder(root, IMAGE).build(&[ok], &binary).unwrap();
     (tmp, binary)
@@ -55,7 +55,7 @@ fn failed(name: &str, text: &str) -> Failed {
     image();
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    let binary = root.join(name).join("hgm-coding-agent");
+    let binary = root.join(name).join("rustyhgm-coding-agent");
     let patches = [patch(root, name, text)];
     let result = builder(root, IMAGE).build(&patches, &binary);
     Failed {
@@ -111,7 +111,7 @@ fn unusable(
     let root = tmp.path();
     prepare(root);
     let binary = root.join(binary);
-    let result = builder(root, "hgm-no-such-image:never").build(&[], &binary);
+    let result = builder(root, "rustyhgm-no-such-image:never").build(&[], &binary);
     (tmp, binary, result)
 }
 
@@ -119,7 +119,7 @@ fn unusable(
 fn a_node_under_a_file_fails_the_build() {
     let (_tmp, _, result) = unusable(
         |root| fs::write(root.join("file"), "").unwrap(),
-        "file/hgm-coding-agent",
+        "file/rustyhgm-coding-agent",
     );
     assert!(result.is_err());
 }
@@ -128,17 +128,17 @@ fn a_node_under_a_file_fails_the_build() {
 fn an_unwritable_build_log_fails_the_build() {
     let (_tmp, _, result) = unusable(
         |root| fs::create_dir_all(root.join("logdir").join(BUILD_LOG)).unwrap(),
-        "logdir/hgm-coding-agent",
+        "logdir/rustyhgm-coding-agent",
     );
     assert!(result.is_err());
 }
 
 #[test]
 fn a_missing_image_fails_the_build() {
-    assert!(unusable(|_| {}, "noimage/hgm-coding-agent").2.is_err());
+    assert!(unusable(|_| {}, "noimage/rustyhgm-coding-agent").2.is_err());
 }
 
 #[test]
 fn a_missing_image_leaves_no_agent() {
-    assert!(!unusable(|_| {}, "noimage/hgm-coding-agent").1.exists());
+    assert!(!unusable(|_| {}, "noimage/rustyhgm-coding-agent").1.exists());
 }

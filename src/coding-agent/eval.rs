@@ -27,8 +27,8 @@ pub fn get_acc_on_tasks(tasks: &[String], commit_path: &Path) -> std::io::Result
 }
 
 pub fn repo_of(instance_id: &str) -> String {
-    if instance_id == "hgm" {
-        return "hgm".to_owned();
+    if instance_id == "rustyhgm" {
+        return "rustyhgm".to_owned();
     }
     let replaced = instance_id.replace("__", "/");
     let parts: Vec<&str> = replaced.split('-').collect();

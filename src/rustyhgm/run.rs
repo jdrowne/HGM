@@ -4,25 +4,25 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use hgm_bench::dataset::{Hub, SWE_BENCH_VERIFIED, instance_ids};
-use hgm_bench::polyglot::{self, DATASET};
-use hgm_bench::polyglot_build::copy_tree;
-use hgm_bench::polyglot_prepare::prepare;
-use hgm_bench::polyglot_spec::NAMESPACE;
-use hgm_bench::swe;
-use hgm_bench::tasks::{dedup, polyglot_run_tasks, shuffled, swe_run_tasks};
-use hgm_coding_agent::llm::Service;
-use hgm_core::config::HgmConfig;
-use hgm_core::log::Log;
-use hgm_core::metadata::{
-    HGM_METADATA_FILE, INIT_EVALUATED_TASKS_FILE, load_init_evaluated_tasks,
-    load_last_hgm_metadata, read_overall_performance, tree_from_record,
-};
-use hgm_core::tree::{ROOT_COMMIT, Tree};
-use hgm_sandbox::Docker;
-use hgm_sandbox::source::prepare_initial_agent;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rustyhgm_bench::dataset::{Hub, SWE_BENCH_VERIFIED, instance_ids};
+use rustyhgm_bench::polyglot::{self, DATASET};
+use rustyhgm_bench::polyglot_build::copy_tree;
+use rustyhgm_bench::polyglot_prepare::prepare;
+use rustyhgm_bench::polyglot_spec::NAMESPACE;
+use rustyhgm_bench::swe;
+use rustyhgm_bench::tasks::{dedup, polyglot_run_tasks, shuffled, swe_run_tasks};
+use rustyhgm_coding_agent::llm::Service;
+use rustyhgm_core::config::HgmConfig;
+use rustyhgm_core::log::Log;
+use rustyhgm_core::metadata::{
+    HGM_METADATA_FILE, INIT_EVALUATED_TASKS_FILE, load_init_evaluated_tasks,
+    load_last_rustyhgm_metadata, read_overall_performance, tree_from_record,
+};
+use rustyhgm_core::tree::{ROOT_COMMIT, Tree};
+use rustyhgm_sandbox::Docker;
+use rustyhgm_sandbox::source::prepare_initial_agent;
 use serde_json::Value;
 
 use crate::agent_build::Builder;
@@ -35,7 +35,7 @@ use crate::seed;
 
 pub const JITTER: Duration = Duration::from_secs(1);
 
-pub const HOLDOUT_IMAGE: &str = "hgm-holdout-agent:latest";
+pub const HOLDOUT_IMAGE: &str = "rustyhgm-holdout-agent:latest";
 
 pub const HOLDOUT_DIR: &str = "holdout";
 
@@ -87,13 +87,13 @@ fn previous_run(prev: &Path) -> Result<(Vec<String>, Tree), String> {
     let tasks = prev.join(INIT_EVALUATED_TASKS_FILE);
     let record = prev.join(HGM_METADATA_FILE);
     let init_evaluated = load_init_evaluated_tasks(&tasks).map_err(|e| at(&tasks, e))?;
-    load_last_hgm_metadata(&record)
+    load_last_rustyhgm_metadata(&record)
         .and_then(|last| tree_from_record(&last))
         .map(|tree| (init_evaluated, tree))
         .map_err(|e| at(&record, e))
 }
 
-fn build_seed(src_path: &Path, docker: &Docker, log: &Log) -> Result<(), hgm_sandbox::Error> {
+fn build_seed(src_path: &Path, docker: &Docker, log: &Log) -> Result<(), rustyhgm_sandbox::Error> {
     let build = tempfile::tempdir()?;
     seed::write(build.path())?;
     prepare_initial_agent(build.path(), src_path, Some(docker), log).map(|_| ())
@@ -246,7 +246,7 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
     println!("Working directory: {}", root_dir.display());
     println!("Output directory: {}", output_dir.display());
     println!("Output directory exists: {}", output_dir.exists());
-    let outer = output_dir.join("hgm_outer.log");
+    let outer = output_dir.join("rustyhgm_outer.log");
     let log = Log::to_file(&outer).map_err(|e| at(&outer, e))?;
     let tools = args.tools(root_dir);
     let tasks = dedup(&run_tasks(&config, &tools.hub)?);

@@ -1,4 +1,4 @@
-use hgm_core::pyjson::{PyValue, dumps, f64_lenient, float_repr, parse_lenient};
+use rustyhgm_core::pyjson::{PyValue, dumps, f64_lenient, float_repr, parse_lenient};
 use serde_json::{Value, json};
 
 #[test]

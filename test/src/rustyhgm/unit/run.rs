@@ -2,18 +2,18 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use hgm::cli::Cli;
-use hgm::node::Evaluator;
-use hgm::run::{
+use rustyhgm::cli::Cli;
+use rustyhgm::node::Evaluator;
+use rustyhgm::run::{
     Init, bench_for, finish, improve_dataset, initial_folder, initialize_run, resolve_output_dir,
     run, run_tasks, settings,
 };
-use hgm::search::Settings;
-use hgm_bench::dataset::Hub;
-use hgm_bench::tasks::{polyglot_run_tasks, swe_run_tasks};
-use hgm_core::config::{ExpansionStatistic, HgmConfig};
-use hgm_core::log::Log;
-use hgm_sandbox::Docker;
+use rustyhgm::search::Settings;
+use rustyhgm_bench::dataset::Hub;
+use rustyhgm_bench::tasks::{polyglot_run_tasks, swe_run_tasks};
+use rustyhgm_core::config::{ExpansionStatistic, HgmConfig};
+use rustyhgm_core::log::Log;
+use rustyhgm_sandbox::Docker;
 use serde_json::json;
 
 use crate::common::{FakeBench, FakeBuild, cli, node, performance, read_json, service};
@@ -235,7 +235,7 @@ fn two_tasks() -> Vec<String> {
 struct Started {
     tmp: tempfile::TempDir,
     bench: FakeBench,
-    start: hgm::run::Start,
+    start: rustyhgm::run::Start,
 }
 
 #[cfg(unix)]
@@ -248,7 +248,7 @@ impl Started {
         self.bench.seen.lock().unwrap().clone()
     }
 
-    fn again(&self) -> hgm::run::Start {
+    fn again(&self) -> rustyhgm::run::Start {
         initialize_run(
             &init(self.root(), &self.root().join("out"), &two_tasks(), None),
             &self.bench,
@@ -405,7 +405,7 @@ fn a_missing_docker_fails_the_setup() {
         initialize_run(
             &init(root, &root.join("out"), &["a".to_owned()], None),
             &FakeBench::resolving(&[]),
-            &Docker::new("hgm-no-such-docker-program"),
+            &Docker::new("rustyhgm-no-such-docker-program"),
             &Log::discard()
         )
         .is_err()
@@ -454,7 +454,7 @@ fn previous(prev: &Path) {
         serde_json::to_string_pretty(&json!({"n_task_evals": n, "nodes": nodes})).unwrap()
     };
     fs::write(
-        prev.join("hgm_metadata.jsonl"),
+        prev.join("rustyhgm_metadata.jsonl"),
         format!(
             "{}\n{}\n",
             record(0, json!([])),
@@ -467,7 +467,7 @@ fn previous(prev: &Path) {
     .unwrap();
 }
 
-fn continued() -> (FakeBench, hgm::run::Start) {
+fn continued() -> (FakeBench, rustyhgm::run::Start) {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     let out = root.join("run");
@@ -485,7 +485,7 @@ fn continued() -> (FakeBench, hgm::run::Start) {
     let start = initialize_run(
         &init(root, &out, &two_tasks(), Some(&out)),
         &bench,
-        &Docker::new("hgm-no-such-docker-program"),
+        &Docker::new("rustyhgm-no-such-docker-program"),
         &Log::discard(),
     )
     .unwrap();
@@ -544,7 +544,7 @@ fn continue_error(prepare: impl FnOnce(&Path)) -> Option<String> {
     initialize_run(
         &init(root, &out, &["a".to_owned()], Some(&out)),
         &FakeBench::resolving(&[]),
-        &Docker::new("hgm-no-such-docker-program"),
+        &Docker::new("rustyhgm-no-such-docker-program"),
         &Log::discard(),
     )
     .err()
@@ -564,7 +564,7 @@ fn a_continued_run_needs_its_records() {
     assert!(
         continue_error(|out| fs::write(out.join("init_evaluated_tasks.json"), "[]").unwrap())
             .unwrap()
-            .contains("hgm_metadata.jsonl")
+            .contains("rustyhgm_metadata.jsonl")
     );
 }
 
@@ -573,7 +573,11 @@ fn a_continued_run_needs_complete_records() {
     assert!(
         continue_error(|out| {
             fs::write(out.join("init_evaluated_tasks.json"), "[]").unwrap();
-            fs::write(out.join("hgm_metadata.jsonl"), "{\"nodes\": [{\"id\": 1}]}").unwrap();
+            fs::write(
+                out.join("rustyhgm_metadata.jsonl"),
+                "{\"nodes\": [{\"id\": 1}]}",
+            )
+            .unwrap();
         })
         .is_some()
     );
@@ -647,10 +651,10 @@ fn a_run_with_an_output_directory_under_a_file_stops_early() {
 fn a_run_that_cannot_open_its_log_says_so() {
     assert!(
         run_error(
-            |root| fs::create_dir_all(root.join("out/hgm_outer.log")).unwrap(),
+            |root| fs::create_dir_all(root.join("out/rustyhgm_outer.log")).unwrap(),
             |a| a.output_dir = "out".into()
         )
-        .contains("hgm_outer.log")
+        .contains("rustyhgm_outer.log")
     );
 }
 
@@ -705,7 +709,7 @@ fn finished_run() -> (tempfile::TempDir, PathBuf) {
     )
     .unwrap();
     let record = json!({"n_task_evals": 2, "nodes": [{"commit_id": "c1", "id": 1, "parent_id": 0, "mean_utility": 0.5, "num_evals": 2}]});
-    fs::write(out.join("hgm_metadata.jsonl"), format!("{record}\n")).unwrap();
+    fs::write(out.join("rustyhgm_metadata.jsonl"), format!("{record}\n")).unwrap();
     (tmp, out)
 }
 
@@ -729,7 +733,7 @@ fn finish_writes_the_best_agent_source_into_the_run() {
 #[test]
 fn finish_needs_the_run_records() {
     let (_tmp, out) = finished_run();
-    fs::remove_file(out.join("hgm_metadata.jsonl")).unwrap();
+    fs::remove_file(out.join("rustyhgm_metadata.jsonl")).unwrap();
     assert!(
         finish(
             &cli(&[]),
@@ -739,6 +743,6 @@ fn finish_needs_the_run_records() {
             &out,
         )
         .unwrap_err()
-        .contains("hgm_metadata.jsonl")
+        .contains("rustyhgm_metadata.jsonl")
     );
 }

@@ -2,20 +2,20 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use hgm_bench::swe::{Step, message, run_step};
-use hgm_core::log::Log;
-use hgm_sandbox::{Container, Docker};
+use rustyhgm_bench::swe::{Step, message, run_step};
+use rustyhgm_core::log::Log;
+use rustyhgm_sandbox::{Container, Docker};
 
 use crate::node::at;
 
-pub const AGENT_BINARY: &str = "hgm-coding-agent";
-pub const INSTALLED_AGENT: &str = "/usr/local/bin/hgm-coding-agent";
+pub const AGENT_BINARY: &str = "rustyhgm-coding-agent";
+pub const INSTALLED_AGENT: &str = "/usr/local/bin/rustyhgm-coding-agent";
 pub const BUILD_LOG: &str = "build_agent.log";
 
 const BUILD: [&str; 3] = [
     "/bin/sh",
     "-c",
-    "cargo build --release --target \"$(uname -m)-unknown-linux-musl\" -p hgm-coding-agent && cp \"target/$(uname -m)-unknown-linux-musl/release/hgm-coding-agent\" /usr/local/bin/hgm-coding-agent",
+    "cargo build --release --target \"$(uname -m)-unknown-linux-musl\" -p rustyhgm-coding-agent && cp \"target/$(uname -m)-unknown-linux-musl/release/rustyhgm-coding-agent\" /usr/local/bin/rustyhgm-coding-agent",
 ];
 
 pub trait Build: Sync {
@@ -27,12 +27,12 @@ pub fn patch_steps(patches: &[PathBuf]) -> Vec<Step> {
         .iter()
         .flat_map(|patch| {
             [
-                Step::CopyIn(patch.clone(), "/hgm/parent_patch.txt"),
+                Step::CopyIn(patch.clone(), "/rustyhgm/parent_patch.txt"),
                 Step::Run(
-                    &["/bin/sh", "-c", "patch -p1 < /hgm/parent_patch.txt"],
-                    "/hgm",
+                    &["/bin/sh", "-c", "patch -p1 < /rustyhgm/parent_patch.txt"],
+                    "/rustyhgm",
                 ),
-                Step::Run(&["rm", "/hgm/parent_patch.txt"], "/hgm"),
+                Step::Run(&["rm", "/rustyhgm/parent_patch.txt"], "/rustyhgm"),
             ]
         })
         .collect()
@@ -40,7 +40,7 @@ pub fn patch_steps(patches: &[PathBuf]) -> Vec<Step> {
 
 pub fn compile(container: &Container, log: &Log) -> Result<(), String> {
     log.info("Compiling the agent");
-    run_step(container, &Step::Run(&BUILD, "/hgm"), log).map_err(message)
+    run_step(container, &Step::Run(&BUILD, "/rustyhgm"), log).map_err(message)
 }
 
 pub fn copy_binary(container: &Container, binary: &Path, log: &Log) -> Result<(), String> {
@@ -79,7 +79,10 @@ impl Build for Builder {
         fs::create_dir_all(dir).map_err(|e| at(dir, e))?;
         let log_path = dir.join(BUILD_LOG);
         let log = Log::to_file(&log_path).map_err(|e| at(&log_path, e))?;
-        let name = format!("hgm-build-{}", Local::now().format("%Y%m%d_%H%M%S_%6f"));
+        let name = format!(
+            "rustyhgm-build-{}",
+            Local::now().format("%Y%m%d_%H%M%S_%6f")
+        );
         let container = self
             .docker
             .remove_existing_container(&name, &log)

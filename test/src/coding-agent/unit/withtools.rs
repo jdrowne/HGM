@@ -2,9 +2,9 @@ use std::cell::RefCell;
 use std::fs;
 use std::time::Duration;
 
-use hgm_coding_agent::llm::{Client, Provider};
-use hgm_coding_agent::tools::tool_infos;
-use hgm_coding_agent::withtools::{
+use rustyhgm_coding_agent::llm::{Client, Provider};
+use rustyhgm_coding_agent::tools::tool_infos;
+use rustyhgm_coding_agent::withtools::{
     Backoff, Chat, SYSTEM_MESSAGE, ToolUse, check_for_tool_use, convert_msg_history,
     convert_tool_info, is_openai,
 };

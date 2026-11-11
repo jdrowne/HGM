@@ -23,7 +23,7 @@
   - DO NOT write `loop` blocks or other loops without a guaranteed exit in the agent's code IN ANY CASE!! This can cause the agent to get stuck and not respond.
   - Verify the implementation details of helper functions prior to usage to ensure proper integration and expected behavior.
   - **DO NOT create parsing errors tools or functions, collecting raw error messages and letting the agent analyze them will be more efficient.**
-  - The agent is a Rust crate. It must build with `cargo build --release -p hgm-coding-agent`, and a change that does not compile makes the agent fail. Declare every new module in `src/coding-agent/lib.rs`.
+  - The agent is a Rust crate. It must build with `cargo build --release -p rustyhgm-coding-agent`, and a change that does not compile makes the agent fail. Declare every new module in `src/coding-agent/lib.rs`.
   - Do not install additional packages or dependencies directly. Add new dependencies to `src/coding-agent/Cargo.toml` instead.
 
 

@@ -1,5 +1,5 @@
 [package]
-name = "hgm-sandbox"
+name = "rustyhgm-sandbox"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,7 +12,7 @@ workspace = true
 path = "lib.rs"
 
 [dependencies]
-hgm-core = { path = "../core" }
+rustyhgm-core = { path = "../core" }
 regex = "*"
 shlex = "*"
 

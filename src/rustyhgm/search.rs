@@ -4,18 +4,18 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::Duration;
 
-use hgm_core::config::ExpansionStatistic;
-use hgm_core::log::Log;
-use hgm_core::metadata::update_metadata;
-use hgm_core::pool;
-use hgm_core::sampling::CoolDown;
-use hgm_core::scheduler::{
+use rand::RngExt;
+use rand::rngs::StdRng;
+use rustyhgm_core::config::ExpansionStatistic;
+use rustyhgm_core::log::Log;
+use rustyhgm_core::metadata::update_metadata;
+use rustyhgm_core::pool;
+use rustyhgm_core::sampling::CoolDown;
+use rustyhgm_core::scheduler::{
     initial_expansions, pick_task, sample_budget, select_for_evaluation, select_for_expansion,
     should_expand,
 };
-use hgm_core::tree::Tree;
-use rand::RngExt;
-use rand::rngs::StdRng;
+use rustyhgm_core::tree::Tree;
 
 use crate::FAILED;
 use crate::improve::Improver;

@@ -1,15 +1,15 @@
 use std::path::Path;
 
 use clap::Parser;
-use hgm_coding_agent::agent::{Args, ChatLog, Language};
-use hgm_coding_agent::llm::{Provider, Service};
+use rustyhgm_coding_agent::agent::{Args, ChatLog, Language};
+use rustyhgm_coding_agent::llm::{Provider, Service};
 
 const FLAGS: [(&str, &str); 14] = [
     ("--problem_statement", "p"),
     ("--git_dir", "/repo"),
     ("--base_commit", "c"),
     ("--chat_history_file", "chat.md"),
-    ("--outdir", "/hgm/"),
+    ("--outdir", "/rustyhgm/"),
     ("--test_description", "None"),
     ("--self_improve", "false"),
     ("--polyglot", "false"),
@@ -22,7 +22,7 @@ const FLAGS: [(&str, &str); 14] = [
 ];
 
 fn argv(changes: &[(&str, &str)], without: &str) -> Vec<String> {
-    let mut argv = vec!["hgm-coding-agent".to_owned()];
+    let mut argv = vec!["rustyhgm-coding-agent".to_owned()];
     for (flag, value) in FLAGS.iter().filter(|(flag, _)| *flag != without) {
         let changed = changes.iter().find(|(f, _)| f == flag);
         argv.push((*flag).to_owned());
@@ -79,7 +79,10 @@ fn a_yes_no_flag_takes_only_true_or_false() {
 
 #[test]
 fn the_swe_patch_file_lives_in_the_outdir() {
-    assert_eq!(args(&[]).patch_file(), Path::new("/hgm/model_patch.diff"));
+    assert_eq!(
+        args(&[]).patch_file(),
+        Path::new("/rustyhgm/model_patch.diff")
+    );
 }
 
 #[test]
