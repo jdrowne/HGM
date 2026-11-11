@@ -1,6 +1,6 @@
 ---
 name: long-running-commands-in-the-background
-description: "Any command that may run past about a minute (cargo test/nextest/llvm-cov/clippy, Docker builds, gh sweeps, CI watches) goes in a background Bash call and ends the turn; never wait in the foreground; gh run watch takes --interval 60"
+description: "Any command that may run past about a minute (cargo test/nextest/llvm-cov/clippy, Docker builds, gh sweeps, CI watches) goes in a background Bash call; never sleep or poll in the foreground; gh run watch takes --interval 60"
 metadata:
   node_type: memory
   type: feedback
@@ -10,13 +10,14 @@ metadata:
 
 # Long-running commands in the background
 
-Run every command that can take more than about a minute with `run_in_background: true`, then end the turn and pick the work back up from its completion notification. In this repo that means workspace test runs (`cargo nextest`, `cargo llvm-cov nextest`), clippy over the workspace, Docker image builds, integration and e2e tiers, sweeps of `gh` calls, and every wait on a CI run.
+Run every command that can take more than about a minute with `run_in_background: true`. Act on its result when the completion notification arrives. In this repo that means workspace test runs (`cargo nextest`, `cargo llvm-cov nextest`), clippy over the workspace, Docker image builds, integration and e2e tiers, sweeps of `gh` calls, and every wait on a CI run.
 
-**Why:** The autopilot reminders are cron jobs, and a cron job fires only while the session sits idle between turns. A foreground command holds the turn, so reminders queue behind it and the user cannot type. A background command frees the turn at once. Adopted from the user's deltahdl repo on 2026-11-11.
+**Why:** The autopilot reminders are cron jobs, and a cron job fires only while the session sits idle between turns. A foreground command holds the turn, so reminders queue behind it and the user cannot type. A background command frees the turn at once. Adopted from the user's deltahdl repo on 2026-11-11. Later that day the user dropped the rule that made work stop while a command ran; nothing requires either stopping or continuing.
 
 **How to apply:**
 
 - Write the output to a file in the scratchpad and read it once the notification arrives.
+- Do not edit files that a running local build or test is compiling, since it would test the edit instead of the state being checked.
 - Bound any command that might hang: macOS has no `timeout`, so use `perl -e 'alarm N; exec @ARGV' <cmd>`.
 - Never follow a background command with a foreground wait. That means no `sleep`, no `until` loop, and no polling its output file.
 - Watch CI with `gh run watch <id> --interval 60 --exit-status` in the background, or with Monitor. The default 3-second poll trips GitHub's secondary rate limit, and that limit clears only after minutes of quiet.
