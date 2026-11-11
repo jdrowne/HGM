@@ -12,7 +12,7 @@ metadata:
 
 Run every command that can take more than about a minute with `run_in_background: true`. Act on its result when the completion notification arrives. In this repo that means workspace test runs (`cargo nextest`, `cargo llvm-cov nextest`), clippy over the workspace, Docker image builds, integration and e2e tiers, sweeps of `gh` calls, and every wait on a CI run.
 
-**Why:** The autopilot reminders are cron jobs, and a cron job fires only while the session sits idle between turns. A foreground command holds the turn, so reminders queue behind it and the user cannot type. A background command frees the turn at once. Adopted from the user's deltahdl repo on 2026-11-11. Later that day the user dropped the rule that made work stop while a command ran; nothing requires either stopping or continuing.
+**Why:** The autopilot reminders are cron jobs, and a cron job fires only while the session sits idle between turns. A foreground command holds the turn, so reminders queue behind it and the user cannot type. A background command frees the turn at once.
 
 **How to apply:**
 

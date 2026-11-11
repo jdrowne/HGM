@@ -13,6 +13,6 @@ The tree is laid out like deltahdl and the 10U-Labs repos, not like Cargo's defa
 - `lib/` is grouped by language, `lib/<language>/<package>/` (`lib/python/store`, `lib/cpp/test_helpers`), and holds support code shared across components. HGM's own crates are product code, so they live in `src/`, as deltahdl's lexer and parser do.
 - `test/` mirrors the tree: `test/src/<component>/<tier>/main.rs`, with golden files in `test/src/<component>/unit/fixtures/`.
 
-**Why:** the user pointed at `..` and `../../` when asking why `lib/` used `src` directories. Those repos are the reference for layout.
+**Why:** deltahdl and the 10U-Labs repos are the reference for layout.
 
 **How to apply:** a new crate goes in `src/<name>/` with flat files and explicit paths in its manifest. Shared Rust test support, if it is ever needed, goes in `lib/rust/<package>/`. Related: [[ci-follows-10u-labs-conventions]], [[no-comments-in-any-file]].

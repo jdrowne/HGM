@@ -19,7 +19,7 @@ Run a change locally only far enough to show it works. That means the tests it a
 
 Push, then read the run for the verdict.
 
-**Why:** A local run earns its time only by answering whether a candidate change works before it is settled on. A full workspace sweep with coverage and Docker tiers takes many minutes and tells nothing one CI run does not. Adopted from the user's deltahdl repo on 2026-11-11.
+**Why:** A local run earns its time only by answering whether a candidate change works before it is settled on. A full workspace sweep with coverage and Docker tiers takes many minutes and tells nothing one CI run does not.
 
 **How to apply:**
 

@@ -11,3 +11,4 @@
 - [Long-running commands in the background](long-running-commands-in-the-background.md) — anything past about a minute (tests, coverage, clippy, Docker, CI watch) runs with run_in_background; gh run watch --interval 60
 - [Checking locally, then verifying through CI](verifying-through-ci.md) — run locally only the new/touched tests and fmt/clippy/no-comments; workspace-wide tests, coverage gate, Docker tiers and platforms are CI's
 - [gh run list --commit takes a full SHA](gh-run-list-commit-takes-a-full-sha.md) — a short SHA returns nothing and a watch loop on it never ends; pass git rev-parse output
+- [Memories carry no history](memories-carry-no-history.md) — the rule and its reason only; no dates, requesters, incidents or origins; a changed rule is rewritten, not annotated

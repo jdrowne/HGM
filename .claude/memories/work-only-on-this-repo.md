@@ -9,6 +9,6 @@ metadata:
 
 Work only on this repo (jdrowne/RustyHGM, the `origin` remote). Do not touch the upstream repo: no issues, PRs, comments, pushes or other writes to the upstream metauto-ai/HGM, and no changes to any other local repo.
 
-**Why:** On 2026-11-10 the user restricted all work to this repo and put the upstream one off limits. This followed my pointing out that gh's default repo for this clone was the `upstream` remote (metauto-ai/HGM), so bare `gh` commands such as `gh pr create` would have targeted it. The user did not say which repo "the other repo" meant; reading it as upstream HGM, and by extension any repo other than this one, is my interpretation.
+**Why:** The user keeps all work in this repo, and upstream metauto-ai/HGM is off limits. This clone has an `upstream` remote, so a bare `gh` command can land on the wrong repo.
 
-**How to apply:** Before any `gh` write (issue, PR, comment), confirm it targets jdrowne/RustyHGM: pass `-R jdrowne/RustyHGM` or check `gh repo view --json nameWithOwner`. Never push to the `upstream` remote. gh's default repo was set to jdrowne/RustyHGM on 2026-11-10; verify it still is rather than assuming.
+**How to apply:** Before any `gh` write (issue, PR, comment), confirm it targets jdrowne/RustyHGM: pass `-R jdrowne/RustyHGM` or check `gh repo view --json nameWithOwner`. Never push to the `upstream` remote. gh's default repo should be jdrowne/RustyHGM; verify it rather than assuming.
