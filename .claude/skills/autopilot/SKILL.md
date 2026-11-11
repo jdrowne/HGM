@@ -1,7 +1,7 @@
 ---
 name: autopilot
-description: Work through the open issues of jdrowne/RustyHGM on a recurring reminder, skipping issues with a skip label. `start [issue]`, `restart [issue]`, `stop`; `--skip-label <label>` repeats, default `needs decision`.
-argument-hint: start [issue] [--skip-label <label>]... | restart [issue] [--skip-label <label>]... | stop
+description: Work through every open issue of jdrowne/RustyHGM on a recurring reminder, skipping issues with any given skip label. `start`, `restart`, `stop`; `--skip-label <label>` repeats.
+argument-hint: start [--skip-label <label>]... | restart [--skip-label <label>]... | stop
 allowed-tools: Bash, CronCreate, CronDelete, CronList
 ---
 
@@ -9,7 +9,7 @@ allowed-tools: Bash, CronCreate, CronDelete, CronList
 
 Arguments: `$ARGUMENTS`
 
-Load the Cron tools with `ToolSearch`. `X` is the given issue number.
+Load the Cron tools with `ToolSearch`.
 
 ## Work list
 
@@ -17,23 +17,24 @@ Load the Cron tools with `ToolSearch`. `X` is the given issue number.
 gh issue list -R jdrowne/RustyHGM --state open --limit 10000 --json number,labels --jq '<filters> map(.number) | sort'
 ```
 
-`<filters>` is `map(select(all(.labels[]; .name != "<label>"))) |` per skip label.
+`<filters>` is `map(select(all(.labels[]; .name != "<label>"))) |` per skip
+label, and empty without skip labels.
 
 ## Reminder
 
 Cron `*/10 * * * *`, recurring. The prompt carries everything it needs, with
-the work list command written out and `<first>` the first skip label:
+the work list command written out:
 
 ```text
-REMINDER (autopilot) Priority: #X. Skip labels: <labels>.
+REMINDER (autopilot) Skip labels: <labels>.
 1. Run: <work list command>
 2. Empty: load the Cron tools with ToolSearch, delete every job whose prompt starts with "REMINDER (autopilot)", tell the user.
-3. Otherwise work on #X if listed, else the lowest number, until it closes.
-4. If it needs a person: add the label "<first>" to it, comment why, move on to the next.
+3. Otherwise work each listed issue from the lowest number until it closes, passing over any whose last comment says it needs a person.
+4. If one needs a person: comment why, add the label "<first>" to it, move on to the next.
 ```
 
-Omit `Priority: #X.` without `X`, and the `#X if listed, else` wording with it.
-Keep at most one such job.
+`<first>` is the first skip label. Without skip labels, write `Skip labels:
+none.` and leave the label clause out of step 4. Keep at most one such job.
 
 ## `start`
 
@@ -43,7 +44,7 @@ working.
 
 ## `restart`
 
-Keep `X` and labels from the old prompt unless given. Delete it, then `start`.
+Keep the skip labels from the old prompt unless given. Delete it, then `start`.
 
 ## `stop`
 
