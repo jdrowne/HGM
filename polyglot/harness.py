@@ -114,7 +114,9 @@ def process_entry(
             "/hgm/llm_withtools.py",
         )
         copy_to_container(
-            container, os.path.join(init_agent_path, "LICENSE"), "/hgm/LICENSE"
+            container,
+            os.path.join(init_agent_path, "LICENSE.txt"),
+            "/hgm/LICENSE.txt",
         )
         chat_history_file_container = f"/hgm/{chat_history_file.name}"
 
