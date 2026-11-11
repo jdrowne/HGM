@@ -23,7 +23,10 @@ One run does the whole job:
 
 ```sh
 target/release/hgm \
-  --self_improve_llm gpt-5-mini --downstream_llm gpt-5-mini --diagnose_llm gpt-5-mini \
+  --self_improve_llm gpt-5-mini --self_improve_provider openai --self_improve_base_url https://api.openai.com/v1 \
+  --downstream_llm gpt-5-mini --downstream_provider openai --downstream_base_url https://api.openai.com/v1 \
+  --diagnose_llm gpt-5-mini --diagnose_provider openai --diagnose_base_url https://api.openai.com/v1 \
+  --api_key_file ~/.config/hgm/api_key \
   --alpha 0.6 --beta 1.0 --cool_down false --eval_random_level 1.0 \
   --n_pseudo_descendant_evals 10000 --expansion_statistic clade --epsilon 0.01 \
   --max_workers 20 --max_task_evals 100 --self_improve_timeout 3600 --evaluation_timeout 3600 \
@@ -37,7 +40,7 @@ target/release/hgm \
 ### Before a run
 
 - **Docker.** Every build, self-edit and task runs in a container. `HGM_DOCKER` names a different Docker-compatible program.
-- **A model API key.** Models whose names contain `gpt` or start with `o` use `OPENAI_API_KEY`. Every other model goes through OpenRouter with `OpenRouter_API_KEY`.
+- **A model API key in a file.** `--api_key_file` names a file that holds only the key. `hgm` checks it can read the file before any work starts, and mounts it read-only into each container that runs the agent. Keep it outside the repository, so it never ends up in an agent's source or image.
 - **Python 3 with the `swebench` package** for SWE-bench grading. `HGM_SWEBENCH_PYTHON` picks the interpreter.
 - **git**, for fetching the Polyglot benchmark and writing the best agent's source.
 
@@ -48,8 +51,15 @@ Every setting is a required flag with no default, so the command line alone says
 | Flag | What it sets |
 | --- | --- |
 | `--self_improve_llm <model>` | Model the agent uses while it edits itself |
+| `--self_improve_provider <openai\|openrouter\|vllm>` | Service that serves `--self_improve_llm` |
+| `--self_improve_base_url <url>` | Address of that service, as the agent's container reaches it |
 | `--downstream_llm <model>` | Model the agent uses while it solves tasks |
+| `--downstream_provider <openai\|openrouter\|vllm>` | Service that serves `--downstream_llm` |
+| `--downstream_base_url <url>` | Address of that service, as the agent's container reaches it |
 | `--diagnose_llm <model>` | Model that turns a failure into a change request |
+| `--diagnose_provider <openai\|openrouter\|vllm>` | Service that serves `--diagnose_llm` |
+| `--diagnose_base_url <url>` | Address of that service, as `hgm` reaches it |
+| `--api_key_file <file>` | File holding the key sent to every service |
 | `--alpha <x>` | How bushy the tree grows: more children per evaluation as it rises |
 | `--beta <x>` | How fast `--cool_down` sharpens; ignored without it |
 | `--cool_down <true\|false>` | Sharpens every draw as the budget runs out |
@@ -82,11 +92,6 @@ The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout`
 
 | Variable | What it sets |
 | --- | --- |
-| `OPENAI_API_KEY` | Key for OpenAI models; passed into the agent's containers |
-| `OpenRouter_API_KEY` | Key for every other model; passed into the agent's containers |
-| `ANTHROPIC_API_KEY`, `AWS_REGION`, `AWS_REGION_NAME`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Passed into the agent's containers unchanged |
-| `OPENAI_BASE_URL` | Endpoint for OpenAI models on the host |
-| `HGM_LLM_BASE_URL` | One endpoint for every model on the host |
 | `HGM_SWEBENCH_PYTHON` | Python interpreter that runs `swebench` grading, `python3` by default |
 | `HGM_HF_ENDPOINT` | Hugging Face mirror for datasets, `https://huggingface.co` by default |
 | `HGM_DATA_DIR` | Dataset cache, `~/.cache/hgm/datasets` by default |
@@ -95,19 +100,22 @@ The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout`
 
 ### The agent binary
 
-The harness also builds `hgm-agent`, the agent being evolved, and runs it inside containers. It can be run by hand to watch one attempt, with `cargo run -p hgm-agent -- <flags>`.
+The harness also builds `hgm-agent`, the agent being evolved, and runs it inside containers. It can be run by hand to watch one attempt, with `cargo run -p hgm-agent -- <flags>`. It reads no environment variables, and every flag but `--instance_id` is required.
 
-| Flag | Default | What it sets |
-| --- | --- | --- |
-| `--problem_statement <text>` | required | The task or change request |
-| `--git_dir <dir>` | required | The repository to work in |
-| `--base_commit <sha>` | required | The commit the final diff is taken against |
-| `--chat_history_file <file>` | required | Where the conversation log is written |
-| `--outdir <dir>` | `/hgm/` | Where `model_patch.diff` is written |
-| `--model <model>` | `gpt-5`, or `anthropic/claude-sonnet-4` with `--polyglot` | Model to use |
-| `--timeout <secs>` | `3600` | Time limit for the attempt |
-| `--self_improve` | off | Edits the agent's own source rather than solving a task |
-| `--polyglot` | off | Uses Polyglot prompts and tests |
-| `--language <lang>` | `python` | Polyglot task language: `cpp`, `java`, `python`, `go`, `rust` or `javascript` |
-| `--test_description <text>` | none | How to run the repository's tests |
-| `--instance_id <id>` | none | The task's ID, used for logging |
+| Flag | What it sets |
+| --- | --- |
+| `--problem_statement <text>` | The task or change request |
+| `--git_dir <dir>` | The repository to work in |
+| `--base_commit <sha>` | The commit the final diff is taken against |
+| `--chat_history_file <file>` | Where the conversation log is written |
+| `--outdir <dir>` | Where `model_patch.diff` is written; empty means the working directory |
+| `--test_description <text>` | How to run the repository's tests |
+| `--self_improve <true\|false>` | Whether it edits the agent's own source rather than solving a task |
+| `--polyglot <true\|false>` | Whether it uses Polyglot prompts and tests |
+| `--language <lang>` | Task language: `cpp`, `java`, `python`, `go`, `rust` or `javascript` |
+| `--model <model>` | Model to use |
+| `--provider <openai\|openrouter\|vllm>` | Service that serves the model |
+| `--base_url <url>` | Address of that service |
+| `--api_key_file <file>` | File holding the service's key |
+| `--timeout <secs>` | Time limit for the attempt |
+| `--instance_id <id>` | Optional: the task's ID, used for logging |

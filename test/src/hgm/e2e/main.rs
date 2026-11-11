@@ -13,10 +13,17 @@ fn binary(name: &str) -> PathBuf {
         })
 }
 
-const SETTINGS: [(&str, &str); 18] = [
+const SETTINGS: [(&str, &str); 25] = [
     ("--self_improve_llm", "m"),
+    ("--self_improve_provider", "openrouter"),
+    ("--self_improve_base_url", "http://127.0.0.1:9/v1"),
     ("--downstream_llm", "m"),
+    ("--downstream_provider", "openrouter"),
+    ("--downstream_base_url", "http://127.0.0.1:9/v1"),
     ("--diagnose_llm", "m"),
+    ("--diagnose_provider", "openrouter"),
+    ("--diagnose_base_url", "http://127.0.0.1:9/v1"),
+    ("--api_key_file", "key"),
     ("--alpha", "0.6"),
     ("--beta", "1.0"),
     ("--cool_down", "false"),
@@ -134,7 +141,12 @@ fn hgm_without_its_flags_names_them() {
     assert!(hgm_with(&[]).stderr.contains("--initial_agent_name <NAME>"));
 }
 
+fn key_file(dir: &std::path::Path) {
+    std::fs::write(dir.join("key"), "k\n").unwrap();
+}
+
 fn hgm_in(dir: &std::path::Path) -> Command {
+    key_file(dir);
     let mut cmd = Command::new(binary("hgm"));
     cmd.current_dir(dir)
         .env("HGM_DATA_DIR", dir.join("cache"))
@@ -475,6 +487,31 @@ fn missing_records() -> Ran {
             c.args(flags(&[("--continue_from", "output_hgm/none")]));
         },
     )
+}
+
+fn keyless() -> Ran {
+    in_root(
+        |_| {},
+        |c| {
+            c.args(flags(&[("--api_key_file", "gone")]));
+        },
+    )
+}
+
+#[test]
+fn a_run_without_its_key_file_fails() {
+    assert_eq!(keyless().code, Some(1));
+}
+
+#[test]
+fn a_run_without_its_key_file_names_it() {
+    let ran = keyless();
+    let named = format!("{}gone: ", std::path::MAIN_SEPARATOR);
+    assert!(
+        ran.stderr.starts_with("hgm: ") && ran.stderr.contains(&named),
+        "{}",
+        ran.stderr
+    );
 }
 
 #[test]

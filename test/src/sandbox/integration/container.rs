@@ -246,6 +246,7 @@ fn run_detached_as_applies_the_user_platform_and_cpus() {
         user: Some("1234".into()),
         platform: Some(platform),
         nano_cpus: Some(500_000_000),
+        read_only_mounts: Vec::new(),
         command: vec!["tail".into(), "-f".into(), "/dev/null".into()],
     };
     let c = Running(
@@ -261,6 +262,47 @@ fn run_detached_as_applies_the_user_platform_and_cpus() {
     assert_eq!(
         c.0.sh("id -u", &ExecOptions::default()).unwrap().text(),
         "1234\n"
+    );
+}
+
+fn mounted() -> (tempfile::TempDir, Running) {
+    let tmp = tempfile::tempdir().unwrap();
+    let key = tmp.path().join("key");
+    std::fs::write(&key, "secret\n").unwrap();
+    let opts = RunOptions {
+        read_only_mounts: vec![(key, "/run/key".into())],
+        command: vec!["tail".into(), "-f".into(), "/dev/null".into()],
+        ..RunOptions::default()
+    };
+    let c = docker()
+        .run_detached_as(
+            BASE_IMAGE,
+            &unique("hgm-sandbox-mount"),
+            &opts,
+            &Log::discard(),
+        )
+        .unwrap();
+    (tmp, Running(c))
+}
+
+#[test]
+fn a_read_only_mount_is_readable_in_the_container() {
+    let (_tmp, c) = mounted();
+    assert_eq!(
+        c.0.sh("cat /run/key", &ExecOptions::default())
+            .unwrap()
+            .text(),
+        "secret\n"
+    );
+}
+
+#[test]
+fn a_read_only_mount_cannot_be_written_in_the_container() {
+    let (_tmp, c) = mounted();
+    assert!(
+        !c.0.sh("echo x > /run/key", &ExecOptions::default())
+            .unwrap()
+            .success()
     );
 }
 

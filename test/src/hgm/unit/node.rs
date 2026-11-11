@@ -11,7 +11,7 @@ use hgm_core::pyjson::PyValue;
 use hgm_sandbox::Docker;
 use serde_json::json;
 
-use crate::common::{FakeBench, FakeBuild, node, performance, read_json, write_json};
+use crate::common::{FakeBench, FakeBuild, node, performance, read_json, service, write_json};
 
 fn strings(items: &[&str]) -> Vec<String> {
     items.iter().map(|s| (*s).to_owned()).collect()
@@ -390,6 +390,7 @@ fn polyglot_harness(root: &Path) -> polyglot::Harness {
         machine: "x86_64".into(),
         namespace: "pb".into(),
         llm: "m".into(),
+        service: service(),
         timeout: 1,
     }
 }
@@ -462,6 +463,7 @@ fn the_swe_bench_fails_when_the_dataset_cannot_load() {
             cache_dir: root.join("cache"),
         },
         llm: "m".into(),
+        service: service(),
         timeout: 1,
     };
     fs::create_dir_all(root.join("out/c")).unwrap();
@@ -503,6 +505,7 @@ fn swe_run() -> (tempfile::TempDir, Vec<f64>) {
             cache_dir: root.join("cache"),
         },
         llm: "m".into(),
+        service: service(),
         timeout: 1,
     };
     let out = root.join("out");

@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
+use hgm_agent::llm::Service;
 use hgm_agent::testrepo::{TestRepo, get_test_description};
 use hgm_core::log::Log;
 use hgm_core::pyjson::{PyValue, dumps};
@@ -11,7 +12,7 @@ use serde_json::Value;
 
 use crate::polyglot_build::Images;
 use crate::polyglot_spec::{TestSpec, get_eval_script, make_test_spec, test_cmd, test_commands};
-use crate::swe::{AGENT_ENV, AGENT_PATH, Run, Step, message, run_logged, run_step};
+use crate::swe::{AGENT_PATH, Run, Step, key_mount, message, run_logged, run_step, service_flags};
 
 pub const DATASET: &str = "polyglot/polyglot_benchmark_metadata.json";
 
@@ -23,6 +24,7 @@ pub struct Harness {
     pub machine: String,
     pub namespace: String,
     pub llm: String,
+    pub service: Service,
     pub timeout: u64,
 }
 
@@ -102,7 +104,8 @@ impl Harness {
         let base_commit = text(job.entry, "base_commit");
         let test_description = get_test_description(&test_cmd(&language), TestRepo::Polyglot);
         log.info("Running the agent");
-        let argv = [
+        let service = service_flags(&self.service);
+        let mut argv = vec![
             "timeout",
             &timeout,
             AGENT_PATH,
@@ -118,7 +121,10 @@ impl Harness {
             "/hgm/",
             "--test_description",
             &test_description,
+            "--self_improve",
+            "false",
             "--polyglot",
+            "true",
             "--language",
             &language,
             "--model",
@@ -126,8 +132,8 @@ impl Harness {
             "--timeout",
             &timeout,
         ];
-        let env = ExecOptions::workdir("/testbed/").passthrough_env(&AGENT_ENV);
-        run_logged(container, &argv, &env, log)
+        argv.extend(service.iter().map(String::as_str));
+        run_logged(container, &argv, &ExecOptions::workdir("/testbed/"), log)
             .map(drop)
             .map_err(message)
     }
@@ -236,7 +242,13 @@ impl Harness {
             docker: &self.docker,
             root: &self.root,
         };
-        let started = container.insert(images.build_container(&spec, &run_id, log, true)?);
+        let started = container.insert(images.build_container(
+            &spec,
+            &run_id,
+            &key_mount(&self.service),
+            log,
+            true,
+        )?);
         self.setup(job, started, log)?;
         self.solve(job, started, log)?;
         let patch = model_patch.insert(self.collect(job, started, log)?);

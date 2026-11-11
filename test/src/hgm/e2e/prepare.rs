@@ -4,7 +4,7 @@ use std::process::{Command, Output};
 
 use serde_json::{Value, json};
 
-use super::{binary, flags};
+use super::{binary, flags, key_file};
 
 const BENCH: &str = "polyglot/polyglot-benchmark";
 const COMMITS: &str = "polyglot_benchmark_commits.json";
@@ -51,6 +51,7 @@ fn prepare(root: &Path, repo: &str) -> Output {
 
 fn prepare_with(root: &Path, repo: Option<&str>, path: Option<&Path>) -> Output {
     fs::create_dir_all(root).unwrap();
+    key_file(root);
     let mut cmd = Command::new(binary("hgm"));
     cmd.args(flags(&[
         ("--polyglot", "true"),

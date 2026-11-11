@@ -2,9 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use hgm_agent::llm::{Client, extract_json_between_markers, get_response_from_llm};
+use hgm_agent::llm::{Client, Service, extract_json_between_markers, get_response_from_llm};
 use hgm_agent::testrepo::{TestRepo, get_test_description};
-use hgm_bench::swe::{AGENT_ENV, Step, message, run_logged, run_step};
+use hgm_bench::swe::{Step, key_mount, message, run_logged, run_step, service_flags};
 use hgm_core::log::Log;
 use hgm_core::metadata::{MODEL_PATCH_FILE, model_patch_paths, read_overall_performance};
 use hgm_core::prompts::{
@@ -13,7 +13,7 @@ use hgm_core::prompts::{
     get_problem_description_prompt,
 };
 use hgm_core::pyjson::PyValue;
-use hgm_sandbox::{Container, Docker, ExecOptions};
+use hgm_sandbox::{Container, Docker, ExecOptions, RunOptions};
 use rand::seq::IndexedRandom;
 use rand::{Rng, RngExt};
 use serde_json::Value;
@@ -121,6 +121,7 @@ pub struct SelfImprove {
     pub image_name: String,
     pub diagnose: Client,
     pub self_improve_llm: String,
+    pub self_improve_service: Service,
     pub timeout: u64,
 }
 
@@ -198,18 +199,21 @@ impl SelfImprove {
             "--test_description",
             &test_description,
             "--self_improve",
+            "true",
+            "--polyglot",
+            if self.polyglot { "true" } else { "false" },
+            "--language",
+            "rust",
             "--model",
             &self.self_improve_llm,
             "--timeout",
             &timeout,
         ];
-        argv.extend(self.polyglot.then_some("--polyglot"));
+        let service = service_flags(&self.self_improve_service);
+        argv.extend(service.iter().map(String::as_str));
         let patch = attempt.run_dir.join(MODEL_PATCH_FILE);
         container
-            .exec(
-                &argv,
-                &ExecOptions::workdir("/").passthrough_env(&AGENT_ENV),
-            )
+            .exec(&argv, &ExecOptions::workdir("/"))
             .and_then(|r| r.log(log, false))
             .and_then(|()| {
                 container.copy_out(CHAT_HISTORY, &attempt.run_dir.join("self_evo.md"), log)
@@ -234,7 +238,14 @@ impl SelfImprove {
                 self.docker
                     .ensure_image(&self.root_dir, &self.image_name, false, log)
             })
-            .and_then(|()| self.docker.run_detached(&self.image_name, &name, log))
+            .and_then(|()| {
+                let opts = RunOptions {
+                    read_only_mounts: key_mount(&self.self_improve_service),
+                    ..RunOptions::default()
+                };
+                self.docker
+                    .run_detached_as(&self.image_name, &name, &opts, log)
+            })
             .map_err(message)?;
         let started = container.insert(started);
         let patch_files = model_patch_paths(&self.output_dir, "", attempt.parent_commit)

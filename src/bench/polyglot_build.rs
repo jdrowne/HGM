@@ -301,6 +301,7 @@ impl Images<'_> {
         &self,
         spec: &TestSpec,
         run_id: &str,
+        read_only_mounts: &[(PathBuf, String)],
         log: &Log,
         nocache: bool,
     ) -> Result<Container, String> {
@@ -311,6 +312,7 @@ impl Images<'_> {
             user: Some("root".to_owned()),
             platform: Some(spec.platform().to_owned()),
             nano_cpus: None,
+            read_only_mounts: read_only_mounts.to_vec(),
             command: ["tail", "-f", "/dev/null"].map(str::to_owned).to_vec(),
         };
         self.docker

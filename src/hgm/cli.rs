@@ -1,4 +1,7 @@
+use std::path::{Path, PathBuf};
+
 use clap::{ArgAction, Parser};
+use hgm_agent::llm::{Provider, Service, read_api_key};
 use hgm_core::config::{
     EvaluationConfig, ExecutionConfig, ExpansionStatistic, HgmConfig, LlmConfig,
     OptimizationConfig, PathConfig,
@@ -9,10 +12,24 @@ use hgm_core::config::{
 pub struct Cli {
     #[arg(long = "self_improve_llm", value_name = "MODEL")]
     pub self_improve_llm: String,
+    #[arg(long = "self_improve_provider", value_enum)]
+    pub self_improve_provider: Provider,
+    #[arg(long = "self_improve_base_url", value_name = "URL")]
+    pub self_improve_base_url: String,
     #[arg(long = "downstream_llm", value_name = "MODEL")]
     pub downstream_llm: String,
+    #[arg(long = "downstream_provider", value_enum)]
+    pub downstream_provider: Provider,
+    #[arg(long = "downstream_base_url", value_name = "URL")]
+    pub downstream_base_url: String,
     #[arg(long = "diagnose_llm", value_name = "MODEL")]
     pub diagnose_llm: String,
+    #[arg(long = "diagnose_provider", value_enum)]
+    pub diagnose_provider: Provider,
+    #[arg(long = "diagnose_base_url", value_name = "URL")]
+    pub diagnose_base_url: String,
+    #[arg(long = "api_key_file", value_name = "FILE")]
+    pub api_key_file: PathBuf,
     #[arg(long, value_name = "X")]
     pub alpha: f64,
     #[arg(long, value_name = "X")]
@@ -55,7 +72,31 @@ pub struct Cli {
     pub holdout_tasks: Option<usize>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Services {
+    pub self_improve: Service,
+    pub downstream: Service,
+    pub diagnose: Service,
+    pub api_key: String,
+}
+
 impl Cli {
+    pub fn services(&self, root_dir: &Path) -> Result<Services, String> {
+        let api_key_file = root_dir.join(&self.api_key_file);
+        let api_key = read_api_key(&api_key_file)?;
+        let service = |provider: Provider, base_url: &str| Service {
+            provider,
+            base_url: base_url.to_owned(),
+            api_key_file: api_key_file.clone(),
+        };
+        Ok(Services {
+            self_improve: service(self.self_improve_provider, &self.self_improve_base_url),
+            downstream: service(self.downstream_provider, &self.downstream_base_url),
+            diagnose: service(self.diagnose_provider, &self.diagnose_base_url),
+            api_key,
+        })
+    }
+
     pub fn config(&self) -> HgmConfig {
         HgmConfig {
             llm: LlmConfig {

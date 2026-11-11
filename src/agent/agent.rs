@@ -4,11 +4,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Instant;
 
-use clap::{Parser, ValueEnum};
+use clap::{ArgAction, Parser, ValueEnum};
 
 use crate::git::diff_versus_commit;
-use crate::llm::create_client;
-use crate::withtools::{CLAUDE_MODEL, Chat, OPENAI_MODEL};
+use crate::llm::{Client, Provider, Service, create_client};
+use crate::withtools::Chat;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Language {
@@ -35,31 +35,37 @@ pub struct Args {
     pub base_commit: String,
     #[arg(long = "chat_history_file")]
     pub chat_history_file: PathBuf,
-    #[arg(long, default_value = "/hgm/")]
+    #[arg(long)]
     pub outdir: String,
     #[arg(long = "test_description")]
-    pub test_description: Option<String>,
-    #[arg(long = "self_improve")]
+    pub test_description: String,
+    #[arg(long = "self_improve", action = ArgAction::Set, required = true, value_name = "BOOL")]
     pub self_improve: bool,
     #[arg(long = "instance_id")]
     pub instance_id: Option<String>,
-    #[arg(long)]
+    #[arg(long, action = ArgAction::Set, required = true, value_name = "BOOL")]
     pub polyglot: bool,
-    #[arg(long, value_enum, default_value = "python")]
+    #[arg(long, value_enum)]
     pub language: Language,
     #[arg(long)]
-    pub model: Option<String>,
-    #[arg(long, default_value_t = 3600)]
+    pub model: String,
+    #[arg(long, value_enum)]
+    pub provider: Provider,
+    #[arg(long = "base_url")]
+    pub base_url: String,
+    #[arg(long = "api_key_file")]
+    pub api_key_file: PathBuf,
+    #[arg(long)]
     pub timeout: i64,
 }
 
 impl Args {
-    pub fn model(&self) -> &str {
-        self.model.as_deref().unwrap_or(if self.polyglot {
-            CLAUDE_MODEL
-        } else {
-            OPENAI_MODEL
-        })
+    pub fn service(&self) -> Service {
+        Service {
+            provider: self.provider,
+            base_url: self.base_url.clone(),
+            api_key_file: self.api_key_file.clone(),
+        }
     }
 
     pub fn instruction(&self) -> String {
@@ -70,7 +76,7 @@ impl Args {
                 "I have uploaded a code repository in the directory {dir}. Help solve the following problem.\n\n<problem_description>\n{problem}\n</problem_description>\n\nYour task is to make changes to the files in the {dir} directory to address the <problem_description>. I have already taken care of the required dependencies.\n\n\nPlease analyze the problem description carefully. Then make edits to the code files to complete the instruction."
             );
         }
-        let tests = self.test_description.as_deref().unwrap_or("None");
+        let tests = &self.test_description;
         format!(
             "I have uploaded a Python code repository in the directory {dir}. Help solve the following problem.\n\n<problem_description>\n{problem}\n</problem_description>\n\n<test_description>\n{tests}\n</test_description>\n\nYour task is to make changes to the files in the {dir} directory to address the <problem_description>. I have already taken care of the required dependencies.\n"
         )
@@ -110,11 +116,10 @@ impl ChatLog {
     }
 }
 
-pub fn forward(args: &Args, log: &ChatLog) {
+pub fn forward(args: &Args, client: Client, log: &ChatLog) {
     let start = Instant::now();
-    let model = args.model();
     let sink = |m: &str| log.log(m);
-    let mut chat = Chat::new(create_client(model), &sink);
+    let mut chat = Chat::new(client, &sink);
     chat.timeout = if args.polyglot {
         args.timeout as f64
     } else {
@@ -123,9 +128,11 @@ pub fn forward(args: &Args, log: &ChatLog) {
     chat.run(&args.instruction(), &[]);
 }
 
-pub fn run(args: &Args) -> std::io::Result<()> {
-    let log = ChatLog::create(&args.chat_history_file)?;
-    forward(args, &log);
-    let patch = diff_versus_commit(&args.git_dir, &args.base_commit)?;
-    fs::write(args.patch_file(), patch)
+pub fn run(args: &Args) -> Result<(), String> {
+    let client = create_client(&args.model, &args.service())?;
+    let log = ChatLog::create(&args.chat_history_file).map_err(|e| e.to_string())?;
+    forward(args, client, &log);
+    diff_versus_commit(&args.git_dir, &args.base_commit)
+        .and_then(|patch| fs::write(args.patch_file(), patch))
+        .map_err(|e| e.to_string())
 }

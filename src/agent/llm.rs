@@ -1,23 +1,38 @@
 use std::fmt;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use std::time::Duration;
 
+use clap::ValueEnum;
 use regex::Regex;
 use serde_json::{Value, json};
 
 pub const MAX_OUTPUT_TOKENS: u64 = 4096;
 
-pub const OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum Provider {
+    #[value(name = "openai")]
+    OpenAi,
+    #[value(name = "vllm")]
+    Vllm,
+    #[value(name = "openrouter")]
+    OpenRouter,
+}
 
-pub const OPENROUTER_BASE_URL: &str = "https://openrouter.ai/api/v1";
-
-pub const BASE_URL_ENV: &str = "HGM_LLM_BASE_URL";
+impl Provider {
+    pub fn name(self) -> String {
+        self.to_possible_value()
+            .map(|v| v.get_name().to_owned())
+            .expect("every provider has a name")
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Provider {
-    OpenAi,
-    Vllm,
-    OpenRouter,
+pub struct Service {
+    pub provider: Provider,
+    pub base_url: String,
+    pub api_key_file: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -47,34 +62,25 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-pub fn create_client(model: &str) -> Client {
-    let (provider, base_url, api_key) = if model.contains("gpt") || model.starts_with('o') {
-        (
-            Provider::OpenAi,
-            std::env::var("OPENAI_BASE_URL").unwrap_or_else(|_| OPENAI_BASE_URL.to_owned()),
-            std::env::var("OPENAI_API_KEY").ok(),
-        )
-    } else if model.to_lowercase().contains("vllm") {
-        let host: String = model.chars().skip(11).collect();
-        (
-            Provider::Vllm,
-            format!("http://{host}:8000/v1"),
-            Some("dummy".to_owned()),
-        )
-    } else {
-        (
-            Provider::OpenRouter,
-            OPENROUTER_BASE_URL.to_owned(),
-            std::env::var("OpenRouter_API_KEY").ok(),
-        )
-    };
-    let base_url = std::env::var(BASE_URL_ENV).unwrap_or(base_url);
-    Client {
-        provider,
-        model: model.to_owned(),
-        base_url,
-        api_key,
+pub fn read_api_key(path: &Path) -> Result<String, String> {
+    fs::read_to_string(path)
+        .map(|key| key.trim().to_owned())
+        .map_err(|e| format!("{}: {e}", path.display()))
+}
+
+impl Service {
+    pub fn client(&self, model: &str, api_key: &str) -> Client {
+        Client {
+            provider: self.provider,
+            model: model.to_owned(),
+            base_url: self.base_url.clone(),
+            api_key: Some(api_key.to_owned()),
+        }
     }
+}
+
+pub fn create_client(model: &str, service: &Service) -> Result<Client, String> {
+    read_api_key(&service.api_key_file).map(|key| service.client(model, &key))
 }
 
 fn agent() -> ureq::Agent {

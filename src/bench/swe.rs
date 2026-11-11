@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
+use hgm_agent::llm::Service;
 use hgm_agent::testrepo::{TestRepo, get_test_description};
 use hgm_core::log::Log;
 use hgm_core::pyjson::{PyValue, dumps};
@@ -14,15 +15,22 @@ use crate::swebench::{Swebench, TestSpec};
 
 pub const AGENT_PATH: &str = "/hgm/hgm-agent";
 
-pub const AGENT_ENV: [&str; 7] = [
-    "ANTHROPIC_API_KEY",
-    "AWS_REGION",
-    "AWS_REGION_NAME",
-    "AWS_ACCESS_KEY_ID",
-    "AWS_SECRET_ACCESS_KEY",
-    "OPENAI_API_KEY",
-    "OpenRouter_API_KEY",
-];
+pub const AGENT_KEY: &str = "/run/hgm/api_key";
+
+pub fn key_mount(service: &Service) -> Vec<(PathBuf, String)> {
+    vec![(service.api_key_file.clone(), AGENT_KEY.to_owned())]
+}
+
+pub fn service_flags(service: &Service) -> [String; 6] {
+    [
+        "--provider".to_owned(),
+        service.provider.name(),
+        "--base_url".to_owned(),
+        service.base_url.clone(),
+        "--api_key_file".to_owned(),
+        AGENT_KEY.to_owned(),
+    ]
+}
 
 #[derive(Clone, Debug)]
 pub struct Harness {
@@ -30,6 +38,7 @@ pub struct Harness {
     pub swebench: Swebench,
     pub hub: Hub,
     pub llm: String,
+    pub service: Service,
     pub timeout: u64,
 }
 
@@ -127,6 +136,7 @@ impl Harness {
             user: Some(job.spec.user.clone()),
             platform: Some(job.spec.platform.clone()),
             nano_cpus: job.spec.nano_cpus,
+            read_only_mounts: key_mount(&self.service),
             command: ["tail", "-f", "/dev/null"].map(str::to_owned).to_vec(),
         };
         self.docker
@@ -160,7 +170,8 @@ impl Harness {
         let base_commit = text(job.entry, "base_commit");
         let test_description = get_test_description(&job.spec.eval_script, TestRepo::Swe);
         log.info("Running the agent");
-        let argv = [
+        let service = service_flags(&self.service);
+        let mut argv = vec![
             "timeout",
             &timeout,
             AGENT_PATH,
@@ -178,13 +189,19 @@ impl Harness {
             &test_description,
             "--instance_id",
             instance_id,
+            "--self_improve",
+            "false",
+            "--polyglot",
+            "false",
+            "--language",
+            "python",
             "--model",
             &self.llm,
             "--timeout",
             &timeout,
         ];
-        let env = ExecOptions::workdir("/").passthrough_env(&AGENT_ENV);
-        run_logged(container, &argv, &env, log)
+        argv.extend(service.iter().map(String::as_str));
+        run_logged(container, &argv, &ExecOptions::workdir("/"), log)
             .map(drop)
             .map_err(message)
     }

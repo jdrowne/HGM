@@ -17,7 +17,7 @@ use rand::rngs::StdRng;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
-use crate::common::{DIAGNOSIS, node, performance, read_json, reply, serve};
+use crate::common::{DIAGNOSIS, node, performance, read_json, reply, serve, service};
 
 fn outcomes(out: &Path, commit: &str, polyglot: bool) -> BTreeSet<String> {
     (0..400)
@@ -322,6 +322,7 @@ fn improver(out: &Path, docker: Docker, dataset: Result<Vec<Value>, String>) -> 
         image_name: "hgm-no-such-image:latest".into(),
         diagnose: client("http://127.0.0.1:9/v1".into()),
         self_improve_llm: "m".into(),
+        self_improve_service: service(),
         timeout: 1,
     }
 }

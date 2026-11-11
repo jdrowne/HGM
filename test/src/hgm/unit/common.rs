@@ -8,12 +8,20 @@ use clap::Parser;
 use hgm::agent_build::Build;
 use hgm::cli::Cli;
 use hgm::node::{Bench, Eval};
+use hgm_agent::llm::{Provider, Service};
 use serde_json::{Value, json};
 
-pub const SETTINGS: [(&str, &str); 18] = [
+pub const SETTINGS: [(&str, &str); 25] = [
     ("--self_improve_llm", "si"),
+    ("--self_improve_provider", "openai"),
+    ("--self_improve_base_url", "http://si/v1"),
     ("--downstream_llm", "ds"),
+    ("--downstream_provider", "vllm"),
+    ("--downstream_base_url", "http://ds/v1"),
     ("--diagnose_llm", "dg"),
+    ("--diagnose_provider", "openrouter"),
+    ("--diagnose_base_url", "http://dg/v1"),
+    ("--api_key_file", "key"),
     ("--alpha", "0.6"),
     ("--beta", "1.0"),
     ("--cool_down", "false"),
@@ -53,6 +61,14 @@ pub fn argv(changes: &[(&str, &str)], without: &[&str]) -> Vec<String> {
 
 pub fn cli(changes: &[(&str, &str)]) -> Cli {
     Cli::try_parse_from(argv(changes, &[])).unwrap()
+}
+
+pub fn service() -> Service {
+    Service {
+        provider: Provider::Vllm,
+        base_url: "http://h/v1".into(),
+        api_key_file: "/no/such/key".into(),
+    }
 }
 
 pub fn write_json(path: &Path, value: &Value) {

@@ -1,5 +1,6 @@
 use clap::Parser;
-use hgm::cli::Cli;
+use hgm::cli::{Cli, Services};
+use hgm_agent::llm::{Provider, Service};
 use serde_json::json;
 
 use crate::common::{SETTINGS, argv, cli};
@@ -76,6 +77,76 @@ fn every_flag_reaches_the_configuration() {
             "evaluation": {"full_eval": true, "polyglot": true},
             "paths": {"output_dir": "out", "continue_from": "prev", "initial_agent_name": "agent"},
         })
+    );
+}
+
+fn services() -> Result<Services, String> {
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join("key"), "k\n").unwrap();
+    cli(&[]).services(tmp.path()).map(|s| Services {
+        self_improve: Service {
+            api_key_file: "key".into(),
+            ..s.self_improve
+        },
+        downstream: Service {
+            api_key_file: "key".into(),
+            ..s.downstream
+        },
+        diagnose: Service {
+            api_key_file: "key".into(),
+            ..s.diagnose
+        },
+        api_key: s.api_key,
+    })
+}
+
+#[test]
+fn each_model_role_has_its_own_service() {
+    let service = |provider, base_url: &str| Service {
+        provider,
+        base_url: base_url.into(),
+        api_key_file: "key".into(),
+    };
+    assert_eq!(
+        services(),
+        Ok(Services {
+            self_improve: service(Provider::OpenAi, "http://si/v1"),
+            downstream: service(Provider::Vllm, "http://ds/v1"),
+            diagnose: service(Provider::OpenRouter, "http://dg/v1"),
+            api_key: "k".into(),
+        })
+    );
+}
+
+#[test]
+fn the_key_file_is_found_from_the_working_directory() {
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join("key"), "k\n").unwrap();
+    assert_eq!(
+        cli(&[])
+            .services(tmp.path())
+            .unwrap()
+            .downstream
+            .api_key_file,
+        tmp.path().join("key")
+    );
+}
+
+#[test]
+fn a_missing_key_file_is_an_error_naming_it() {
+    let tmp = tempfile::tempdir().unwrap();
+    assert!(
+        cli(&[])
+            .services(tmp.path())
+            .unwrap_err()
+            .starts_with(&format!("{}: ", tmp.path().join("key").display()))
+    );
+}
+
+#[test]
+fn an_unknown_provider_is_refused() {
+    assert!(
+        parse_error(&[("--diagnose_provider", "anthropic")], &[]).contains("--diagnose_provider")
     );
 }
 

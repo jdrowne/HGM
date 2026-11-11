@@ -112,6 +112,15 @@ fn repo(root: &Path) -> std::path::PathBuf {
     repo
 }
 
+fn explicit<'a>(cmd: &'a mut Command, root: &Path, provider: &str, base: &str) -> &'a mut Command {
+    let key = root.join("key");
+    fs::write(&key, "k\n").unwrap();
+    cmd.args(["--self_improve", "false", "--timeout", "3600"])
+        .args(["--provider", provider, "--base_url", base])
+        .arg("--api_key_file")
+        .arg(key)
+}
+
 fn stderr(out: &Output) -> String {
     String::from_utf8_lossy(&out.stderr).into_owned()
 }
@@ -139,8 +148,7 @@ fn edited() -> Ran {
     let tmp = tempfile::tempdir().unwrap();
     let repo = repo(tmp.path());
     let (base, seen) = serve();
-    let out = agent()
-        .env("HGM_LLM_BASE_URL", &base)
+    let out = explicit(&mut agent(), tmp.path(), "vllm", &base)
         .args(["--problem_statement", "fix it", "--base_commit", "HEAD"])
         .arg("--git_dir")
         .arg(&repo)
@@ -149,6 +157,7 @@ fn edited() -> Ran {
         .arg("--outdir")
         .arg(tmp.path())
         .args(["--model", "vllm-x", "--test_description", "run it"])
+        .args(["--polyglot", "false", "--language", "python"])
         .output()
         .unwrap();
     Ran { tmp, out, seen }
@@ -210,14 +219,21 @@ fn polyglot() -> Ran {
     let tmp = tempfile::tempdir().unwrap();
     let repo = repo(tmp.path());
     let (base, seen) = serve();
-    let out = agent()
+    let out = explicit(&mut agent(), tmp.path(), "vllm", &base)
         .current_dir(tmp.path())
-        .env("HGM_LLM_BASE_URL", &base)
         .args(["--problem_statement", "fix it", "--base_commit", "HEAD"])
         .arg("--git_dir")
         .arg(&repo)
         .args(["--chat_history_file", "chat.md", "--outdir", ""])
-        .args(["--polyglot", "--language", "rust", "--model", "vllm-x"])
+        .args([
+            "--polyglot",
+            "true",
+            "--language",
+            "rust",
+            "--model",
+            "vllm-x",
+        ])
+        .args(["--test_description", "run it"])
         .output()
         .unwrap();
     Ran { tmp, out, seen }
@@ -260,7 +276,7 @@ fn a_polyglot_instruction_ends_with_the_edit_request() {
 
 fn failing(tmp: &Path, chat: &Path, outdir: &Path) -> Command {
     let mut cmd = agent();
-    cmd.env("HGM_LLM_BASE_URL", "http://127.0.0.1:9/v1")
+    explicit(&mut cmd, tmp, "openrouter", "http://127.0.0.1:9/v1")
         .args([
             "--problem_statement",
             "p",
@@ -269,6 +285,8 @@ fn failing(tmp: &Path, chat: &Path, outdir: &Path) -> Command {
             "--model",
             "qwen",
         ])
+        .args(["--polyglot", "false", "--language", "python"])
+        .args(["--test_description", "t"])
         .arg("--git_dir")
         .arg(tmp)
         .arg("--chat_history_file")
@@ -342,6 +360,33 @@ fn a_missing_git_fails_the_agent() {
 #[test]
 fn a_missing_git_is_reported() {
     assert!(stderr(&without_git()).starts_with("hgm-agent: "));
+}
+
+fn keyless() -> (tempfile::TempDir, Output) {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut cmd = failing(tmp.path(), &tmp.path().join("chat.md"), tmp.path());
+    fs::remove_file(tmp.path().join("key")).unwrap();
+    let out = cmd.output().unwrap();
+    (tmp, out)
+}
+
+#[test]
+fn a_missing_key_file_fails_the_agent() {
+    assert_eq!(keyless().1.status.code(), Some(1));
+}
+
+#[test]
+fn a_missing_key_file_is_reported_by_name() {
+    let (tmp, out) = keyless();
+    assert!(stderr(&out).starts_with(&format!(
+        "hgm-agent: {}: ",
+        tmp.path().join("key").display()
+    )));
+}
+
+#[test]
+fn a_missing_key_file_stops_the_agent_before_the_chat_log() {
+    assert!(!keyless().0.path().join("chat.md").exists());
 }
 
 #[test]

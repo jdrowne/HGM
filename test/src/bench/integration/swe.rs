@@ -16,6 +16,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --instance_id) id=$2; shift ;;
     --chat_history_file) chat=$2; shift ;;
+    --api_key_file) key=$2; shift ;;
   esac
   shift
 done
@@ -23,7 +24,7 @@ case "$mode" in
   fail) echo agent failed; exit 1 ;;
   nohgm) rm -rf /hgm; exit 0 ;;
 esac
-[ "$mode" = nochat ] || echo "chat $id" > "$chat"
+[ "$mode" = nochat ] || echo "chat $id $(cat "$key")" > "$chat"
 echo "more $id" > "/hgm/${id}_1.md"
 [ "$mode" = nopatch ] || echo base > /hgm/model_patch.diff
 echo "proposal $id" > /hgm/model_patch_1.diff
@@ -85,6 +86,7 @@ fn harness(root: &Path, swebench: Swebench) -> Harness {
             cache_dir: root.join("cache"),
         },
         llm: "m".into(),
+        service: crate::service(root),
         timeout: 60,
     }
 }
@@ -209,7 +211,7 @@ fn chat_logs_are_copied_back() {
         full().per_task(|dir, id| text(dir.join(format!("{id}.md")))),
         TASKS[..2]
             .iter()
-            .map(|id| format!("chat {id}\n"))
+            .map(|id| format!("chat {id} secret\n"))
             .collect::<Vec<_>>()
     );
 }

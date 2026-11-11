@@ -16,10 +16,6 @@ fn is_io<T>(r: Result<T, Error>) -> bool {
     matches!(r, Err(Error::Io(_)))
 }
 
-fn passthrough() -> ExecOptions {
-    ExecOptions::default().passthrough_env(&["PATH", "HGM_SURELY_UNSET_VARIABLE"])
-}
-
 #[test]
 fn a_docker_that_cannot_start_is_not_available() {
     assert!(!missing().available());
@@ -155,14 +151,4 @@ fn unbalanced_quotes_are_a_quoting_error() {
         .container("c")
         .exec_str("echo 'a", &ExecOptions::default());
     assert!(matches!(r, Err(Error::Quoting(_))), "{r:?}");
-}
-
-#[test]
-fn passthrough_env_skips_unset_variables() {
-    assert_eq!(passthrough().env.len(), 1);
-}
-
-#[test]
-fn passthrough_env_keeps_path() {
-    assert_eq!(passthrough().env[0].0, "PATH");
 }

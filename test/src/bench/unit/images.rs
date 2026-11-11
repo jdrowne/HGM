@@ -818,7 +818,7 @@ fn containers_are_named_for_the_instance_and_run() {
     let fake = ready();
     let container = fake
         .images()
-        .build_container(&go_spec(), "r1", &Log::discard(), true)
+        .build_container(&go_spec(), "r1", &[], &Log::discard(), true)
         .unwrap();
     assert_eq!(container.name(), "pb.eval.t.r1");
 }
@@ -827,7 +827,7 @@ fn containers_are_named_for_the_instance_and_run() {
 fn containers_start_from_the_instance_image() {
     let fake = ready();
     fake.images()
-        .build_container(&go_spec(), "r1", &Log::discard(), true)
+        .build_container(&go_spec(), "r1", &[], &Log::discard(), true)
         .unwrap();
     let calls = fake.calls();
     assert!(
@@ -845,7 +845,7 @@ fn failed_start() -> (tempfile::TempDir, String) {
     let log = Log::to_file(&dir.path().join("log")).unwrap();
     let e = fake
         .images()
-        .build_container(&go_spec(), "r2", &log, true)
+        .build_container(&go_spec(), "r2", &[], &log, true)
         .unwrap_err();
     (dir, e)
 }
@@ -878,7 +878,7 @@ fn a_container_without_its_images_is_an_error() {
     assert!(
         Fake::new()
             .images()
-            .build_container(&go_spec(), "r3", &Log::discard(), true)
+            .build_container(&go_spec(), "r3", &[], &Log::discard(), true)
             .is_err()
     );
 }

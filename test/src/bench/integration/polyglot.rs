@@ -27,14 +27,15 @@ mode=$(cat /testbed/mode 2>/dev/null)
 while [ $# -gt 0 ]; do
   case "$1" in
     --chat_history_file) chat=$2; shift ;;
+    --api_key_file) key=$2; shift ;;
     --language) lang=$2; shift ;;
-    --polyglot) kind=polyglot ;;
+    --polyglot) [ "$2" = true ] && kind=polyglot; shift ;;
   esac
   shift
 done
 id=$(basename "$chat" .md)
 [ "$mode" = fail ] && { echo agent failed; exit 1; }
-[ "$mode" = nochat ] || echo "chat $id $kind $lang $(pwd)" > "$chat"
+[ "$mode" = nochat ] || echo "chat $id $kind $lang $(pwd) $(cat "$key")" > "$chat"
 echo "more $id" > "/hgm/${id}_1.md"
 [ "$mode" = space ] && echo x > "/hgm/${id}_ x.md"
 case "$mode" in
@@ -133,6 +134,7 @@ fn harness(root: &Path, dataset: PathBuf) -> Harness {
         machine: std::env::consts::ARCH.to_owned(),
         namespace: FAKE.into(),
         llm: "m".into(),
+        service: crate::service(root),
         timeout: 60,
     }
 }
@@ -381,7 +383,7 @@ fn an_empty_patch_is_reported() {
 fn the_chat_log_is_copied_back() {
     assert_eq!(
         shared().text("python__resolved.md"),
-        "chat python__resolved polyglot python /testbed\n"
+        "chat python__resolved polyglot python /testbed secret\n"
     );
 }
 

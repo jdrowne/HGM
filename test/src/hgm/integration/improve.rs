@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use hgm::FAILED;
 use hgm::improve::{Improver, SelfImprove};
-use hgm_agent::llm::{Client, Provider};
+use hgm_agent::llm::{Client, Provider, Service};
 use hgm_sandbox::Docker;
 use serde_json::{Value, json};
 
@@ -38,11 +38,12 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --chat_history_file) chat=$2; shift ;;
     --base_commit) base=$2; shift ;;
-    --polyglot) kind=" polyglot" ;;
+    --api_key_file) key=$2; shift ;;
+    --polyglot) [ "$2" = true ] && kind=" polyglot"; shift ;;
   esac
   shift
 done
-[ "$mode" = nochat ] || echo "improved from $base$kind" > "$chat"
+[ "$mode" = nochat ] || echo "improved from $base$kind with $(cat "$key")" > "$chat"
 if [ "$mode" = nopatch ]; then
   : > /hgm/model_patch.diff
 else
@@ -86,6 +87,12 @@ fn parent(out: &Path, commit: &str, overall: Value, patch: Option<&str>) {
     }
 }
 
+fn key_file(out: &Path) -> PathBuf {
+    let key = out.join("key");
+    fs::write(&key, "secret\n").unwrap();
+    key
+}
+
 fn improver(out: &Path, polyglot: bool, base_url: String, dataset: Vec<Value>) -> SelfImprove {
     SelfImprove {
         docker: Docker::default(),
@@ -101,6 +108,11 @@ fn improver(out: &Path, polyglot: bool, base_url: String, dataset: Vec<Value>) -
             api_key: None,
         },
         self_improve_llm: "m".into(),
+        self_improve_service: Service {
+            provider: Provider::Vllm,
+            base_url: "http://h/v1".into(),
+            api_key_file: key_file(out),
+        },
         timeout: 60,
     }
 }
@@ -230,7 +242,7 @@ fn a_polyglot_child_keeps_the_agent_patch() {
 fn a_polyglot_child_keeps_the_agent_chat() {
     assert_eq!(
         child_text("self_evo.md"),
-        "improved from 0123abc polyglot\n"
+        "improved from 0123abc polyglot with secret\n"
     );
 }
 

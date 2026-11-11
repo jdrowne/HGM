@@ -16,7 +16,7 @@ use hgm_core::log::Log;
 use hgm_sandbox::Docker;
 use serde_json::json;
 
-use crate::common::{FakeBench, FakeBuild, cli, node, performance, read_json};
+use crate::common::{FakeBench, FakeBuild, cli, node, performance, read_json, service};
 
 fn resolved(output_dir: &str) -> (PathBuf, String) {
     resolve_output_dir(output_dir, Path::new("/w"))
@@ -189,7 +189,13 @@ fn bench_error(polyglot: bool) -> String {
     let out = tmp.path().join("out");
     fs::create_dir_all(out.join("c")).unwrap();
     let docker = Docker::new("hgm-no-such-docker-program");
-    let bench = bench_for(&config, tmp.path(), &docker, &offline(tmp.path()));
+    let bench = bench_for(
+        &config,
+        &service(),
+        tmp.path(),
+        &docker,
+        &offline(tmp.path()),
+    );
     Evaluator {
         bench: bench.as_ref(),
         output_dir: &out,
@@ -614,8 +620,28 @@ fn run_args(extra: impl FnOnce(&mut Cli)) -> Cli {
 fn run_error(prepare: impl FnOnce(&Path), extra: impl FnOnce(&mut Cli)) -> String {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
+    fs::write(root.join("key"), "k\n").unwrap();
     prepare(root);
     run(&run_args(extra), root, Duration::ZERO).unwrap_err()
+}
+
+#[test]
+fn a_run_without_its_key_file_stops_before_any_work() {
+    assert!(
+        run_error(
+            |root| fs::remove_file(root.join("key")).unwrap(),
+            |a| a.polyglot = true
+        )
+        .contains("key: ")
+    );
+}
+
+#[test]
+fn a_run_without_its_key_file_fetches_no_polyglot_dataset() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    run(&run_args(|a| a.polyglot = true), root, Duration::ZERO).unwrap_err();
+    assert!(!root.join("polyglot").exists());
 }
 
 #[test]
@@ -706,7 +732,7 @@ fn finished_run() -> (tempfile::TempDir, PathBuf) {
 #[test]
 fn finish_writes_the_best_agent_source_into_the_run() {
     let (_tmp, out) = finished_run();
-    finish(&cli(&[]), &cli(&[]).config(), &out).unwrap();
+    finish(&cli(&[]), &cli(&[]).config(), &service(), &out).unwrap();
     assert_eq!(
         fs::read_to_string(out.join("best_agent/lib.rs")).unwrap(),
         "seed\nchild\n"
@@ -718,7 +744,7 @@ fn finish_needs_the_run_records() {
     let (_tmp, out) = finished_run();
     fs::remove_file(out.join("hgm_metadata.jsonl")).unwrap();
     assert!(
-        finish(&cli(&[]), &cli(&[]).config(), &out)
+        finish(&cli(&[]), &cli(&[]).config(), &service(), &out)
             .unwrap_err()
             .contains("hgm_metadata.jsonl")
     );

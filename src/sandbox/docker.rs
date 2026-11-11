@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use hgm_core::log::Log;
@@ -65,15 +65,6 @@ impl ExecOptions {
         self.env.push((key.into(), value.into()));
         self
     }
-
-    pub fn passthrough_env<S: AsRef<str>>(mut self, keys: &[S]) -> Self {
-        for key in keys {
-            if let Ok(value) = std::env::var(key.as_ref()) {
-                self.env.push((key.as_ref().to_owned(), value));
-            }
-        }
-        self
-    }
 }
 
 pub struct BuildOptions<'a> {
@@ -86,6 +77,7 @@ pub struct RunOptions {
     pub user: Option<String>,
     pub platform: Option<String>,
     pub nano_cpus: Option<u64>,
+    pub read_only_mounts: Vec<(PathBuf, String)>,
     pub command: Vec<String>,
 }
 
@@ -318,6 +310,15 @@ impl Docker {
         }
         if let Some(nano) = opts.nano_cpus {
             args.extend(["--cpus".to_owned(), format!("{}", nano as f64 / 1e9)]);
+        }
+        for (source, target) in &opts.read_only_mounts {
+            args.extend([
+                "--mount".to_owned(),
+                format!(
+                    "type=bind,source={},target={target},readonly",
+                    source.display()
+                ),
+            ]);
         }
         args.push(image.to_owned());
         args.extend(opts.command.iter().cloned());

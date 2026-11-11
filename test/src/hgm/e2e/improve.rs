@@ -210,16 +210,23 @@ fn records(path: &Path) -> Vec<Value> {
         .collect()
 }
 
-fn run_args(host: &str) -> Vec<String> {
-    let llm = format!("vllm-model-{host}");
+fn run_args(host: &str, key: &str) -> Vec<String> {
+    let agent_url = format!("http://{host}:8000/v1");
     flags(&[
+        ("--api_key_file", key),
         ("--polyglot", "true"),
         ("--max_task_evals", "1"),
         ("--max_workers", "1"),
         ("--eval_random_level", "0"),
-        ("--self_improve_llm", &llm),
-        ("--downstream_llm", &llm),
-        ("--diagnose_llm", "vllm-model-127.0.0.1"),
+        ("--self_improve_llm", "vllm-model"),
+        ("--self_improve_provider", "vllm"),
+        ("--self_improve_base_url", &agent_url),
+        ("--downstream_llm", "vllm-model"),
+        ("--downstream_provider", "vllm"),
+        ("--downstream_base_url", &agent_url),
+        ("--diagnose_llm", "vllm-model"),
+        ("--diagnose_provider", "vllm"),
+        ("--diagnose_base_url", "http://127.0.0.1:8000/v1"),
         ("--initial_agent_name", "default_agent"),
         ("--output_dir", "output_hgm/run"),
     ])
@@ -249,7 +256,12 @@ fn scenario(root: &Path) {
     copy_repo(root);
     seed_initial_agent(root);
     let seen = serve_llm();
-    let out: Output = hgm(root).args(run_args(&llm_host())).output().unwrap();
+    let key = root.with_extension("key");
+    fs::write(&key, "k\n").unwrap();
+    let out: Output = hgm(root)
+        .args(run_args(&llm_host(), &key.to_string_lossy()))
+        .output()
+        .unwrap();
     let outcome = json!({
         "code": out.status.code(),
         "stdout": String::from_utf8_lossy(&out.stdout),

@@ -1,6 +1,6 @@
 use hgm_agent::llm::{
-    Client, Error, MAX_OUTPUT_TOKENS, Provider, create_client, extract_json_between_markers,
-    get_response_from_llm, message,
+    Client, Error, MAX_OUTPUT_TOKENS, Provider, Service, create_client,
+    extract_json_between_markers, get_response_from_llm, message, read_api_key,
 };
 use serde_json::{Value, json};
 
@@ -19,35 +19,64 @@ fn extract_json_matches_the_python() {
     assert_eq!(mismatches, Vec::<String>::new());
 }
 
-#[test]
-fn gpt_names_use_openai() {
-    assert_eq!(create_client("gpt-5").provider, Provider::OpenAi);
+fn key_file(text: &str) -> (tempfile::TempDir, Service) {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("key");
+    std::fs::write(&path, text).unwrap();
+    let service = Service {
+        provider: Provider::OpenRouter,
+        base_url: "http://h/v1".into(),
+        api_key_file: path,
+    };
+    (tmp, service)
 }
 
 #[test]
-fn o_names_use_openai() {
-    assert_eq!(create_client("o3").provider, Provider::OpenAi);
-}
-
-#[test]
-fn vllm_names_use_vllm() {
-    assert_eq!(create_client("vllm-host1:qwen").provider, Provider::Vllm);
-}
-
-#[test]
-fn vllm_clients_talk_to_port_8000() {
-    assert!(
-        create_client("vllm-host1:qwen")
-            .base_url
-            .ends_with(":8000/v1")
+fn a_client_uses_the_service_it_is_given() {
+    let (_tmp, service) = key_file("k");
+    let c = create_client("m", &service).unwrap();
+    assert_eq!(
+        (c.provider, c.base_url, c.model),
+        (
+            Provider::OpenRouter,
+            "http://h/v1".to_owned(),
+            "m".to_owned()
+        )
     );
 }
 
 #[test]
-fn other_names_use_openrouter() {
+fn a_client_reads_its_key_from_the_file_without_the_newline() {
+    let (_tmp, service) = key_file("secret\n");
     assert_eq!(
-        create_client("anthropic/claude-sonnet-4").provider,
-        Provider::OpenRouter
+        create_client("m", &service).unwrap().api_key.as_deref(),
+        Some("secret")
+    );
+}
+
+#[test]
+fn a_missing_key_file_is_an_error_naming_it() {
+    let (tmp, mut service) = key_file("k");
+    service.api_key_file = tmp.path().join("gone");
+    assert!(
+        create_client("m", &service)
+            .unwrap_err()
+            .starts_with(&format!("{}: ", tmp.path().join("gone").display()))
+    );
+}
+
+#[test]
+fn a_key_file_that_is_a_folder_is_an_error() {
+    let (tmp, mut service) = key_file("k");
+    service.api_key_file = tmp.path().to_path_buf();
+    assert!(read_api_key(&service.api_key_file).is_err());
+}
+
+#[test]
+fn each_provider_has_its_flag_name() {
+    assert_eq!(
+        [Provider::OpenAi, Provider::Vllm, Provider::OpenRouter].map(Provider::name),
+        ["openai", "vllm", "openrouter"]
     );
 }
 

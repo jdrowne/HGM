@@ -7,10 +7,6 @@ use crate::tools::{Tools, tool_infos};
 
 pub const SYSTEM_MESSAGE: &str = "You are the best coder in the world!";
 
-pub const CLAUDE_MODEL: &str = "anthropic/claude-sonnet-4";
-
-pub const OPENAI_MODEL: &str = "gpt-5";
-
 pub fn is_openai(model: &str) -> bool {
     model.starts_with('o') || model.to_lowercase().contains("gpt")
 }

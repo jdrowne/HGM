@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use hgm_agent::llm::create_client;
+use hgm_agent::llm::Service;
 use hgm_bench::dataset::{Hub, SWE_BENCH_VERIFIED, instance_ids};
 use hgm_bench::polyglot::{self, DATASET};
 use hgm_bench::polyglot_build::copy_tree;
@@ -173,6 +173,7 @@ pub fn improve_dataset(polyglot: bool, root_dir: &Path, hub: &Hub) -> Result<Vec
 
 pub fn bench_for(
     config: &HgmConfig,
+    service: &Service,
     root_dir: &Path,
     docker: &Docker,
     hub: &Hub,
@@ -187,6 +188,7 @@ pub fn bench_for(
             machine: std::env::consts::ARCH.to_owned(),
             namespace: NAMESPACE.to_owned(),
             llm,
+            service: service.clone(),
             timeout,
         })
     } else {
@@ -195,6 +197,7 @@ pub fn bench_for(
             swebench: Swebench::from_env(),
             hub: hub.clone(),
             llm,
+            service: service.clone(),
             timeout,
         })
     }
@@ -225,6 +228,7 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
             "--holdout_split scores on SWE-bench, so it cannot follow a --polyglot run".to_owned(),
         );
     }
+    let services = args.services(root_dir)?;
     if config.evaluation.polyglot {
         prepare_polyglot(root_dir)?;
     }
@@ -238,7 +242,7 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
     let hub = Hub::from_env();
     let tasks = dedup(&run_tasks(&config, &hub)?);
     let docker = Docker::default();
-    let bench = bench_for(&config, root_dir, &docker, &hub);
+    let bench = bench_for(&config, &services.downstream, root_dir, &docker, &hub);
     let polyglot = config.evaluation.polyglot;
     let max_workers = config.execution.max_workers;
     let continue_from = config
@@ -271,8 +275,11 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
         polyglot,
         dataset: improve_dataset(polyglot, root_dir, &hub),
         image_name: format!("{}:latest", config.paths.initial_agent_name),
-        diagnose: create_client(&config.llm.diagnose_llm),
+        diagnose: services
+            .diagnose
+            .client(&config.llm.diagnose_llm, &services.api_key),
         self_improve_llm: config.llm.self_improve_llm.clone(),
+        self_improve_service: services.self_improve.clone(),
         timeout: config.execution.self_improve_timeout,
     };
     let builder = builder(
@@ -304,10 +311,15 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
         log: &log,
     };
     search.run()?;
-    finish(args, &config, &output_dir)
+    finish(args, &config, &services.downstream, &output_dir)
 }
 
-pub fn finish(args: &Cli, config: &HgmConfig, output_dir: &Path) -> Result<(), String> {
+pub fn finish(
+    args: &Cli,
+    config: &HgmConfig,
+    downstream: &Service,
+    output_dir: &Path,
+) -> Result<(), String> {
     let best = pick(output_dir, args.epsilon)?;
     let agent_dir = output_dir.join(BEST_AGENT);
     export(output_dir, &best.commit_id, &agent_dir)?;
@@ -323,6 +335,7 @@ pub fn finish(args: &Cli, config: &HgmConfig, output_dir: &Path) -> Result<(), S
             split,
             n_tasks,
             llm: &config.llm.downstream_llm,
+            service: downstream,
             timeout: config.execution.evaluation_timeout,
             max_workers: config.execution.max_workers,
         }),
@@ -336,6 +349,7 @@ pub struct Holdout<'a> {
     pub split: &'a str,
     pub n_tasks: usize,
     pub llm: &'a str,
+    pub service: &'a Service,
     pub timeout: u64,
     pub max_workers: usize,
 }
@@ -360,6 +374,7 @@ pub fn holdout(h: &Holdout) -> Result<(), String> {
         swebench: Swebench::from_env(),
         hub,
         llm: h.llm.to_owned(),
+        service: h.service.clone(),
         timeout: h.timeout,
     };
     let builder = Builder {

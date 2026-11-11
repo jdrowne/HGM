@@ -4,12 +4,25 @@ mod swe;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use hgm_agent::llm::{Provider, Service};
+
 pub fn executable(path: &Path, body: &str) {
     fs::write(path, body).unwrap();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+}
+
+pub fn service(root: &Path) -> Service {
+    fs::create_dir_all(root).unwrap();
+    let key = root.join("key");
+    fs::write(&key, "secret\n").unwrap();
+    Service {
+        provider: Provider::Vllm,
+        base_url: "http://h/v1".into(),
+        api_key_file: key,
     }
 }
 
