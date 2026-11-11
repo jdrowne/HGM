@@ -8,15 +8,6 @@ defaults:
 env:
   CARGO_TERM_COLOR: always
 jobs:
-  harness-subtree:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@main
-      - name: Install the toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Build and test the harness subtree on its own
-        run: test/harness-subtree.sh
   assert-coverage:
     needs:
       - e2e-test-coverage
@@ -388,6 +379,15 @@ jobs:
           name: profraw-e2e
           path: target/llvm-cov-target/*.profraw
           retention-days: 1
+  harness-subtree:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build and test the harness subtree on its own
+        run: test/harness-subtree.sh
   integration-test:
     name: integration-test-${{ matrix.platform }}
     needs: build

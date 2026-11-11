@@ -39,7 +39,7 @@ while [ $# -gt 0 ]; do
     --chat_history_file) chat=$2; shift ;;
     --base_commit) base=$2; shift ;;
     --api_key_file) key=$2; shift ;;
-    --polyglot) [ "$2" = true ] && kind=" polyglot"; shift ;;
+    --polyglot) kind=" polyglot" ;;
   esac
   shift
 done
