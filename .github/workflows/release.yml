@@ -327,6 +327,7 @@ jobs:
           cargo-nextest nextest run
           --archive-file build.tar.zst
           --workspace-remap .
+          --no-fail-fast
           -E "binary(integration) ${{ matrix.gate }}"
     strategy:
       fail-fast: false
@@ -344,6 +345,12 @@ jobs:
               - (package(hgm) & test(/^improve::|^agent_build::the_agent_is_built_/))
             platform: macos-arm64
             runner: macos-latest
+          - gate: >-
+              - (package(hgm-sandbox) & test(/^(container|image)::/))
+              - (package(hgm-bench) & test(/^swe::|^polyglot::the_polyglot_harness_/))
+              - (package(hgm) & test(/^improve::|^agent_build::the_agent_is_built_/))
+            platform: windows-x86-64
+            runner: windows-latest
   release:
     if: >-
       github.ref_name == 'main'
