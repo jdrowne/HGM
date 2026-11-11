@@ -637,7 +637,7 @@ fn a_run_without_its_key_file_fetches_no_polyglot_dataset() {
 }
 
 #[test]
-fn a_run_without_an_harness_name_stops_early() {
+fn a_run_without_a_harness_name_stops_early() {
     assert!(
         run_error(|_| {}, |a| a.progenitor_name = String::new())
             .starts_with("--progenitor_name must not be empty")

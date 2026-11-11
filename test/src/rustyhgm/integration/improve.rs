@@ -459,12 +459,12 @@ fn an_unknown_parent_is_logged() {
 }
 
 #[test]
-fn an_harness_that_writes_no_patch_fails_the_child() {
+fn a_harness_that_writes_no_patch_fails_the_child() {
     assert_eq!(no_patch().child, FAILED);
 }
 
 #[test]
-fn an_harness_that_writes_no_patch_says_so() {
+fn a_harness_that_writes_no_patch_says_so() {
     assert!(logged(
         &no_patch(),
         "Model patch file is empty or does not exist"
@@ -472,17 +472,17 @@ fn an_harness_that_writes_no_patch_says_so() {
 }
 
 #[test]
-fn an_harness_that_writes_no_chat_fails_the_child() {
+fn a_harness_that_writes_no_chat_fails_the_child() {
     assert_eq!(no_chat().child, FAILED);
 }
 
 #[test]
-fn an_harness_that_writes_no_chat_cannot_be_copied_out() {
+fn a_harness_that_writes_no_chat_cannot_be_copied_out() {
     assert!(logged(&no_chat(), "Error copying from container: "));
 }
 
 #[test]
-fn an_harness_that_writes_no_chat_is_logged() {
+fn a_harness_that_writes_no_chat_is_logged() {
     assert!(logged(&no_chat(), "Error while sampling a child: "));
 }
 
@@ -501,15 +501,28 @@ fn a_child_that_does_not_build_is_logged() {
     assert!(logged(&child_failure(), "Error while sampling a child: "));
 }
 
-fn undiagnosed() -> Attempt {
-    attempt(Case {
+fn swe_case(replies: Vec<(u16, String)>) -> Case<'static> {
+    Case {
         commit: "swe",
         overall: Some(performance(&[], &["u"], &[])),
         patch: None,
         polyglot: false,
-        replies: vec![reply("no"), reply("no"), reply("no")],
+        replies,
         dataset: vec![json!({"instance_id": "u", "test_patch": "t", "problem_statement": "p"})],
-    })
+    }
+}
+
+#[test]
+fn a_swe_child_runs_the_harness_without_the_polyglot_switch() {
+    let a = attempt(swe_case(vec![reply(DIAGNOSIS)]));
+    assert_eq!(
+        fs::read_to_string(a.child_dir().join("self_evo.md")).unwrap(),
+        "improved from 0123abc with secret\n"
+    );
+}
+
+fn undiagnosed() -> Attempt {
+    attempt(swe_case(vec![reply("no"), reply("no"), reply("no")]))
 }
 
 #[test]

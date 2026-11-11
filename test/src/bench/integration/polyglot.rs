@@ -454,7 +454,7 @@ fn a_second_run_leaves_the_same_incomplete() {
 }
 
 #[test]
-fn a_run_without_an_harness_is_incomplete() {
+fn a_run_without_a_harness_is_incomplete() {
     assert_eq!(
         shared().seen["noharness"],
         expected(&[outcome("python__resolved", false, "incomplete")])

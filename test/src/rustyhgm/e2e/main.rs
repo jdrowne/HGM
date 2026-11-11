@@ -313,12 +313,12 @@ fn unnamed() -> Ran {
 }
 
 #[test]
-fn a_run_without_an_harness_name_fails() {
+fn a_run_without_a_harness_name_fails() {
     assert_eq!(unnamed().code, Some(1));
 }
 
 #[test]
-fn a_run_without_an_harness_name_says_so() {
+fn a_run_without_a_harness_name_says_so() {
     assert!(
         unnamed()
             .stderr
