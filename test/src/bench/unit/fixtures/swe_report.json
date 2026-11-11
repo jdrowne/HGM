@@ -5,24 +5,24 @@
       "name": "prediction_json",
       "input": {
         "instance_id": "django__django-11099",
-        "model_name_or_path": "agent_1",
+        "model_name_or_path": "harness_1",
         "model_patch": "diff --git a/x.py b/x.py\n+café ☃\n",
         "proposed_model_patches": [
           "p1",
           "p\t2"
         ]
       },
-      "output": "{\n    \"instance_id\": \"django__django-11099\",\n    \"model_name_or_path\": \"agent_1\",\n    \"model_patch\": \"diff --git a/x.py b/x.py\\n+caf\\u00e9 \\u2603\\n\",\n    \"proposed_model_patches\": [\n        \"p1\",\n        \"p\\t2\"\n    ]\n}"
+      "output": "{\n    \"instance_id\": \"django__django-11099\",\n    \"model_name_or_path\": \"harness_1\",\n    \"model_patch\": \"diff --git a/x.py b/x.py\\n+caf\\u00e9 \\u2603\\n\",\n    \"proposed_model_patches\": [\n        \"p1\",\n        \"p\\t2\"\n    ]\n}"
     },
     {
       "name": "empty_prediction_json",
       "input": {
         "instance_id": "django__django-11099",
-        "model_name_or_path": "agent_1",
+        "model_name_or_path": "harness_1",
         "model_patch": "",
         "proposed_model_patches": []
       },
-      "output": "{\n    \"instance_id\": \"django__django-11099\",\n    \"model_name_or_path\": \"agent_1\",\n    \"model_patch\": \"\",\n    \"proposed_model_patches\": []\n}"
+      "output": "{\n    \"instance_id\": \"django__django-11099\",\n    \"model_name_or_path\": \"harness_1\",\n    \"model_patch\": \"\",\n    \"proposed_model_patches\": []\n}"
     },
     {
       "name": "preds_to_jsonl_sorted_lines",

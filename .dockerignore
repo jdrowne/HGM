@@ -22,7 +22,7 @@ src/bench/
 src/core/
 src/rustyhgm/
 src/sandbox/
-test/agent-subtree.sh
+test/harness-subtree.sh
 test/src/bench/
 test/src/core/
 test/src/rustyhgm/

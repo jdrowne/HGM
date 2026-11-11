@@ -326,7 +326,7 @@
       }
     },
     {
-      "name": "harness_eval_script_python",
+      "name": "language_eval_script_python",
       "input": {
         "language": "python"
       },
@@ -336,7 +336,7 @@
       }
     },
     {
-      "name": "harness_eval_script_rust",
+      "name": "language_eval_script_rust",
       "input": {
         "language": "rust"
       },
@@ -346,7 +346,7 @@
       }
     },
     {
-      "name": "harness_eval_script_go",
+      "name": "language_eval_script_go",
       "input": {
         "language": "go"
       },
@@ -356,7 +356,7 @@
       }
     },
     {
-      "name": "harness_eval_script_javascript",
+      "name": "language_eval_script_javascript",
       "input": {
         "language": "javascript"
       },
@@ -366,7 +366,7 @@
       }
     },
     {
-      "name": "harness_eval_script_cpp",
+      "name": "language_eval_script_cpp",
       "input": {
         "language": "cpp"
       },
@@ -376,7 +376,7 @@
       }
     },
     {
-      "name": "harness_eval_script_java",
+      "name": "language_eval_script_java",
       "input": {
         "language": "java"
       },

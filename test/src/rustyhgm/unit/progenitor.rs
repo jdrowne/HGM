@@ -80,7 +80,8 @@ fn the_built_in_progenitor_holds_no_controller_or_grader() {
         .into_iter()
         .map(|(path, _)| path)
         .filter(|path| {
-            !path.starts_with("src/coding-agent/") && !path.starts_with("test/src/coding-agent/")
+            !path.starts_with("src/coding-harness/")
+                && !path.starts_with("test/src/coding-harness/")
         })
         .collect();
     assert_eq!(

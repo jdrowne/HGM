@@ -20,10 +20,10 @@ fn strings(v: &Value) -> Vec<String> {
 
 fn templates() -> [(&'static str, &'static str); 12] {
     [
-        ("coding_agent_summary", prompts::CODING_AGENT_SUMMARY),
+        ("coding_harness_summary", prompts::CODING_HARNESS_SUMMARY),
         (
-            "coding_agent_summary_polyglot",
-            prompts::CODING_AGENT_SUMMARY_POLYGLOT,
+            "coding_harness_summary_polyglot",
+            prompts::CODING_HARNESS_SUMMARY_POLYGLOT,
         ),
         ("diagnose_system_message", prompts::DIAGNOSE_SYSTEM_MESSAGE),
         ("swe_issue_prompt", prompts::SWE_ISSUE_PROMPT),

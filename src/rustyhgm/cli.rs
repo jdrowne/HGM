@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use clap::Parser;
 use rustyhgm_bench::dataset::Hub;
 use rustyhgm_bench::swebench::Swebench;
-use rustyhgm_coding_agent::llm::{Provider, Service, read_api_key};
+use rustyhgm_coding_harness::llm::{Provider, Service, read_api_key};
 use rustyhgm_core::config::{
     EvaluationConfig, ExecutionConfig, ExpansionStatistic, HgmConfig, LlmConfig,
     OptimizationConfig, PathConfig,

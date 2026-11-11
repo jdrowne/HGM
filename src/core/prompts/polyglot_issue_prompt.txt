@@ -1,1 +1,1 @@
-Here is the log for the coding agent trying to solve a programming task. A task is in one programming language, but the coding agent needs to deal with different languages including C++, Go, Java, JavaScript, Python, and Rust.
+Here is the log for the coding harness trying to solve a programming task. A task is in one programming language, but the coding harness needs to deal with different languages including C++, Go, Java, JavaScript, Python, and Rust.

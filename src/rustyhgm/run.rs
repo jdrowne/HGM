@@ -13,7 +13,7 @@ use rustyhgm_bench::polyglot_prepare::prepare;
 use rustyhgm_bench::polyglot_spec::NAMESPACE;
 use rustyhgm_bench::swe;
 use rustyhgm_bench::tasks::{dedup, polyglot_run_tasks, shuffled, swe_run_tasks};
-use rustyhgm_coding_agent::llm::Service;
+use rustyhgm_coding_harness::llm::Service;
 use rustyhgm_core::config::HgmConfig;
 use rustyhgm_core::log::Log;
 use rustyhgm_core::metadata::{
@@ -25,9 +25,9 @@ use rustyhgm_sandbox::Docker;
 use rustyhgm_sandbox::source::prepare_progenitor;
 use serde_json::Value;
 
-use crate::agent_build::Builder;
-use crate::best::{BEST_AGENT, check_epsilon, export, pick};
+use crate::best::{BEST_HARNESS, check_epsilon, export, pick};
 use crate::cli::{Cli, Tools};
+use crate::harness_build::Builder;
 use crate::improve::SelfImprove;
 use crate::node::{Bench, Evaluator, at};
 use crate::progenitor;
@@ -35,15 +35,15 @@ use crate::search::{Search, Settings, State};
 
 pub const JITTER: Duration = Duration::from_secs(1);
 
-pub const HOLDOUT_IMAGE: &str = "rustyhgm-holdout-agent:latest";
+pub const HOLDOUT_IMAGE: &str = "rustyhgm-holdout-harness:latest";
 
 pub const HOLDOUT_DIR: &str = "holdout";
 
-fn builder(docker: &Docker, context: &Path, agent_name: &str) -> Builder {
+fn builder(docker: &Docker, context: &Path, harness_name: &str) -> Builder {
     Builder {
         docker: docker.clone(),
         context: context.to_path_buf(),
-        image_name: format!("{agent_name}:latest"),
+        image_name: format!("{harness_name}:latest"),
         rebuild: false,
     }
 }
@@ -68,7 +68,7 @@ pub fn resolve_output_dir(output_dir: &str, cwd: &Path) -> (PathBuf, String) {
 pub struct Init<'a> {
     pub progenitor_dir: &'a Path,
     pub output_dir: &'a Path,
-    pub agent_name: &'a str,
+    pub harness_name: &'a str,
     pub polyglot: bool,
     pub continue_from: Option<&'a Path>,
     pub total_tasks: &'a [String],
@@ -112,20 +112,20 @@ pub fn initialize_run(
     log: &Log,
 ) -> Result<Start, String> {
     let folder = init.progenitor_dir.join(progenitor_folder(init.polyglot));
-    let agent_dir = folder.join(init.agent_name);
-    let src_path = agent_dir.join("src");
-    if init.continue_from.is_none() && !agent_dir.exists() {
+    let harness_dir = folder.join(init.harness_name);
+    let src_path = harness_dir.join("src");
+    if init.continue_from.is_none() && !harness_dir.exists() {
         build_progenitor(&src_path, docker, log).map_err(|e| e.to_string())?;
         Evaluator {
             bench,
             output_dir: &folder,
             max_workers: init.max_workers,
-            builder: &builder(docker, &src_path, init.agent_name),
+            builder: &builder(docker, &src_path, init.harness_name),
         }
-        .eval_agent(init.agent_name, init.total_tasks)?;
+        .eval_harness(init.harness_name, init.total_tasks)?;
     }
-    copy_tree(&agent_dir, &init.output_dir.join(ROOT_COMMIT))
-        .unwrap_or_else(|e| eprintln!("cp: {}: {e}", agent_dir.display()));
+    copy_tree(&harness_dir, &init.output_dir.join(ROOT_COMMIT))
+        .unwrap_or_else(|e| eprintln!("cp: {}: {e}", harness_dir.display()));
     let (init_evaluated_tasks, mut tree) = match init.continue_from {
         Some(prev) => previous_run(prev)?,
         None => (Vec::new(), Tree::with_root()),
@@ -195,7 +195,7 @@ pub fn bench_for(
     let llm = config.llm.downstream_llm.clone();
     let timeout = config.execution.evaluation_timeout;
     if config.evaluation.polyglot {
-        Box::new(polyglot::Harness {
+        Box::new(polyglot::Evaluator {
             docker: tools.docker.clone(),
             root: polyglot_dir.to_path_buf(),
             dataset: polyglot_dir.join(DATASET),
@@ -206,7 +206,7 @@ pub fn bench_for(
             timeout,
         })
     } else {
-        Box::new(swe::Harness {
+        Box::new(swe::Evaluator {
             docker: tools.docker.clone(),
             swebench: tools.swebench.clone(),
             hub: tools.hub.clone(),
@@ -268,7 +268,7 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
         &Init {
             progenitor_dir: &root_dir.join(&args.progenitor_dir),
             output_dir: &output_dir,
-            agent_name: &config.paths.progenitor_name,
+            harness_name: &config.paths.progenitor_name,
             polyglot,
             continue_from: continue_from.as_deref(),
             total_tasks: &tasks,
@@ -284,7 +284,7 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
     ));
     let improver = SelfImprove {
         docker: tools.docker.clone(),
-        agent_source: start.src_path.clone(),
+        harness_source: start.src_path.clone(),
         output_dir: output_dir.clone(),
         polyglot,
         dataset: improve_dataset(polyglot, &polyglot_dir, &tools.hub),
@@ -307,7 +307,7 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
         max_workers,
         builder: &builder,
     };
-    let evaluate = |commit: &str, tasks: &[String]| evaluator.eval_agent(commit, tasks);
+    let evaluate = |commit: &str, tasks: &[String]| evaluator.eval_harness(commit, tasks);
     let search = Search {
         settings: settings(&config, jitter),
         state: Mutex::new(State {
@@ -336,16 +336,16 @@ pub fn finish(
     output_dir: &Path,
 ) -> Result<(), String> {
     let best = pick(output_dir, args.epsilon)?;
-    let agent_dir = output_dir.join(BEST_AGENT);
-    export(output_dir, &best.commit_id, &agent_dir)?;
+    let harness_dir = output_dir.join(BEST_HARNESS);
+    export(output_dir, &best.commit_id, &harness_dir)?;
     println!(
-        "Best agent: {} solved {}/{} (score {})",
+        "Best harness: {} solved {}/{} (score {})",
         best.commit_id, best.successes, best.evals, best.quantile
     );
-    println!("Best agent source: {}", agent_dir.display());
+    println!("Best harness source: {}", harness_dir.display());
     match (&args.holdout_split, args.holdout_tasks) {
         (Some(split), Some(n_tasks)) => holdout(&Holdout {
-            agent_dir: &agent_dir,
+            harness_dir: &harness_dir,
             results_dir: &output_dir.join(HOLDOUT_DIR),
             split,
             n_tasks,
@@ -360,7 +360,7 @@ pub fn finish(
 }
 
 pub struct Holdout<'a> {
-    pub agent_dir: &'a Path,
+    pub harness_dir: &'a Path,
     pub results_dir: &'a Path,
     pub split: &'a str,
     pub n_tasks: usize,
@@ -379,14 +379,14 @@ pub fn holdout(h: &Holdout) -> Result<(), String> {
         .map(|rows| instance_ids(&rows))
         .map_err(|e| e.to_string())?;
     ids.truncate(h.n_tasks);
-    let agent_name = h
-        .agent_dir
+    let harness_name = h
+        .harness_dir
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let node_dir = h.results_dir.join(&agent_name);
+    let node_dir = h.results_dir.join(&harness_name);
     fs::create_dir_all(&node_dir).map_err(|e| at(&node_dir, e))?;
-    let bench = swe::Harness {
+    let bench = swe::Evaluator {
         docker: h.tools.docker.clone(),
         swebench: h.tools.swebench.clone(),
         hub: hub.clone(),
@@ -396,7 +396,7 @@ pub fn holdout(h: &Holdout) -> Result<(), String> {
     };
     let builder = Builder {
         docker: bench.docker.clone(),
-        context: h.agent_dir.to_path_buf(),
+        context: h.harness_dir.to_path_buf(),
         image_name: HOLDOUT_IMAGE.to_owned(),
         rebuild: true,
     };
@@ -406,7 +406,7 @@ pub fn holdout(h: &Holdout) -> Result<(), String> {
         max_workers: h.max_workers,
         builder: &builder,
     }
-    .eval_agent(&agent_name, &ids)?;
+    .eval_harness(&harness_name, &ids)?;
     println!(
         "Held-out {}: solved {}/{}",
         h.split,

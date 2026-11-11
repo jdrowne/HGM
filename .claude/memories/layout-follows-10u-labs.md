@@ -9,7 +9,7 @@ metadata:
 
 The tree is laid out like deltahdl and the 10U-Labs repos, not like Cargo's defaults:
 
-- `src/<component>/` holds the component's files directly: `src/core/lib.rs`, `src/rustyhgm/main.rs`. A crate's manifest sets `[lib] path = "lib.rs"` or `[[bin]] path = "main.rs"`, so no crate has a nested `src/`. A component with both a library and a binary, like `src/coding-agent`, is one package.
+- `src/<component>/` holds the component's files directly: `src/core/lib.rs`, `src/rustyhgm/main.rs`. A crate's manifest sets `[lib] path = "lib.rs"` or `[[bin]] path = "main.rs"`, so no crate has a nested `src/`. A component with both a library and a binary, like `src/coding-harness`, is one package.
 - `lib/` is grouped by language, `lib/<language>/<package>/` (`lib/python/store`, `lib/cpp/test_helpers`), and holds support code shared across components. HGM's own crates are product code, so they live in `src/`, as deltahdl's lexer and parser do.
 - `test/` mirrors the tree: `test/src/<component>/<tier>/main.rs`, with golden files in `test/src/<component>/unit/fixtures/`.
 

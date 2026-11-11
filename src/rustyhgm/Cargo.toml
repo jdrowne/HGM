@@ -30,7 +30,7 @@ path = "../../test/src/rustyhgm/e2e/main.rs"
 [dependencies]
 chrono = "*"
 clap = { version = "*", features = ["derive"] }
-rustyhgm-coding-agent = { path = "../coding-agent" }
+rustyhgm-coding-harness = { path = "../coding-harness" }
 rustyhgm-bench = { path = "../bench" }
 rustyhgm-core = { path = "../core" }
 rustyhgm-sandbox = { path = "../sandbox" }

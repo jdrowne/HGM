@@ -5,13 +5,13 @@ use std::sync::{Arc, Mutex};
 
 use rustyhgm::FAILED;
 use rustyhgm::improve::{Improver, SelfImprove};
-use rustyhgm_coding_agent::llm::{Client, Provider, Service};
+use rustyhgm_coding_harness::llm::{Client, Provider, Service};
 use rustyhgm_sandbox::Docker;
 use serde_json::{Value, json};
 
 use crate::common::{DIAGNOSIS, node, performance, read_json, reply, serve};
 
-pub const IMAGE: &str = "rustyhgm-fake-improve-agent:latest";
+pub const IMAGE: &str = "rustyhgm-fake-improve-harness:latest";
 
 const GIT: &str = r#"#!/bin/sh
 mode=$(cat /rustyhgm/mode 2>/dev/null)
@@ -29,10 +29,10 @@ echo "$count" > /tmp/builds
 [ "$mode" = childfail ] && [ "$count" -ge 2 ] && { echo child build failed; exit 1; }
 out="target/$(uname -m)-unknown-linux-musl/release"
 mkdir -p "$out"
-cp /usr/local/lib/fake-agent "$out/rustyhgm-coding-agent"
+cp /usr/local/lib/fake-harness "$out/rustyhgm-coding-harness"
 "#;
 
-const AGENT: &str = r#"#!/bin/sh
+const HARNESS: &str = r#"#!/bin/sh
 mode=$(cat /rustyhgm/mode 2>/dev/null)
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -58,10 +58,10 @@ pub fn image() {
     fs::write(ctx.join("rustyhgm/Cargo.toml"), "").unwrap();
     fs::write(ctx.join("git"), GIT).unwrap();
     fs::write(ctx.join("cargo"), CARGO).unwrap();
-    fs::write(ctx.join("agent"), AGENT).unwrap();
+    fs::write(ctx.join("harness"), HARNESS).unwrap();
     fs::write(
         ctx.join("Dockerfile"),
-        "FROM busybox:latest\nCOPY rustyhgm /rustyhgm\nCOPY git cargo /usr/local/bin/\nCOPY agent /usr/local/lib/fake-agent\nRUN chmod 755 /usr/local/bin/git /usr/local/bin/cargo /usr/local/lib/fake-agent\nCMD [\"tail\", \"-f\", \"/dev/null\"]\n",
+        "FROM busybox:latest\nCOPY rustyhgm /rustyhgm\nCOPY git cargo /usr/local/bin/\nCOPY harness /usr/local/lib/fake-harness\nRUN chmod 755 /usr/local/bin/git /usr/local/bin/cargo /usr/local/lib/fake-harness\nCMD [\"tail\", \"-f\", \"/dev/null\"]\n",
     )
     .unwrap();
     let status = Command::new("docker")
@@ -96,7 +96,7 @@ fn key_file(out: &Path) -> PathBuf {
 fn improver(out: &Path, polyglot: bool, base_url: String, dataset: Vec<Value>) -> SelfImprove {
     SelfImprove {
         docker: Docker::new("docker"),
-        agent_source: out.to_path_buf(),
+        harness_source: out.to_path_buf(),
         output_dir: out.to_path_buf(),
         polyglot,
         dataset: Ok(dataset),
@@ -252,12 +252,12 @@ fn a_polyglot_child_is_made() {
 }
 
 #[test]
-fn a_polyglot_child_keeps_the_agent_patch() {
+fn a_polyglot_child_keeps_the_harness_patch() {
     assert_eq!(child_text("model_patch.diff"), "patch from 0123abc\n");
 }
 
 #[test]
-fn a_polyglot_child_keeps_the_agent_chat() {
+fn a_polyglot_child_keeps_the_harness_chat() {
     assert_eq!(
         child_text("self_evo.md"),
         "improved from 0123abc polyglot with secret\n"
@@ -265,11 +265,11 @@ fn a_polyglot_child_keeps_the_agent_chat() {
 }
 
 #[test]
-fn a_polyglot_child_keeps_its_built_agent() {
+fn a_polyglot_child_keeps_its_built_harness() {
     assert!(
         polyglot_child()
             .child_dir()
-            .join("rustyhgm-coding-agent")
+            .join("rustyhgm-coding-harness")
             .is_file()
     );
 }
@@ -459,12 +459,12 @@ fn an_unknown_parent_is_logged() {
 }
 
 #[test]
-fn an_agent_that_writes_no_patch_fails_the_child() {
+fn an_harness_that_writes_no_patch_fails_the_child() {
     assert_eq!(no_patch().child, FAILED);
 }
 
 #[test]
-fn an_agent_that_writes_no_patch_says_so() {
+fn an_harness_that_writes_no_patch_says_so() {
     assert!(logged(
         &no_patch(),
         "Model patch file is empty or does not exist"
@@ -472,17 +472,17 @@ fn an_agent_that_writes_no_patch_says_so() {
 }
 
 #[test]
-fn an_agent_that_writes_no_chat_fails_the_child() {
+fn an_harness_that_writes_no_chat_fails_the_child() {
     assert_eq!(no_chat().child, FAILED);
 }
 
 #[test]
-fn an_agent_that_writes_no_chat_cannot_be_copied_out() {
+fn an_harness_that_writes_no_chat_cannot_be_copied_out() {
     assert!(logged(&no_chat(), "Error copying from container: "));
 }
 
 #[test]
-fn an_agent_that_writes_no_chat_is_logged() {
+fn an_harness_that_writes_no_chat_is_logged() {
     assert!(logged(&no_chat(), "Error while sampling a child: "));
 }
 

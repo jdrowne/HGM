@@ -100,7 +100,7 @@ fn a_mean_above_one_counts_as_no_successes() {
 }
 
 #[test]
-fn ties_keep_the_earliest_agent() {
+fn ties_keep_the_earliest_harness() {
     let Belief {
         commit_id,
         successes,
@@ -155,10 +155,10 @@ fn a_node_without_num_evals_is_an_error() {
 }
 
 #[test]
-fn a_record_listing_no_agents_has_no_best_belief() {
+fn a_record_listing_no_harnesses_has_no_best_belief() {
     assert_eq!(
         best_belief(&json!({"nodes": []}), 0.5).unwrap_err(),
-        "the record lists no agents"
+        "the record lists no harnesses"
     );
 }
 
@@ -238,7 +238,7 @@ fn exported_chain() -> (TempDir, PathBuf) {
     fs::write(progenitor.join("sub/keep.txt"), "k").unwrap();
     version(&run, "c1", "progenitor", Some(FIRST));
     version(&run, "c2", "c1", Some(SECOND));
-    let dest = run.join("best_agent");
+    let dest = run.join("best_harness");
     fs::create_dir_all(&dest).unwrap();
     fs::write(dest.join("stale"), "").unwrap();
     export(&run, "c2", &dest).unwrap();
@@ -287,7 +287,7 @@ fn export_fails_without_the_progenitor() {
     let tmp = tempfile::tempdir().unwrap();
     let run = tmp.path().join("run");
     assert!(
-        export(&run, "progenitor", &run.join("best_agent"))
+        export(&run, "progenitor", &run.join("best_harness"))
             .unwrap_err()
             .contains("the progenitor's source is missing")
     );
@@ -306,7 +306,7 @@ fn mismatched_progenitor_run() -> (TempDir, PathBuf) {
 fn export_fails_on_a_patch_that_does_not_apply() {
     let (_tmp, run) = mismatched_progenitor_run();
     assert!(
-        export(&run, "c1", &run.join("best_agent"))
+        export(&run, "c1", &run.join("best_harness"))
             .unwrap_err()
             .contains("git apply")
     );
@@ -315,7 +315,7 @@ fn export_fails_on_a_patch_that_does_not_apply() {
 #[test]
 fn export_fails_for_an_unknown_commit() {
     let (_tmp, run) = mismatched_progenitor_run();
-    assert!(export(&run, "missing", &run.join("best_agent")).is_err());
+    assert!(export(&run, "missing", &run.join("best_harness")).is_err());
 }
 
 fn chain_run() -> (TempDir, PathBuf) {
@@ -331,15 +331,20 @@ fn chain_run() -> (TempDir, PathBuf) {
 fn export_fails_without_the_git_program() {
     let (_tmp, run) = chain_run();
     assert!(
-        export_with("rustyhgm-no-such-git", &run, "c1", &run.join("best_agent"))
-            .unwrap_err()
-            .contains("rustyhgm-no-such-git apply")
+        export_with(
+            "rustyhgm-no-such-git",
+            &run,
+            "c1",
+            &run.join("best_harness")
+        )
+        .unwrap_err()
+        .contains("rustyhgm-no-such-git apply")
     );
 }
 
 #[test]
 fn export_fails_for_an_empty_run_folder() {
-    assert!(export(Path::new(""), "c1", Path::new("best_agent")).is_err());
+    assert!(export(Path::new(""), "c1", Path::new("best_harness")).is_err());
 }
 
 #[test]
@@ -351,7 +356,7 @@ fn export_fails_for_an_empty_destination() {
 #[test]
 fn export_fails_when_the_destination_is_a_file() {
     let (_tmp, run) = chain_run();
-    let dest = run.join("best_agent");
+    let dest = run.join("best_harness");
     fs::write(&dest, "").unwrap();
     assert!(export(&run, "c1", &dest).is_err());
 }
@@ -361,7 +366,7 @@ fn export_fails_when_the_destination_is_under_a_file() {
     let (_tmp, run) = chain_run();
     let file = run.join("file");
     fs::write(&file, "").unwrap();
-    assert!(export(&run, "c1", &file.join("best_agent")).is_err());
+    assert!(export(&run, "c1", &file.join("best_harness")).is_err());
 }
 
 #[test]
@@ -372,7 +377,7 @@ fn export_ignores_a_repository_around_the_destination() {
         .arg(&run)
         .status()
         .unwrap();
-    let dest = run.join("best_agent");
+    let dest = run.join("best_harness");
     export(&run, "c1", &dest).unwrap();
     assert_eq!(
         fs::read_to_string(dest.join("lib.rs")).unwrap(),

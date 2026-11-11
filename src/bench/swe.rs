@@ -3,8 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use rustyhgm_coding_agent::llm::Service;
-use rustyhgm_coding_agent::testrepo::{TestRepo, get_test_description};
+use rustyhgm_coding_harness::llm::Service;
+use rustyhgm_coding_harness::testrepo::{TestRepo, get_test_description};
 use rustyhgm_core::log::Log;
 use rustyhgm_core::pyjson::{PyValue, dumps};
 use rustyhgm_sandbox::{Container, Docker, ExecOptions, RunOptions};
@@ -13,12 +13,12 @@ use serde_json::Value;
 use crate::dataset::{self, Hub, SWE_BENCH};
 use crate::swebench::{Swebench, TestSpec};
 
-pub const AGENT_PATH: &str = "/rustyhgm/rustyhgm-coding-agent";
+pub const HARNESS_PATH: &str = "/rustyhgm/rustyhgm-coding-harness";
 
-pub const AGENT_KEY: &str = "/run/rustyhgm/api_key";
+pub const HARNESS_KEY: &str = "/run/rustyhgm/api_key";
 
 pub fn key_mount(service: &Service) -> Vec<(PathBuf, String)> {
-    vec![(service.api_key_file.clone(), AGENT_KEY.to_owned())]
+    vec![(service.api_key_file.clone(), HARNESS_KEY.to_owned())]
 }
 
 pub fn service_flags(service: &Service) -> [String; 6] {
@@ -28,12 +28,12 @@ pub fn service_flags(service: &Service) -> [String; 6] {
         "--base_url".to_owned(),
         service.base_url.clone(),
         "--api_key_file".to_owned(),
-        AGENT_KEY.to_owned(),
+        HARNESS_KEY.to_owned(),
     ]
 }
 
 #[derive(Clone, Debug)]
-pub struct Harness {
+pub struct Evaluator {
     pub docker: Docker,
     pub swebench: Swebench,
     pub hub: Hub,
@@ -45,7 +45,7 @@ pub struct Harness {
 #[derive(Clone, Debug)]
 pub struct Run {
     pub model_name_or_path: String,
-    pub agent: PathBuf,
+    pub harness: PathBuf,
     pub max_workers: usize,
 }
 
@@ -129,7 +129,7 @@ pub fn run_step(
     }
 }
 
-impl Harness {
+impl Evaluator {
     fn start(&self, job: &Job, log: &Log) -> Result<Container, String> {
         let run_id = Local::now().format("%Y%m%d_%H%M%S_%6f").to_string();
         let name = job.spec.container_name(&run_id);
@@ -154,7 +154,7 @@ impl Harness {
             .join(format!("{}_eval.sh", job.spec.instance_id));
         fs::write(&eval_file, &job.spec.eval_script).map_err(|e| e.to_string())?;
         let steps = [
-            Step::CopyIn(job.run.agent.clone(), AGENT_PATH),
+            Step::CopyIn(job.run.harness.clone(), HARNESS_PATH),
             Step::Info("Setting up environment"),
             Step::CopyIn(eval_file, "/eval.sh"),
             Step::Run(&["/bin/bash", "/eval.sh"], "/"),
@@ -173,12 +173,12 @@ impl Harness {
         let problem_statement = text(job.entry, "problem_statement");
         let base_commit = text(job.entry, "base_commit");
         let test_description = get_test_description(&job.spec.eval_script, TestRepo::Swe);
-        log.info("Running the agent");
+        log.info("Running the harness");
         let service = service_flags(&self.service);
         let mut argv = vec![
             "timeout",
             &timeout,
-            AGENT_PATH,
+            HARNESS_PATH,
             "--problem_statement",
             &problem_statement,
             "--git_dir",
@@ -330,7 +330,7 @@ impl Harness {
         })
     }
 
-    pub fn harness<S: AsRef<str>>(
+    pub fn run_tasks<S: AsRef<str>>(
         &self,
         test_task_list: &[S],
         run: &Run,

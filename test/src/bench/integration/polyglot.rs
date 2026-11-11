@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rustyhgm_bench::polyglot::{Harness, Outcome};
+use rustyhgm_bench::polyglot::{Evaluator, Outcome};
 use rustyhgm_bench::polyglot_spec::host_arch;
 use rustyhgm_bench::swe::Run;
 use rustyhgm_sandbox::Docker;
@@ -22,7 +22,7 @@ exit 0
 
 const PYTHON: &str = "#!/bin/sh\nexit 0\n";
 
-const AGENT: &str = r#"#!/bin/sh
+const HARNESS: &str = r#"#!/bin/sh
 mode=$(cat /testbed/mode 2>/dev/null)
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -34,7 +34,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 id=$(basename "$chat" .md)
-[ "$mode" = fail ] && { echo agent failed; exit 1; }
+[ "$mode" = fail ] && { echo harness failed; exit 1; }
 [ "$mode" = nochat ] || echo "chat $id $kind $lang $(pwd) $(cat "$key")" > "$chat"
 echo "more $id" > "/rustyhgm/${id}_1.md"
 [ "$mode" = space ] && echo x > "/rustyhgm/${id}_ x.md"
@@ -126,8 +126,8 @@ fn root_with_tasks(root: &Path, modes: &[&str]) -> PathBuf {
     dataset
 }
 
-fn harness(root: &Path, dataset: PathBuf) -> Harness {
-    Harness {
+fn evaluator(root: &Path, dataset: PathBuf) -> Evaluator {
+    Evaluator {
         docker: Docker::new("docker"),
         root: root.to_path_buf(),
         dataset,
@@ -139,13 +139,13 @@ fn harness(root: &Path, dataset: PathBuf) -> Harness {
     }
 }
 
-fn agent(root: &Path) -> Run {
-    let path = root.join("agent/rustyhgm-coding-agent");
+fn harness(root: &Path) -> Run {
+    let path = root.join("harness/rustyhgm-coding-harness");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    crate::executable(&path, AGENT);
+    crate::executable(&path, HARNESS);
     Run {
-        model_name_or_path: "agent".into(),
-        agent: path,
+        model_name_or_path: "harness".into(),
+        harness: path,
         max_workers: 10,
     }
 }
@@ -177,19 +177,19 @@ fn expected(outcomes: &[Outcome]) -> Value {
 
 fn scenario(root: &Path) {
     base_image();
-    let h = harness(root, root_with_tasks(root, &MODES));
+    let h = evaluator(root, root_with_tasks(root, &MODES));
     let commit = root.join("commit");
     fs::create_dir_all(&commit).unwrap();
     let mut tasks: Vec<String> = MODES.iter().map(|m| format!("python__{m}")).collect();
     tasks.push("python__absent".to_owned());
     let pred = root.join("pred");
-    let report = h.harness(&tasks, &agent(root), &pred, &commit).unwrap();
-    let again = h.harness(&tasks, &agent(root), &pred, &commit).unwrap();
+    let report = h.run_tasks(&tasks, &harness(root), &pred, &commit).unwrap();
+    let again = h.run_tasks(&tasks, &harness(root), &pred, &commit).unwrap();
     let run = Run {
-        agent: root.join("no-agent"),
-        ..agent(root)
+        harness: root.join("no-harness"),
+        ..harness(root)
     };
-    let noagent = h.evaluate(&[entry("resolved")], &root.join("noagent"), &run);
+    let noharness = h.evaluate(&[entry("resolved")], &root.join("noharness"), &run);
     let unwritable = root.join("unwritable");
     fs::create_dir_all(&unwritable).unwrap();
     let nowhere = root.join("no/such/dir/file");
@@ -201,13 +201,13 @@ fn scenario(root: &Path) {
         crate::dangling(&nowhere, &unwritable.join(name));
     }
     let entries = [entry("empty"), entry("resolved"), entry("unresolved")];
-    let mut blocked = h.evaluate(&entries, &unwritable, &agent(root));
+    let mut blocked = h.evaluate(&entries, &unwritable, &harness(root));
     blocked.sort_by(|a, b| a.instance_id.cmp(&b.instance_id));
-    let lost = h.evaluate(&[entry("ghost")], &root.join("lost"), &agent(root));
+    let lost = h.evaluate(&[entry("ghost")], &root.join("lost"), &harness(root));
     let seen = json!({
         "report": report,
         "again": again,
-        "noagent": outcomes_json(&noagent),
+        "noharness": outcomes_json(&noharness),
         "blocked": outcomes_json(&blocked),
         "lost": outcomes_json(&lost),
     });
@@ -233,7 +233,7 @@ impl Shared {
     }
 
     fn out(&self) -> PathBuf {
-        self.root.join("pred/agent_0")
+        self.root.join("pred/harness_0")
     }
 
     fn text(&self, name: &str) -> String {
@@ -254,14 +254,14 @@ fn the_report_lands_in_the_commit_folder() {
 }
 
 #[test]
-fn the_report_is_named_for_the_agent() {
+fn the_report_is_named_for_the_harness() {
     let name = shared()
         .path("report")
         .file_name()
         .unwrap()
         .to_string_lossy()
         .into_owned();
-    assert!(name.starts_with("agent "), "{name}");
+    assert!(name.starts_with("harness "), "{name}");
 }
 
 #[test]
@@ -327,7 +327,10 @@ fn a_resolved_result_keeps_its_patch() {
 
 #[test]
 fn a_resolved_result_names_the_run() {
-    assert_eq!(shared().result("resolved")["model_name_or_path"], "agent_0");
+    assert_eq!(
+        shared().result("resolved")["model_name_or_path"],
+        "harness_0"
+    );
 }
 
 #[test]
@@ -425,7 +428,7 @@ fn the_docker_log_records_the_stop() {
 }
 
 #[test]
-fn a_failing_agent_is_logged() {
+fn a_failing_harness_is_logged() {
     let log = shared().text("python__fail_docker.log");
     assert!(
         log.contains("Error processing entry python__fail: "),
@@ -451,9 +454,9 @@ fn a_second_run_leaves_the_same_incomplete() {
 }
 
 #[test]
-fn a_run_without_an_agent_is_incomplete() {
+fn a_run_without_an_harness_is_incomplete() {
     assert_eq!(
-        shared().seen["noagent"],
+        shared().seen["noharness"],
         expected(&[outcome("python__resolved", false, "incomplete")])
     );
 }
@@ -497,10 +500,10 @@ impl Setup {
         self.tmp.path()
     }
 
-    fn gone(&self) -> Harness {
-        Harness {
+    fn gone(&self) -> Evaluator {
+        Evaluator {
             docker: Docker::new("rustyhgm-no-such-docker-program"),
-            ..harness(self.root(), self.dataset.clone())
+            ..evaluator(self.root(), self.dataset.clone())
         }
     }
 
@@ -518,16 +521,16 @@ const TASKS: [&str; 1] = ["python__resolved"];
 fn setup() -> Setup {
     let tmp = tempfile::tempdir().unwrap();
     let dataset = root_with_tasks(tmp.path(), &["resolved"]);
-    let run = agent(tmp.path());
+    let run = harness(tmp.path());
     Setup { tmp, dataset, run }
 }
 
 #[test]
-fn a_missing_docker_fails_the_harness() {
+fn a_missing_docker_fails_the_evaluator() {
     let s = setup();
     assert!(
         s.gone()
-            .harness(&TASKS, &s.run, &s.pred(), &s.commit())
+            .run_tasks(&TASKS, &s.run, &s.pred(), &s.commit())
             .is_err()
     );
 }
@@ -535,55 +538,55 @@ fn a_missing_docker_fails_the_harness() {
 #[test]
 fn a_missing_dataset_is_named() {
     let s = setup();
-    let e = harness(s.root(), s.root().join("none.json"))
-        .harness(&TASKS, &s.run, &s.pred(), &s.commit())
+    let e = evaluator(s.root(), s.root().join("none.json"))
+        .run_tasks(&TASKS, &s.run, &s.pred(), &s.commit())
         .unwrap_err();
     assert!(e.starts_with("Dataset file not found: "), "{e}");
 }
 
 #[test]
-fn a_junk_dataset_fails_the_harness() {
+fn a_junk_dataset_fails_the_evaluator() {
     let s = setup();
     let junk = s.root().join("junk.json");
     fs::write(&junk, "[").unwrap();
     assert!(
-        harness(s.root(), junk)
-            .harness(&TASKS, &s.run, &s.pred(), &s.commit())
+        evaluator(s.root(), junk)
+            .run_tasks(&TASKS, &s.run, &s.pred(), &s.commit())
             .is_err()
     );
 }
 
 #[test]
-fn a_prediction_folder_under_a_file_fails_the_harness() {
+fn a_prediction_folder_under_a_file_fails_the_evaluator() {
     let s = setup();
     let file = s.root().join("file");
     fs::write(&file, "").unwrap();
     assert!(
         s.gone()
-            .harness(&TASKS, &s.run, &file.join("pred"), &s.commit())
+            .run_tasks(&TASKS, &s.run, &file.join("pred"), &s.commit())
             .is_err()
     );
 }
 
 #[test]
-fn a_blocked_run_folder_fails_the_harness() {
+fn a_blocked_run_folder_fails_the_evaluator() {
     let s = setup();
     let blocked = s.root().join("blocked");
     fs::create_dir_all(&blocked).unwrap();
-    fs::write(blocked.join("agent_0"), "").unwrap();
+    fs::write(blocked.join("harness_0"), "").unwrap();
     assert!(
         s.gone()
-            .harness(&["none"], &s.run, &blocked, &s.commit())
+            .run_tasks(&["none"], &s.run, &blocked, &s.commit())
             .is_err()
     );
 }
 
 #[test]
-fn a_missing_commit_folder_fails_the_harness() {
+fn a_missing_commit_folder_fails_the_evaluator() {
     let s = setup();
     assert!(
         s.gone()
-            .harness(&["none"], &s.run, &s.pred(), &s.root().join("no/such"))
+            .run_tasks(&["none"], &s.run, &s.pred(), &s.root().join("no/such"))
             .is_err()
     );
 }
@@ -592,7 +595,7 @@ fn unknown_task_report() -> Value {
     let s = setup();
     read(
         &s.gone()
-            .harness(&["none"], &s.run, &s.pred(), s.root())
+            .run_tasks(&["none"], &s.run, &s.pred(), s.root())
             .unwrap(),
     )
 }

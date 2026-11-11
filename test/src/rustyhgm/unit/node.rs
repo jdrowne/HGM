@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rustyhgm::agent_build::Build;
+use rustyhgm::harness_build::Build;
 use rustyhgm::node::{Bench, Eval, Evaluator, empty_metadata, load_metadata, put, save_metadata};
 use rustyhgm_bench::dataset::Hub;
 use rustyhgm_bench::polyglot;
@@ -18,7 +18,7 @@ fn strings(items: &[&str]) -> Vec<String> {
 }
 
 fn eval(evaluator: Evaluator<'_>, commit: &str, tasks: &[&str]) -> Result<Vec<f64>, String> {
-    evaluator.eval_agent(commit, &strings(tasks))
+    evaluator.eval_harness(commit, &strings(tasks))
 }
 
 fn evaluator<'a>(
@@ -138,7 +138,7 @@ fn evaluated() -> Evaluated {
     let bench = FakeBench::resolving(&["a"]);
     let builder = FakeBuild::default();
     let accs = eval(evaluator(&bench, out, 8, &builder), "child", &["a", "b"]).unwrap();
-    fs::write(out.join("parent/rustyhgm-coding-agent"), "").unwrap();
+    fs::write(out.join("parent/rustyhgm-coding-harness"), "").unwrap();
     eval(evaluator(&bench, out, 8, &builder), "parent", &["a", "b"]).unwrap();
     Evaluated {
         tmp,
@@ -149,12 +149,12 @@ fn evaluated() -> Evaluated {
 }
 
 #[test]
-fn eval_agent_returns_per_task_results() {
+fn eval_harness_returns_per_task_results() {
     assert_eq!(evaluated().accs, [1.0, 0.0]);
 }
 
 #[test]
-fn eval_agent_builds_a_missing_agent_from_the_patch_chain() {
+fn eval_harness_builds_a_missing_harness_from_the_patch_chain() {
     let e = evaluated();
     let out = e.out();
     assert_eq!(
@@ -164,51 +164,51 @@ fn eval_agent_builds_a_missing_agent_from_the_patch_chain() {
                 out.join("parent/model_patch.diff"),
                 out.join("child/model_patch.diff")
             ],
-            out.join("child/rustyhgm-coding-agent")
+            out.join("child/rustyhgm-coding-harness")
         )]
     );
 }
 
 #[test]
-fn eval_agent_runs_the_bench_once_per_call() {
+fn eval_harness_runs_the_bench_once_per_call() {
     assert_eq!(evaluated().seen().len(), 2);
 }
 
 #[test]
-fn eval_agent_names_the_commit() {
+fn eval_harness_names_the_commit() {
     assert_eq!(evaluated().seen()[0].commit, "child");
 }
 
 #[test]
-fn eval_agent_caps_workers_at_the_task_count() {
+fn eval_harness_caps_workers_at_the_task_count() {
     assert_eq!(evaluated().seen()[0].max_workers, 2);
 }
 
 #[test]
-fn eval_agent_runs_the_built_agent() {
+fn eval_harness_runs_the_built_harness() {
     let e = evaluated();
     assert_eq!(
-        e.seen()[0].agent,
-        e.out().join("child/rustyhgm-coding-agent")
+        e.seen()[0].harness,
+        e.out().join("child/rustyhgm-coding-harness")
     );
 }
 
 #[test]
-fn eval_agent_runs_an_existing_agent() {
+fn eval_harness_runs_an_existing_harness() {
     let e = evaluated();
     assert_eq!(
-        e.seen()[1].agent,
-        e.out().join("parent/rustyhgm-coding-agent")
+        e.seen()[1].harness,
+        e.out().join("parent/rustyhgm-coding-harness")
     );
 }
 
 #[test]
-fn eval_agent_keeps_the_parent_commit() {
+fn eval_harness_keeps_the_parent_commit() {
     assert_eq!(evaluated().metadata()["parent_commit"], "parent");
 }
 
 #[test]
-fn eval_agent_records_the_resolved_tasks() {
+fn eval_harness_records_the_resolved_tasks() {
     assert_eq!(
         evaluated().metadata()["overall_performance"]["total_resolved_ids"],
         json!(["a"])
@@ -216,7 +216,7 @@ fn eval_agent_records_the_resolved_tasks() {
 }
 
 #[test]
-fn eval_agent_records_the_accuracy() {
+fn eval_harness_records_the_accuracy() {
     assert_eq!(
         evaluated().metadata()["overall_performance"]["accuracy_score"],
         0.5
@@ -224,19 +224,19 @@ fn eval_agent_records_the_accuracy() {
 }
 
 #[test]
-fn eval_agent_records_no_swe_dnames_without_them() {
+fn eval_harness_records_no_swe_dnames_without_them() {
     assert!(evaluated().metadata().get("swe_dnames").is_none());
 }
 
-fn fresh_agent() -> (tempfile::TempDir, Vec<f64>) {
+fn fresh_harness() -> (tempfile::TempDir, Vec<f64>) {
     let tmp = tempfile::tempdir().unwrap();
     let out = tmp.path();
-    fs::create_dir_all(out.join("agent")).unwrap();
+    fs::create_dir_all(out.join("harness")).unwrap();
     let mut bench = FakeBench::resolving(&[]);
-    bench.dnames = Some(vec![PathBuf::from("/p/agent_0")]);
+    bench.dnames = Some(vec![PathBuf::from("/p/harness_0")]);
     let accs = eval(
         evaluator(&bench, out, 1, &FakeBuild::default()),
-        "agent",
+        "harness",
         &["a"],
     )
     .unwrap();
@@ -244,17 +244,17 @@ fn fresh_agent() -> (tempfile::TempDir, Vec<f64>) {
 }
 
 fn fresh_metadata() -> serde_json::Value {
-    let (tmp, _) = fresh_agent();
-    read_json(&tmp.path().join("agent/metadata.json"))
+    let (tmp, _) = fresh_harness();
+    read_json(&tmp.path().join("harness/metadata.json"))
 }
 
 #[test]
-fn eval_agent_without_metadata_still_evaluates() {
-    assert_eq!(fresh_agent().1, [0.0]);
+fn eval_harness_without_metadata_still_evaluates() {
+    assert_eq!(fresh_harness().1, [0.0]);
 }
 
 #[test]
-fn eval_agent_creates_missing_metadata() {
+fn eval_harness_creates_missing_metadata() {
     let metadata = fresh_metadata();
     let keys: Vec<&String> = metadata.as_object().unwrap().keys().collect();
     assert_eq!(keys, ["run_id", "overall_performance", "swe_dnames"]);
@@ -262,12 +262,12 @@ fn eval_agent_creates_missing_metadata() {
 
 #[test]
 fn created_metadata_names_the_commit() {
-    assert_eq!(fresh_metadata()["run_id"], "agent");
+    assert_eq!(fresh_metadata()["run_id"], "harness");
 }
 
 #[test]
-fn eval_agent_records_swe_dnames() {
-    assert_eq!(fresh_metadata()["swe_dnames"], json!(["/p/agent_0"]));
+fn eval_harness_records_swe_dnames() {
+    assert_eq!(fresh_metadata()["swe_dnames"], json!(["/p/harness_0"]));
 }
 
 #[test]
@@ -280,12 +280,12 @@ fn created_metadata_records_the_submitted_tasks() {
 
 #[test]
 fn evaluating_no_tasks_returns_nothing() {
-    let (tmp, _) = fresh_agent();
+    let (tmp, _) = fresh_harness();
     let bench = FakeBench::resolving(&[]);
     assert_eq!(
         eval(
             evaluator(&bench, tmp.path(), 4, &FakeBuild::default()),
-            "agent",
+            "harness",
             &[]
         )
         .unwrap(),
@@ -332,7 +332,7 @@ fn a_node_whose_parent_is_gone_is_an_error() {
 }
 
 #[test]
-fn a_failing_agent_build_is_reported() {
+fn a_failing_harness_build_is_reported() {
     let bench = FakeBench::resolving(&[]);
     let broken = FakeBuild {
         fail: true,
@@ -386,10 +386,10 @@ fn unwritable_metadata_after_the_bench_is_an_error() {
     assert!(eval_fails(&Block, &FakeBuild::default(), plain, "ok").is_err());
 }
 
-fn polyglot_harness(root: &Path) -> polyglot::Harness {
+fn polyglot_bench(root: &Path) -> polyglot::Evaluator {
     write_json(&root.join("meta.json"), &json!([]));
     fs::create_dir_all(root.join("out/c")).unwrap();
-    polyglot::Harness {
+    polyglot::Evaluator {
         docker: Docker::new("rustyhgm-no-such-docker-program"),
         root: root.to_path_buf(),
         dataset: root.join("meta.json"),
@@ -403,9 +403,9 @@ fn polyglot_harness(root: &Path) -> polyglot::Harness {
 
 fn polyglot_run() -> (tempfile::TempDir, Vec<f64>) {
     let tmp = tempfile::tempdir().unwrap();
-    let harness = polyglot_harness(tmp.path());
+    let bench = polyglot_bench(tmp.path());
     let accs = eval(
-        evaluator(&harness, &tmp.path().join("out"), 2, &FakeBuild::default()),
+        evaluator(&bench, &tmp.path().join("out"), 2, &FakeBuild::default()),
         "c",
         &["a"],
     )
@@ -441,9 +441,9 @@ fn the_polyglot_bench_records_the_submissions() {
 #[test]
 fn the_polyglot_bench_fails_without_its_dataset() {
     let tmp = tempfile::tempdir().unwrap();
-    let missing = polyglot::Harness {
+    let missing = polyglot::Evaluator {
         dataset: tmp.path().join("none.json"),
-        ..polyglot_harness(tmp.path())
+        ..polyglot_bench(tmp.path())
     };
     assert!(
         eval(
@@ -459,7 +459,7 @@ fn the_polyglot_bench_fails_without_its_dataset() {
 fn the_swe_bench_fails_when_the_dataset_cannot_load() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    let harness = swe::Harness {
+    let bench = swe::Evaluator {
         docker: Docker::new("rustyhgm-no-such-docker-program"),
         swebench: Swebench {
             python: "rustyhgm-no-such-python".into(),
@@ -475,7 +475,7 @@ fn the_swe_bench_fails_when_the_dataset_cannot_load() {
     fs::create_dir_all(root.join("out/c")).unwrap();
     assert!(
         eval(
-            evaluator(&harness, &root.join("out"), 2, &FakeBuild::default()),
+            evaluator(&bench, &root.join("out"), 2, &FakeBuild::default()),
             "c",
             &["a"]
         )
@@ -501,7 +501,7 @@ fn swe_run() -> (tempfile::TempDir, Vec<f64>) {
     )
     .unwrap();
     fs::set_permissions(&python, fs::Permissions::from_mode(0o755)).unwrap();
-    let harness = swe::Harness {
+    let bench = swe::Evaluator {
         docker: Docker::new("rustyhgm-no-such-docker-program"),
         swebench: Swebench {
             python: python.to_string_lossy().into_owned(),
@@ -517,7 +517,7 @@ fn swe_run() -> (tempfile::TempDir, Vec<f64>) {
     let out = root.join("out");
     fs::create_dir_all(out.join("c")).unwrap();
     let accs = eval(
-        evaluator(&harness, &out, 2, &FakeBuild::default()),
+        evaluator(&bench, &out, 2, &FakeBuild::default()),
         "c",
         &["absent"],
     )
@@ -533,7 +533,7 @@ fn the_swe_bench_scores_an_absent_task_as_unresolved() {
 
 #[cfg(unix)]
 #[test]
-fn the_swe_bench_runs_the_harness_then_the_report() {
+fn the_swe_bench_runs_the_tasks_then_the_report() {
     let (tmp, _) = swe_run();
     let out = tmp.path().join("out");
     assert_eq!(

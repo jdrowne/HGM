@@ -15,8 +15,8 @@
 - [Explain choices in plain language](explain-choices-in-plain-language.md) — for decisions on unfamiliar tools, show rendered options side by side with a recommendation, not technical questions
 - [README diagrams are Mermaid](readme-diagrams-are-mermaid.md) — fenced mermaid GitHub renders; stable kinds only (flowchart with subgraph boxes); nothing newer than GitHub's Mermaid; no %% comments
 - [Working without subagents](working-without-subagents.md) — no Agent or Workflow call for any part of the work unless the user's own message asks for one; settings.json denies both
-- [Every input is explicit](every-input-is-explicit.md) — every value setting of rustyhgm/rustyhgm-coding-agent is a required flag; yes/no settings are bare switches, off unless given; no config file or environment variables
+- [Every input is explicit](every-input-is-explicit.md) — every value setting of rustyhgm/rustyhgm-coding-harness is a required flag; yes/no settings are bare switches, off unless given; no config file or environment variables
 - [Clippy runs with the CI thresholds](clippy-runs-with-ci-thresholds.md) — set CLIPPY_CONF_DIR to etc/clippy/src or test; uvx assert-one-assert-per-test src test; && counts as two asserts
-- [The first agent is the progenitor](the-first-agent-is-the-progenitor.md) — one name in code, flags, folders and docs; "root" only for tree structure; "seed" only for RNG
+- [The first harness is the progenitor](the-first-harness-is-the-progenitor.md) — one name in code, flags, folders and docs; "root" only for tree structure; "seed" only for RNG
 - [Machine and coding harness](machine-and-coding-harness.md) — rustyhgm is the machine; what it evolves is the coding harness, never agent, prompts included; harness means nothing else
 - [Memory files start with a heading](memory-files-start-with-a-heading.md) — an H1 title right after the front matter, or markdownlint MD041 fails CI

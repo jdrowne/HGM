@@ -1,0 +1,41 @@
+# Coding Harness Summary
+
+- **Main File**: `src/coding-harness/harness.rs`
+  - The command line is parsed into `Args`, and `run()` drives one run and writes `model_patch.diff`.
+  - The `forward()` function is the central entry point.
+  - Prompts are located either within `Args::instruction()` and `forward()` or as constants in the module that uses them, such as `SYSTEM_MESSAGE` in `src/coding-harness/withtools.rs`.
+- **Tools**: `src/coding-harness/tools.rs`
+  - This module contains the tools that LLMs can use to perform specific tasks.
+  - Each tool must have an info function, such as `bash_info()`, that returns a JSON object containing 'name', 'description', and 'input_schema'. The 'input_schema' should be a JSON object containing 'type', 'properties', and 'required'. Every info function is listed in `tool_infos()`.
+  - Each tool must be dispatched from `Tools::call()`, which takes the arguments defined in input_schema, performs the tool's task, and returns a string.
+  - See other tools for reference.
+- **Tool loop**: `src/coding-harness/withtools.rs`
+  - This module holds the conversation with the LLM: it sends the tool definitions and runs the tools the LLM asks for.
+- **Utilities**: the other modules in `src/coding-harness/`
+  - `llm.rs` calls the LLM, `git.rs` and `patch.rs` work with diffs, and the remaining modules contain utility functions used across the codebase.
+
+- **Additional Details**:
+  - The coding harness trying to solve a programming task. A task is in one programming language, but the coding harness needs to deal with different languages including C++, Go, Java, JavaScript, Python, and Rust.
+  - The model is very good at automatically utilizing the right available tools at the right time. So do not write a flow that explicitly forces a tool's usage.
+  - Be detailed in the prompt about what steps (e.g. implementing tests, refining solutions, etc.) you would like the harness to execute.
+  - Common tools, such as file editing and bash commands, are easy for the model to recognize and use appropriately. However, more complex and niche tools may require explicit instructions in the prompt.
+  - Tools should be designed to be as general as possible, ensuring they work across any task. Avoid hardcoding task-specific details or behaviors (e.g., paths or solutions).
+  - DO NOT write `loop` blocks or other loops without a guaranteed exit in the harness's code IN ANY CASE!! This can cause the harness to get stuck and not respond.
+  - Verify the implementation details of helper functions prior to usage to ensure proper integration and expected behavior.
+  - **DO NOT create parsing errors tools or functions, collecting raw error messages and letting the harness analyze them will be more efficient.**
+  - The harness is a Rust crate. It must build with `cargo build --release -p rustyhgm-coding-harness`, and a change that does not compile makes the harness fail. Declare every new module in `src/coding-harness/lib.rs`.
+  - Do not install additional packages or dependencies directly. Add new dependencies to `src/coding-harness/Cargo.toml` instead.
+
+
+
+ 
+### DOC: tool function schema
+
+Carefully consider whether to add/enhance the current tool or edit the workflow in forward()
+
+Pay special attention to making sure that "required" and "type" are always at the correct level of nesting. For example, "required" should be at the same level as "properties", not inside it.
+Make sure that every property, no matter how short, has a type and description correctly nested inside it.
+Other arguments than you have seen are not permitted. For example, in "edit_line_ranges" with "type": "array", arguments like "minItems" and "maxItems" are not permitted.
+
+
+

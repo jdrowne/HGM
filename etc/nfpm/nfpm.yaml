@@ -4,7 +4,7 @@ platform: linux
 version: ${VERSION}
 version_schema: none
 maintainer: jdrowne <jdrowne@users.noreply.github.com>
-description: A Rust port of the Huxley-Gödel Machine, which improves a coding agent by having it rewrite its own source
+description: A Rust port of the Huxley-Gödel Machine, which improves a coding harness by having it rewrite its own source
 homepage: https://github.com/jdrowne/RustyHGM
 license: Apache-2.0
 contents:

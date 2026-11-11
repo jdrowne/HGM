@@ -14,4 +14,4 @@ metadata:
 
 **Why:** "agent" made readers think the language model itself evolves, and "harness" had drifted onto `rustyhgm` and the bench runners too.
 
-**How to apply:** don't write "agent" or "coding agent" for the evolved program, and don't call `rustyhgm` a harness. Exceptions: the paper's title, the original project's file names, `ureq::Agent`, `swebench.harness`, and Claude Code's subagents. The first version is still the progenitor: [[the-first-agent-is-the-progenitor]].
+**How to apply:** don't write "agent" or "coding agent" for the evolved program, and don't call `rustyhgm` a harness. Exceptions: the paper's title, the original project's file names, `ureq::Agent`, `swebench.harness`, and Claude Code's subagents. The first version is still the progenitor: [[the-first-harness-is-the-progenitor]].

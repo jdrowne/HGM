@@ -37,7 +37,7 @@ fn prepared() -> Prepared {
     )
     .unwrap();
     fs::write(repo.join(".dockerignore"), "logs/\n").unwrap();
-    fs::write(repo.join("agent.txt"), "v1").unwrap();
+    fs::write(repo.join("harness.txt"), "v1").unwrap();
     fs::write(repo.join("logs/secret.log"), "no").unwrap();
     let name = unique("rustyhgm-progenitor");
     let dest = dir.path().join(&name).join("src");
@@ -54,7 +54,7 @@ fn prepared() -> Prepared {
 fn rerun(p: &Prepared, rebuild: bool) -> Running {
     let d = docker();
     let log = Log::discard();
-    fs::write(p.dest.join("agent.txt"), "v2").unwrap();
+    fs::write(p.dest.join("harness.txt"), "v2").unwrap();
     d.ensure_image(&p.dest, &p.image.0, rebuild, &log).unwrap();
     Running(
         d.run_detached(&p.image.0, &unique("rustyhgm-run"), &log)
@@ -66,7 +66,7 @@ fn rerun(p: &Prepared, rebuild: bool) -> Running {
 fn preparing_the_progenitor_copies_the_unignored_files() {
     assert_eq!(
         prepared().copied,
-        [".dockerignore", "Dockerfile", "agent.txt"]
+        [".dockerignore", "Dockerfile", "harness.txt"]
     );
 }
 
@@ -92,7 +92,7 @@ fn ensuring_an_existing_image_skips_the_build() {
     let p = prepared();
     let c = rerun(&p, false);
     let r =
-        c.0.exec_str("cat agent.txt", &ExecOptions::default())
+        c.0.exec_str("cat harness.txt", &ExecOptions::default())
             .unwrap();
     assert_eq!(r.text(), "v1");
 }
@@ -112,7 +112,7 @@ fn ignored_files_stay_out_of_the_image() {
 fn ensuring_an_image_with_rebuild_builds_it_again() {
     let p = prepared();
     let c = rerun(&p, true);
-    assert_eq!(c.0.read_file("/rustyhgm/agent.txt").unwrap(), b"v2");
+    assert_eq!(c.0.read_file("/rustyhgm/harness.txt").unwrap(), b"v2");
 }
 
 fn broken() -> (TempDir, String, Error) {

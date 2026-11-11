@@ -1,6 +1,6 @@
 ---
 name: every-input-is-explicit
-description: "rustyhgm and rustyhgm-coding-agent take every value setting as a required flag; yes/no settings are bare switches that are off unless given; no defaults, no environment variables, no working-directory lookups"
+description: "rustyhgm and rustyhgm-coding-harness take every value setting as a required flag; yes/no settings are bare switches that are off unless given; no defaults, no environment variables, no working-directory lookups"
 metadata:
   node_type: memory
   type: feedback
@@ -10,7 +10,7 @@ metadata:
 
 # Every input is explicit
 
-Every setting of `rustyhgm` and `rustyhgm-coding-agent` that takes a value is a required command-line flag. No such setting has a default value (no clap `default_value`, no serde `default`, no fallback when a file is missing), no environment variable is read, and nothing is found by looking in the working directory.
+Every setting of `rustyhgm` and `rustyhgm-coding-harness` that takes a value is a required command-line flag. No such setting has a default value (no clap `default_value`, no serde `default`, no fallback when a file is missing), no environment variable is read, and nothing is found by looking in the working directory.
 
 Yes/no settings are the one exception: they are bare switches like `--verbose`, on when the flag is typed and off when it is left out (`--cool_down`, `--full_eval`, `--polyglot`, `--self_improve`). They never take `true` or `false`.
 

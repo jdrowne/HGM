@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rustyhgm_coding_agent::patch::remove_patches_to_tests;
+use rustyhgm_coding_harness::patch::remove_patches_to_tests;
 use rustyhgm_core::pyjson::{PyValue, dumps};
 use serde_json::{Map, Value};
 

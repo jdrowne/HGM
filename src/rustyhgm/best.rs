@@ -10,7 +10,7 @@ use statrs::distribution::{Beta, ContinuousCDF};
 
 use crate::node::at;
 
-pub const BEST_AGENT: &str = "best_agent";
+pub const BEST_HARNESS: &str = "best_harness";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Belief {
@@ -72,7 +72,7 @@ pub fn best_belief(record: &Value, epsilon: f64) -> Result<Belief, String> {
     beliefs(record, epsilon)?
         .into_iter()
         .reduce(|best, b| if b.quantile > best.quantile { b } else { best })
-        .ok_or_else(|| "the record lists no agents".to_owned())
+        .ok_or_else(|| "the record lists no harnesses".to_owned())
 }
 
 pub fn pick(run_dir: &Path, epsilon: f64) -> Result<Belief, String> {

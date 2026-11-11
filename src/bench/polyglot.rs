@@ -3,8 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use rustyhgm_coding_agent::llm::Service;
-use rustyhgm_coding_agent::testrepo::{TestRepo, get_test_description};
+use rustyhgm_coding_harness::llm::Service;
+use rustyhgm_coding_harness::testrepo::{TestRepo, get_test_description};
 use rustyhgm_core::log::Log;
 use rustyhgm_core::pyjson::{PyValue, dumps};
 use rustyhgm_sandbox::{Container, Docker, ExecOptions};
@@ -12,12 +12,14 @@ use serde_json::Value;
 
 use crate::polyglot_build::Images;
 use crate::polyglot_spec::{TestSpec, get_eval_script, make_test_spec, test_cmd, test_commands};
-use crate::swe::{AGENT_PATH, Run, Step, key_mount, message, run_logged, run_step, service_flags};
+use crate::swe::{
+    HARNESS_PATH, Run, Step, key_mount, message, run_logged, run_step, service_flags,
+};
 
 pub const DATASET: &str = "polyglot_benchmark_metadata.json";
 
 #[derive(Clone, Debug)]
-pub struct Harness {
+pub struct Evaluator {
     pub docker: Docker,
     pub root: PathBuf,
     pub dataset: PathBuf,
@@ -79,7 +81,7 @@ fn write(path: &Path, contents: impl AsRef<[u8]>) -> Result<(), String> {
     fs::write(path, contents).map_err(|e| e.to_string())
 }
 
-impl Harness {
+impl Evaluator {
     fn spec(&self, entry: &Value) -> TestSpec {
         TestSpec {
             namespace: self.namespace.clone(),
@@ -89,7 +91,7 @@ impl Harness {
 
     fn setup(&self, job: &Job, container: &Container, log: &Log) -> Result<(), String> {
         let steps = [
-            Step::CopyIn(job.run.agent.clone(), AGENT_PATH),
+            Step::CopyIn(job.run.harness.clone(), HARNESS_PATH),
             Step::Run(&["ls", "-R", "/testbed"], "/"),
         ];
         run_steps(container, &steps, log)
@@ -103,12 +105,12 @@ impl Harness {
         let problem_statement = text(job.entry, "problem_statement");
         let base_commit = text(job.entry, "base_commit");
         let test_description = get_test_description(&test_cmd(&language), TestRepo::Polyglot);
-        log.info("Running the agent");
+        log.info("Running the harness");
         let service = service_flags(&self.service);
         let mut argv = vec![
             "timeout",
             &timeout,
-            AGENT_PATH,
+            HARNESS_PATH,
             "--problem_statement",
             &problem_statement,
             "--git_dir",
@@ -335,7 +337,7 @@ impl Harness {
         })
     }
 
-    pub fn harness<S: AsRef<str>>(
+    pub fn run_tasks<S: AsRef<str>>(
         &self,
         test_task_list: &[S],
         run: &Run,

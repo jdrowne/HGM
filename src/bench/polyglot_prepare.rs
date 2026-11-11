@@ -4,7 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use rustyhgm_coding_agent::git::diff_versus_commit;
+use rustyhgm_coding_harness::git::diff_versus_commit;
 use rustyhgm_core::pool;
 use rustyhgm_core::pyjson::{PyValue, dumps};
 use serde_json::{Map, Value, json};

@@ -42,7 +42,7 @@ const SETTINGS: [(&str, &str); 29] = [
     ("--self_improve_timeout", "3600"),
     ("--evaluation_timeout", "3600"),
     ("--output_dir", "out"),
-    ("--progenitor_name", "agent"),
+    ("--progenitor_name", "harness"),
 ];
 
 fn flags(changes: &[(&str, &str)]) -> Vec<String> {
@@ -164,7 +164,7 @@ fn rustyhgm_in(dir: &std::path::Path) -> Command {
 }
 
 fn progenitor_source(root: &std::path::Path) {
-    let src = root.join("progenitors/progenitor_swe/agent/src");
+    let src = root.join("progenitors/progenitor_swe/harness/src");
     std::fs::create_dir_all(&src).unwrap();
     std::fs::write(src.join("lib.rs"), "progenitor\n").unwrap();
 }
@@ -197,7 +197,7 @@ fn metadata(dir: &std::path::Path, commit: &str, extra: serde_json::Value) {
 fn finished_run(root: &std::path::Path) {
     metadata(
         &root.join("progenitors/progenitor_swe"),
-        "agent",
+        "harness",
         serde_json::json!({}),
     );
     progenitor_source(root);
@@ -249,17 +249,17 @@ fn a_continued_run_prints_its_output_directory() {
 }
 
 #[test]
-fn a_continued_run_prints_the_best_agent() {
+fn a_continued_run_prints_the_best_harness() {
     assert!(
         continued_finished()
             .stdout
-            .contains("Best agent: c1 solved 1/2 (score 0.")
+            .contains("Best harness: c1 solved 1/2 (score 0.")
     );
 }
 
 #[test]
-fn a_continued_run_prints_where_the_best_agent_is() {
-    let best = std::path::Path::new("output_rustyhgm/prev").join("best_agent");
+fn a_continued_run_prints_where_the_best_harness_is() {
+    let best = std::path::Path::new("output_rustyhgm/prev").join("best_harness");
     assert!(
         continued_finished()
             .stdout
@@ -268,9 +268,9 @@ fn a_continued_run_prints_where_the_best_agent_is() {
 }
 
 #[test]
-fn a_continued_run_writes_the_best_agent_source() {
+fn a_continued_run_writes_the_best_harness_source() {
     assert_eq!(
-        continued_finished().file("output_rustyhgm/prev/best_agent/lib.rs"),
+        continued_finished().file("output_rustyhgm/prev/best_harness/lib.rs"),
         "progenitor\nchild\n"
     );
 }
@@ -313,12 +313,12 @@ fn unnamed() -> Ran {
 }
 
 #[test]
-fn a_run_without_an_agent_name_fails() {
+fn a_run_without_an_harness_name_fails() {
     assert_eq!(unnamed().code, Some(1));
 }
 
 #[test]
-fn a_run_without_an_agent_name_says_so() {
+fn a_run_without_an_harness_name_says_so() {
     assert!(
         unnamed()
             .stderr
@@ -355,9 +355,9 @@ fn held_out() -> Ran {
     in_root(
         |root| {
             finished_run(root);
-            let holdout = root.join("output_rustyhgm/prev/holdout/best_agent");
+            let holdout = root.join("output_rustyhgm/prev/holdout/best_harness");
             std::fs::create_dir_all(&holdout).unwrap();
-            std::fs::write(holdout.join("rustyhgm-coding-agent"), "").unwrap();
+            std::fs::write(holdout.join("rustyhgm-coding-harness"), "").unwrap();
         },
         |c| {
             let python = swe_cache(&PathBuf::from(c.get_current_dir().unwrap()));
@@ -372,8 +372,10 @@ fn held_out() -> Ran {
 
 #[cfg(unix)]
 fn holdout_metadata() -> serde_json::Value {
-    serde_json::from_str(&held_out().file("output_rustyhgm/prev/holdout/best_agent/metadata.json"))
-        .unwrap()
+    serde_json::from_str(
+        &held_out().file("output_rustyhgm/prev/holdout/best_harness/metadata.json"),
+    )
+    .unwrap()
 }
 
 #[cfg(unix)]
@@ -385,14 +387,14 @@ fn a_holdout_split_runs_after_the_search() {
 
 #[cfg(unix)]
 #[test]
-fn a_holdout_split_scores_the_best_agent_after_the_run() {
+fn a_holdout_split_scores_the_best_harness_after_the_run() {
     assert!(held_out().stdout.contains("Held-out Lite: solved 0/2\n"));
 }
 
 #[cfg(unix)]
 #[test]
-fn a_holdout_score_is_recorded_for_the_best_agent() {
-    assert_eq!(holdout_metadata()["run_id"], "best_agent");
+fn a_holdout_score_is_recorded_for_the_best_harness() {
+    assert_eq!(holdout_metadata()["run_id"], "best_harness");
 }
 
 #[cfg(unix)]
@@ -420,11 +422,11 @@ fn a_missing_holdout_dataset_is_reported() {
 }
 
 #[test]
-fn a_missing_holdout_dataset_still_writes_the_best_agent() {
+fn a_missing_holdout_dataset_still_writes_the_best_harness() {
     assert!(
         holdout_without_dataset()
             .root()
-            .join("output_rustyhgm/prev/best_agent/lib.rs")
+            .join("output_rustyhgm/prev/best_harness/lib.rs")
             .is_file()
     );
 }
@@ -433,7 +435,7 @@ fn continued(root: &std::path::Path, nodes: &[&str], n_task_evals: usize) {
     let prev = root.join("output_rustyhgm/prev");
     metadata(
         &root.join("progenitors/progenitor_swe"),
-        "agent",
+        "harness",
         serde_json::json!({}),
     );
     let mut records = Vec::new();
@@ -542,7 +544,7 @@ fn a_run_without_its_key_file_names_it() {
     );
 }
 
-const FRESH_PROGENITOR: &str = "progenitors/progenitor_swe/agent/src";
+const FRESH_PROGENITOR: &str = "progenitors/progenitor_swe/harness/src";
 
 fn fresh() -> Ran {
     in_root(
@@ -559,7 +561,7 @@ fn a_fresh_run_writes_the_built_in_progenitor() {
         fresh()
             .root()
             .join(FRESH_PROGENITOR)
-            .join("src/coding-agent/main.rs")
+            .join("src/coding-harness/main.rs")
             .is_file()
     );
 }

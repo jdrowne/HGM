@@ -8,15 +8,15 @@ defaults:
 env:
   CARGO_TERM_COLOR: always
 jobs:
-  agent-subtree:
+  harness-subtree:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@main
       - name: Install the toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Build and test the agent subtree on its own
-        run: test/agent-subtree.sh
+      - name: Build and test the harness subtree on its own
+        run: test/harness-subtree.sh
   assert-coverage:
     needs:
       - e2e-test-coverage
@@ -549,7 +549,7 @@ jobs:
       github.ref_name == 'main'
       && github.event_name == 'push'
     needs:
-      - agent-subtree
+      - harness-subtree
       - assert-file-and-registration-sets-agree
       - assert-no-comments
       - assert-no-empty-test-files

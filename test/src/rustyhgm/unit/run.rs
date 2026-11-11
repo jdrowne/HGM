@@ -195,7 +195,7 @@ fn bench_error(polyglot: bool) -> String {
         max_workers: 1,
         builder: &FakeBuild::default(),
     }
-    .eval_agent("c", &["t".to_owned()])
+    .eval_harness("c", &["t".to_owned()])
     .unwrap_err()
 }
 
@@ -219,7 +219,7 @@ fn init<'a>(
     Init {
         progenitor_dir: root,
         output_dir: out,
-        agent_name: "agent",
+        harness_name: "harness",
         polyglot: false,
         continue_from: prev,
         total_tasks: tasks,
@@ -278,16 +278,19 @@ fn started() -> Started {
 #[test]
 fn a_new_run_points_at_the_prepared_source() {
     let s = started();
-    assert_eq!(s.start.src_path, s.root().join("progenitor_swe/agent/src"));
+    assert_eq!(
+        s.start.src_path,
+        s.root().join("progenitor_swe/harness/src")
+    );
 }
 
 #[cfg(unix)]
 #[test]
-fn a_new_run_copies_the_agent_source() {
+fn a_new_run_copies_the_harness_source() {
     assert!(
         started()
             .root()
-            .join("progenitor_swe/agent/src/src/coding-agent/main.rs")
+            .join("progenitor_swe/harness/src/src/coding-harness/main.rs")
             .is_file()
     );
 }
@@ -298,7 +301,7 @@ fn a_new_run_copies_the_dockerfile() {
     assert!(
         started()
             .root()
-            .join("progenitor_swe/agent/src/Dockerfile")
+            .join("progenitor_swe/harness/src/Dockerfile")
             .is_file()
     );
 }
@@ -309,7 +312,7 @@ fn a_new_run_copies_the_progenitor_into_the_run() {
     assert!(
         started()
             .root()
-            .join("out/progenitor/src/src/coding-agent/main.rs")
+            .join("out/progenitor/src/src/coding-harness/main.rs")
             .is_file()
     );
 }
@@ -322,8 +325,8 @@ fn a_new_run_evaluates_the_progenitor_once() {
 
 #[cfg(unix)]
 #[test]
-fn the_progenitor_evaluation_names_the_agent() {
-    assert_eq!(started().seen()[0].commit, "agent");
+fn the_progenitor_evaluation_names_the_harness() {
+    assert_eq!(started().seen()[0].commit, "harness");
 }
 
 #[cfg(unix)]
@@ -437,7 +440,7 @@ fn a_failing_progenitor_evaluation_is_reported() {
 fn a_progenitor_folder_without_source_is_an_error() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    fs::create_dir_all(root.join("progenitor_swe/agent")).unwrap();
+    fs::create_dir_all(root.join("progenitor_swe/harness")).unwrap();
     let e = initialize_run(
         &init(root, &root.join("out"), &["a".to_owned()], None),
         &FakeBench::resolving(&[]),
@@ -475,7 +478,7 @@ fn continued() -> (FakeBench, rustyhgm::run::Start) {
     previous(&out);
     node(
         &root.join("progenitor_swe"),
-        "agent",
+        "harness",
         None,
         performance(&["a"], &["b"], &[]),
     );
@@ -634,7 +637,7 @@ fn a_run_without_its_key_file_fetches_no_polyglot_dataset() {
 }
 
 #[test]
-fn a_run_without_an_agent_name_stops_early() {
+fn a_run_without_an_harness_name_stops_early() {
     assert!(
         run_error(|_| {}, |a| a.progenitor_name = String::new())
             .starts_with("--progenitor_name must not be empty")
@@ -719,7 +722,7 @@ fn finished_run() -> (tempfile::TempDir, PathBuf) {
 }
 
 #[test]
-fn finish_writes_the_best_agent_source_into_the_run() {
+fn finish_writes_the_best_harness_source_into_the_run() {
     let (_tmp, out) = finished_run();
     finish(
         &cli(&[]),
@@ -730,7 +733,7 @@ fn finish_writes_the_best_agent_source_into_the_run() {
     )
     .unwrap();
     assert_eq!(
-        fs::read_to_string(out.join("best_agent/lib.rs")).unwrap(),
+        fs::read_to_string(out.join("best_harness/lib.rs")).unwrap(),
         "progenitor\nchild\n"
     );
 }
@@ -782,10 +785,10 @@ fn held_out(results: &str) -> String {
     .unwrap();
     fs::write(cache.join("files.json"), r#"["rows.parquet"]"#).unwrap();
     fs::write(root.join("file"), "").unwrap();
-    let agent_dir = root.join("best_agent");
-    fs::create_dir_all(&agent_dir).unwrap();
+    let harness_dir = root.join("best_harness");
+    fs::create_dir_all(&harness_dir).unwrap();
     holdout(&Holdout {
-        agent_dir: &agent_dir,
+        harness_dir: &harness_dir,
         results_dir: &root.join(results),
         split: "Lite",
         n_tasks: 1,
@@ -804,6 +807,6 @@ fn a_holdout_cannot_record_under_a_file() {
 }
 
 #[test]
-fn a_holdout_fails_when_the_agent_cannot_be_built() {
+fn a_holdout_fails_when_the_harness_cannot_be_built() {
     assert!(held_out("holdout").contains("No such file or directory"));
 }

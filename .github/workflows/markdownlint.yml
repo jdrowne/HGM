@@ -40,7 +40,7 @@ jobs:
           ${{ github.workspace }}
       - if: ${{ !cancelled() }}
         name: Lint Markdown
-        run: markdownlint . --dot --disable MD013 --ignore best_agent
+        run: markdownlint . --dot --disable MD013 --ignore best_harness
   yamllint:
     runs-on: ubuntu-latest
     steps:

@@ -1,1 +1,1 @@
-Here is the log for the coding agent trying to solve the GitHub issues but failed.
+Here is the log for the coding harness trying to solve the GitHub issues but failed.

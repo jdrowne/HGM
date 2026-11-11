@@ -4,7 +4,7 @@ mod swe;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rustyhgm_coding_agent::llm::{Provider, Service};
+use rustyhgm_coding_harness::llm::{Provider, Service};
 
 pub fn executable(path: &Path, body: &str) {
     fs::write(path, body).unwrap();

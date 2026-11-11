@@ -3,14 +3,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use rustyhgm_bench::dataset::{Hub, SWE_BENCH};
-use rustyhgm_bench::swe::{EntryResult, Harness, Run};
+use rustyhgm_bench::swe::{EntryResult, Evaluator, Run};
 use rustyhgm_bench::swebench::{Swebench, TestSpec};
 use rustyhgm_sandbox::Docker;
 use serde_json::{Value, json};
 
 const IMAGE: &str = "rustyhgm-bench-fake-swe:latest";
 
-const AGENT: &str = r#"#!/bin/sh
+const HARNESS: &str = r#"#!/bin/sh
 mode=$(cat /mode 2>/dev/null)
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -21,7 +21,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 case "$mode" in
-  fail) echo agent failed; exit 1 ;;
+  fail) echo harness failed; exit 1 ;;
   norustyhgm) rm -rf /rustyhgm; exit 0 ;;
 esac
 [ "$mode" = nochat ] || echo "chat $id $(cat "$key")" > "$chat"
@@ -77,8 +77,8 @@ fn swebench(dir: &Path, prepare: &str, specs: &str) -> Swebench {
     }
 }
 
-fn harness(root: &Path, swebench: Swebench) -> Harness {
-    Harness {
+fn evaluator(root: &Path, swebench: Swebench) -> Evaluator {
+    Evaluator {
         docker: Docker::new("docker"),
         swebench,
         hub: Hub {
@@ -98,15 +98,15 @@ fn refused() -> String {
     url
 }
 
-fn agent_run(root: &Path) -> Run {
-    let dir = root.join("agent");
+fn harness_run(root: &Path) -> Run {
+    let dir = root.join("harness");
     fs::create_dir_all(&dir).unwrap();
     Run {
-        model_name_or_path: "agent".into(),
-        agent: PathBuf::from(script(
+        model_name_or_path: "harness".into(),
+        harness: PathBuf::from(script(
             &dir,
-            "rustyhgm-coding-agent",
-            AGENT.trim_start_matches("#!/bin/sh\n"),
+            "rustyhgm-coding-harness",
+            HARNESS.trim_start_matches("#!/bin/sh\n"),
         )),
         max_workers: 4,
     }
@@ -129,7 +129,7 @@ const TASKS: [&str; 3] = ["astropy__astropy-12907", "django__django-11099", "abs
 
 struct Full {
     tmp: tempfile::TempDir,
-    h: Harness,
+    h: Evaluator,
     pred: PathBuf,
     dirs: Vec<PathBuf>,
 }
@@ -148,7 +148,7 @@ impl Full {
 
     fn again(&self) -> Vec<PathBuf> {
         self.h
-            .harness(&TASKS[..1], &agent_run(self.root()), &self.pred)
+            .run_tasks(&TASKS[..1], &harness_run(self.root()), &self.pred)
             .unwrap()
     }
 }
@@ -158,9 +158,9 @@ fn full() -> Full {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     cache_rows(root);
-    let h = harness(root, swebench(root, "exit 0", &spec_line(IMAGE)));
+    let h = evaluator(root, swebench(root, "exit 0", &spec_line(IMAGE)));
     let pred = root.join("pred");
-    let dirs = h.harness(&TASKS, &agent_run(root), &pred).unwrap();
+    let dirs = h.run_tasks(&TASKS, &harness_run(root), &pred).unwrap();
     Full { tmp, h, pred, dirs }
 }
 
@@ -175,14 +175,14 @@ fn text(path: PathBuf) -> String {
 #[test]
 fn a_full_run_writes_one_prediction_directory() {
     let f = full();
-    assert_eq!(f.dirs, [f.pred.join("agent_1")]);
+    assert_eq!(f.dirs, [f.pred.join("harness_1")]);
 }
 
 #[test]
 fn predictions_name_the_run() {
     assert_eq!(
         full().per_task(|dir, id| prediction(dir, id)["model_name_or_path"].clone()),
-        ["agent_1", "agent_1"]
+        ["harness_1", "harness_1"]
     );
 }
 
@@ -235,7 +235,7 @@ fn tasks_not_asked_for_are_not_run() {
 #[test]
 fn a_second_run_takes_the_next_name() {
     let f = full();
-    assert_eq!(f.again(), [f.pred.join("agent_2")]);
+    assert_eq!(f.again(), [f.pred.join("harness_2")]);
 }
 
 #[test]
@@ -258,7 +258,7 @@ fn spec(id: &str, eval_script: &str, image: &str) -> TestSpec {
     }
 }
 
-fn evaluate(h: &Harness, specs: &[TestSpec], out: &Path, run: &Run) -> Vec<EntryResult> {
+fn evaluate(h: &Evaluator, specs: &[TestSpec], out: &Path, run: &Run) -> Vec<EntryResult> {
     let entries: Vec<Value> = specs
         .iter()
         .map(
@@ -306,7 +306,7 @@ fn steps() -> [TestSpec; 6] {
     let mode = |m: &str| format!("echo {m} > /mode");
     [
         spec("evalfail", "exit 3", IMAGE),
-        spec("agentfail", &mode("fail"), IMAGE),
+        spec("harnessfail", &mode("fail"), IMAGE),
         spec("norustyhgm", &mode("norustyhgm"), IMAGE),
         spec("nochat", &mode("nochat"), IMAGE),
         spec("nopatch", &mode("nopatch"), IMAGE),
@@ -318,9 +318,9 @@ fn failing_steps() -> Evaluated {
     image();
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    let h = harness(root, swebench(root, "exit 0", "exit 0"));
+    let h = evaluator(root, swebench(root, "exit 0", "exit 0"));
     let out = root.join("out");
-    let results = evaluate(&h, &steps(), &out, &agent_run(root));
+    let results = evaluate(&h, &steps(), &out, &harness_run(root));
     Evaluated {
         _tmp: tmp,
         out,
@@ -370,17 +370,17 @@ fn each_failing_step_leaves_no_proposals() {
     assert_eq!(proposed(&e.results, &e.out), Vec::<String>::new());
 }
 
-fn without_agent() -> Evaluated {
+fn without_harness() -> Evaluated {
     image();
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    let h = harness(root, swebench(root, "exit 0", "exit 0"));
+    let h = evaluator(root, swebench(root, "exit 0", "exit 0"));
     let out = root.join("out");
     let empty = Run {
-        agent: root.join("empty"),
-        ..agent_run(root)
+        harness: root.join("empty"),
+        ..harness_run(root)
     };
-    let results = evaluate(&h, &[spec("noagent", "true", IMAGE)], &out, &empty);
+    let results = evaluate(&h, &[spec("noharness", "true", IMAGE)], &out, &empty);
     Evaluated {
         _tmp: tmp,
         out,
@@ -389,19 +389,19 @@ fn without_agent() -> Evaluated {
 }
 
 #[test]
-fn a_missing_agent_fails_setup() {
-    assert_eq!(errored(&without_agent().results), Vec::<String>::new());
+fn a_missing_harness_fails_setup() {
+    assert_eq!(errored(&without_harness().results), Vec::<String>::new());
 }
 
 #[test]
-fn a_missing_agent_leaves_an_empty_patch() {
-    let e = without_agent();
+fn a_missing_harness_leaves_an_empty_patch() {
+    let e = without_harness();
     assert_eq!(patched(&e.results, &e.out), Vec::<String>::new());
 }
 
 #[test]
-fn a_missing_agent_leaves_no_proposals() {
-    let e = without_agent();
+fn a_missing_harness_leaves_no_proposals() {
+    let e = without_harness();
     assert_eq!(proposed(&e.results, &e.out), Vec::<String>::new());
 }
 
@@ -409,7 +409,7 @@ fn with_blocked_outputs() -> Evaluated {
     image();
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    let h = harness(root, swebench(root, "exit 0", "exit 0"));
+    let h = evaluator(root, swebench(root, "exit 0", "exit 0"));
     let out = root.join("out");
     fs::create_dir_all(&out).unwrap();
     fs::write(out.join("done.json"), "{}").unwrap();
@@ -422,7 +422,7 @@ fn with_blocked_outputs() -> Evaluated {
         spec("unwritable", "true", IMAGE),
         spec("noeval", "true", IMAGE),
     ];
-    let results = evaluate(&h, &specs, &out, &agent_run(root));
+    let results = evaluate(&h, &specs, &out, &harness_run(root));
     Evaluated {
         _tmp: tmp,
         out,
@@ -468,12 +468,12 @@ fn an_unwritable_eval_script_leaves_an_empty_patch() {
 fn without_docker() -> Evaluated {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    let h = Harness {
+    let h = Evaluator {
         docker: Docker::new("rustyhgm-no-such-docker-program"),
-        ..harness(root, swebench(root, "exit 0", "exit 0"))
+        ..evaluator(root, swebench(root, "exit 0", "exit 0"))
     };
     let out = root.join("out");
-    let results = evaluate(&h, &[spec("a", "true", IMAGE)], &out, &agent_run(root));
+    let results = evaluate(&h, &[spec("a", "true", IMAGE)], &out, &harness_run(root));
     Evaluated {
         _tmp: tmp,
         out,
@@ -507,38 +507,38 @@ fn staged(cached: bool, prepare: &str, specs: &str, pred: &str) -> bool {
     fs::write(root.join("file"), "").unwrap();
     let blocked = root.join("blocked");
     fs::create_dir_all(&blocked).unwrap();
-    fs::write(blocked.join("agent_1"), "").unwrap();
+    fs::write(blocked.join("harness_1"), "").unwrap();
     let python = tempfile::tempdir().unwrap();
-    harness(root, swebench(python.path(), prepare, specs))
-        .harness(
+    evaluator(root, swebench(python.path(), prepare, specs))
+        .run_tasks(
             &["astropy__astropy-12907"],
-            &agent_run(root),
+            &harness_run(root),
             &root.join(pred),
         )
         .is_err()
 }
 
 #[test]
-fn a_dataset_that_cannot_load_stops_the_harness() {
+fn a_dataset_that_cannot_load_stops_the_evaluator() {
     assert!(staged(false, "exit 0", &spec_line(IMAGE), "pred"));
 }
 
 #[test]
-fn an_unwritable_prediction_folder_stops_the_harness() {
+fn an_unwritable_prediction_folder_stops_the_evaluator() {
     assert!(staged(true, "exit 0", &spec_line(IMAGE), "file/pred"));
 }
 
 #[test]
-fn a_failing_image_preparation_stops_the_harness() {
+fn a_failing_image_preparation_stops_the_evaluator() {
     assert!(staged(true, "exit 1", &spec_line(IMAGE), "pred"));
 }
 
 #[test]
-fn garbled_specs_stop_the_harness() {
+fn garbled_specs_stop_the_evaluator() {
     assert!(staged(true, "exit 0", "echo nope", "pred"));
 }
 
 #[test]
-fn a_blocked_run_folder_stops_the_harness() {
+fn a_blocked_run_folder_stops_the_evaluator() {
     assert!(staged(true, "exit 0", &spec_line(IMAGE), "blocked"));
 }

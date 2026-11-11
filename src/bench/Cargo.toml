@@ -21,7 +21,7 @@ path = "../../test/src/bench/integration/main.rs"
 
 [dependencies]
 chrono = "*"
-rustyhgm-coding-agent = { path = "../coding-agent" }
+rustyhgm-coding-harness = { path = "../coding-harness" }
 rustyhgm-core = { path = "../core" }
 rustyhgm-sandbox = { path = "../sandbox" }
 parquet = { version = "*", default-features = false, features = ["snap"] }

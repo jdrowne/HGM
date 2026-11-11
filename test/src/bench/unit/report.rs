@@ -131,23 +131,23 @@ fn preds_to_jsonl_rejects_mixed_models() {
 #[test]
 fn the_first_run_of_a_model_is_numbered_one() {
     let tmp = tempfile::tempdir().unwrap();
-    assert_eq!(next_run_name(tmp.path(), "agent"), "agent_1");
+    assert_eq!(next_run_name(tmp.path(), "harness"), "harness_1");
 }
 
 #[test]
 fn run_names_count_earlier_runs_of_the_model() {
     let tmp = tempfile::tempdir().unwrap();
-    fs::create_dir(tmp.path().join("agent_1")).unwrap();
+    fs::create_dir(tmp.path().join("harness_1")).unwrap();
     fs::create_dir(tmp.path().join("other_1")).unwrap();
-    fs::write(tmp.path().join("agent_file"), "").unwrap();
-    assert_eq!(next_run_name(tmp.path(), "agent"), "agent_2");
+    fs::write(tmp.path().join("harness_file"), "").unwrap();
+    assert_eq!(next_run_name(tmp.path(), "harness"), "harness_2");
 }
 
 #[test]
 fn a_missing_run_folder_starts_at_one() {
     assert_eq!(
-        next_run_name(&PathBuf::from("/definitely/not/here"), "agent"),
-        "agent_1"
+        next_run_name(&PathBuf::from("/definitely/not/here"), "harness"),
+        "harness_1"
     );
 }
 

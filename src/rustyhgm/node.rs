@@ -8,7 +8,7 @@ use rustyhgm_bench::swe::{self, Run};
 use rustyhgm_core::metadata::{self, NODE_METADATA_FILE, OverallPerformance};
 use rustyhgm_core::pyjson::{self, PyValue};
 
-use crate::agent_build::{AGENT_BINARY, Build};
+use crate::harness_build::{Build, HARNESS_BINARY};
 
 pub type Metadata = Vec<(String, PyValue)>;
 
@@ -55,7 +55,7 @@ pub struct Eval<'a> {
     pub commit_id: &'a str,
     pub tasks: &'a [String],
     pub max_workers: usize,
-    pub agent: PathBuf,
+    pub harness: PathBuf,
     pub node_dir: &'a Path,
 }
 
@@ -63,19 +63,19 @@ pub trait Bench: Sync {
     fn run(&self, eval: &Eval) -> Result<Option<Vec<PathBuf>>, String>;
 }
 
-fn agent_run(eval: &Eval) -> Run {
+fn harness_run(eval: &Eval) -> Run {
     Run {
         model_name_or_path: eval.commit_id.to_owned(),
-        agent: eval.agent.clone(),
+        harness: eval.harness.clone(),
         max_workers: eval.max_workers,
     }
 }
 
-impl Bench for swe::Harness {
+impl Bench for swe::Evaluator {
     fn run(&self, eval: &Eval) -> Result<Option<Vec<PathBuf>>, String> {
-        let dnames = self.harness(
+        let dnames = self.run_tasks(
             eval.tasks,
-            &agent_run(eval),
+            &harness_run(eval),
             &eval.node_dir.join("predictions"),
         )?;
         println!("Start make_report");
@@ -93,11 +93,11 @@ impl Bench for swe::Harness {
     }
 }
 
-impl Bench for polyglot::Harness {
+impl Bench for polyglot::Evaluator {
     fn run(&self, eval: &Eval) -> Result<Option<Vec<PathBuf>>, String> {
-        self.harness(
+        self.run_tasks(
             eval.tasks,
-            &agent_run(eval),
+            &harness_run(eval),
             &eval.node_dir.join("predictions"),
             eval.node_dir,
         )
@@ -113,24 +113,24 @@ pub struct Evaluator<'a> {
 }
 
 impl Evaluator<'_> {
-    pub fn eval_agent(&self, commit_id: &str, tasks: &[String]) -> Result<Vec<f64>, String> {
+    pub fn eval_harness(&self, commit_id: &str, tasks: &[String]) -> Result<Vec<f64>, String> {
         let output_dir = self.output_dir;
         let node_dir = output_dir.join(commit_id);
         if !node_dir.join(NODE_METADATA_FILE).exists() {
             save_metadata(&node_dir, &empty_metadata(commit_id))?;
         }
         let mut metadata = load_metadata(&node_dir)?;
-        let agent = node_dir.join(AGENT_BINARY);
-        if !tasks.is_empty() && !agent.exists() {
+        let harness = node_dir.join(HARNESS_BINARY);
+        if !tasks.is_empty() && !harness.exists() {
             let patches = metadata::model_patch_paths(output_dir, "", commit_id)
                 .map_err(|e| e.to_string())?;
-            self.builder.build(&patches, &agent)?;
+            self.builder.build(&patches, &harness)?;
         }
         let dnames = self.bench.run(&Eval {
             commit_id,
             tasks,
             max_workers: self.max_workers.min(tasks.len()),
-            agent,
+            harness,
             node_dir: &node_dir,
         })?;
         let (_, overall) =

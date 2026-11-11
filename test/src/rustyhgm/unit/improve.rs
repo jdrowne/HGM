@@ -6,7 +6,7 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rustyhgm::FAILED;
 use rustyhgm::improve::{Improver, SelfImprove, child_performance, choose_entry, diagnose_problem};
-use rustyhgm_coding_agent::llm::{Client, Provider};
+use rustyhgm_coding_harness::llm::{Client, Provider};
 use rustyhgm_core::log::Log;
 use rustyhgm_core::prompts::{
     CONTEXT_LENGTH_ERRORS, DiagnoseInput, SOLVE_CONTEXTLENGTH, SOLVE_EMPTY_PATCHES,
@@ -315,7 +315,7 @@ fn a_child_starts_with_zeroed_performance() {
 fn improver(out: &Path, docker: Docker, dataset: Result<Vec<Value>, String>) -> SelfImprove {
     SelfImprove {
         docker,
-        agent_source: out.to_path_buf(),
+        harness_source: out.to_path_buf(),
         output_dir: out.to_path_buf(),
         polyglot: false,
         dataset,

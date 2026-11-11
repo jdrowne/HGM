@@ -6,9 +6,9 @@ use rand::{Rng, RngExt};
 use regex::Regex;
 use serde_json::Value;
 
-pub const CODING_AGENT_SUMMARY: &str = include_str!("prompts/coding_agent_summary.txt");
-pub const CODING_AGENT_SUMMARY_POLYGLOT: &str =
-    include_str!("prompts/coding_agent_summary_polyglot.txt");
+pub const CODING_HARNESS_SUMMARY: &str = include_str!("prompts/coding_harness_summary.txt");
+pub const CODING_HARNESS_SUMMARY_POLYGLOT: &str =
+    include_str!("prompts/coding_harness_summary_polyglot.txt");
 pub const DIAGNOSE_SYSTEM_MESSAGE: &str = include_str!("prompts/diagnose_system_message.txt");
 pub const SWE_ISSUE_PROMPT: &str = include_str!("prompts/swe_issue_prompt.txt");
 pub const POLYGLOT_ISSUE_PROMPT: &str = include_str!("prompts/polyglot_issue_prompt.txt");
@@ -33,12 +33,12 @@ pub const MD_LOG_LIMIT: usize = 100_000;
 
 pub const NO_LOGS: &str = "No logs available.";
 pub const NO_TEST_RESULTS: &str = "No test results available. Assume all tests failed.";
-pub const NO_PATCH: &str = "No predicted patch available. Assume the agent failed.";
-pub const NO_EVAL_RESULT: &str = "No evaluation result available. Assume the agent failed.";
+pub const NO_PATCH: &str = "No predicted patch available. Assume the harness failed.";
+pub const NO_EVAL_RESULT: &str = "No evaluation result available. Assume the harness failed.";
 
 pub const FILTERED_LOG_PREFIX: &str = "Error in get_response_withtools";
 
-pub const CODE_FILES: [&str; 1] = ["src/coding-agent/"];
+pub const CODE_FILES: [&str; 1] = ["src/coding-harness/"];
 
 pub const CONTEXT_LENGTH_ERRORS: [&str; 3] = [
     r"Error in get_response_withtools: Error code: 400 - {'message': 'Input is too long for requested model.'}",
@@ -92,9 +92,9 @@ pub fn get_problem_description_prompt(response: &Value, polyglot: bool) -> Resul
             .ok_or_else(|| format!("missing {k} in the diagnosis"))
     };
     let summary = if polyglot {
-        CODING_AGENT_SUMMARY_POLYGLOT
+        CODING_HARNESS_SUMMARY_POLYGLOT
     } else {
-        CODING_AGENT_SUMMARY
+        CODING_HARNESS_SUMMARY
     };
     let body = format_named(
         PROBLEM_DESCRIPTION_PROMPT,
@@ -235,7 +235,7 @@ pub fn get_eval_log_text(eval_json: &Value) -> String {
     let empty = Value::Object(Default::default());
     let mut parts: Vec<String> = vec![
         "## New tests for the issue".into(),
-        "These test whether the coding agent fixed the requested issue.".into(),
+        "These test whether the coding harness fixed the requested issue.".into(),
     ];
     let f2p = status.get("FAIL_TO_PASS").unwrap_or(&empty);
     let success = py_items(f2p.get("success"));
@@ -252,7 +252,7 @@ pub fn get_eval_log_text(eval_json: &Value) -> String {
     }
     parts.push("## Previous tests from the repo".into());
     parts.push(
-        "These test whether the modification that coding agent made break the previous tests"
+        "These test whether the modification that coding harness made break the previous tests"
             .into(),
     );
     let p2p = status.get("PASS_TO_PASS").unwrap_or(&empty);
@@ -428,7 +428,7 @@ pub fn get_diagnose_prompt_swe(input: &DiagnoseInput) -> Result<(String, String)
     let code = get_current_code(input.root_dir, &CODE_FILES, input.patch_files, &[])
         .map_err(|e| e.to_string())?;
     let system = format!(
-        "{CODING_AGENT_SUMMARY}{}",
+        "{CODING_HARNESS_SUMMARY}{}",
         format_named(DIAGNOSE_SYSTEM_MESSAGE, &[("code", &code)])
     );
     Ok((system, prompt))
@@ -460,7 +460,7 @@ pub fn get_diagnose_prompt_polyglot<R: Rng + ?Sized>(
     let code = get_current_code(input.root_dir, &CODE_FILES, input.patch_files, &[])
         .map_err(|e| e.to_string())?;
     let system = format!(
-        "{CODING_AGENT_SUMMARY_POLYGLOT}{}",
+        "{CODING_HARNESS_SUMMARY_POLYGLOT}{}",
         format_named(DIAGNOSE_SYSTEM_MESSAGE, &[("code", &code)])
     );
     if rng.random::<f64>() < 0.25 {

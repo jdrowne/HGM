@@ -5,10 +5,10 @@ use chrono::Local;
 use rand::seq::IndexedRandom;
 use rand::{Rng, RngExt};
 use rustyhgm_bench::swe::{Step, key_mount, message, run_logged, run_step, service_flags};
-use rustyhgm_coding_agent::llm::{
+use rustyhgm_coding_harness::llm::{
     Client, Service, extract_json_between_markers, get_response_from_llm,
 };
-use rustyhgm_coding_agent::testrepo::{TestRepo, get_test_description};
+use rustyhgm_coding_harness::testrepo::{TestRepo, get_test_description};
 use rustyhgm_core::log::Log;
 use rustyhgm_core::metadata::{MODEL_PATCH_FILE, model_patch_paths, read_overall_performance};
 use rustyhgm_core::prompts::{
@@ -21,7 +21,7 @@ use rustyhgm_sandbox::{Container, Docker, ExecOptions, RunOptions};
 use serde_json::Value;
 
 use crate::FAILED;
-use crate::agent_build::{AGENT_BINARY, INSTALLED_AGENT, compile, copy_binary, patch_steps};
+use crate::harness_build::{HARNESS_BINARY, INSTALLED_HARNESS, compile, copy_binary, patch_steps};
 use crate::node::{Metadata, put, save_metadata};
 
 pub const DIAGNOSE_ATTEMPTS: usize = 3;
@@ -116,7 +116,7 @@ pub fn child_performance() -> PyValue {
 
 pub struct SelfImprove {
     pub docker: Docker,
-    pub agent_source: PathBuf,
+    pub harness_source: PathBuf,
     pub output_dir: PathBuf,
     pub polyglot: bool,
     pub dataset: Result<Vec<Value>, String>,
@@ -187,7 +187,7 @@ impl SelfImprove {
         let mut argv = vec![
             "timeout",
             &timeout,
-            INSTALLED_AGENT,
+            INSTALLED_HARNESS,
             "--problem_statement",
             statement,
             "--git_dir",
@@ -238,7 +238,7 @@ impl SelfImprove {
             .remove_existing_container(&name, log)
             .and_then(|()| {
                 self.docker
-                    .ensure_image(&self.agent_source, &self.image_name, false, log)
+                    .ensure_image(&self.harness_source, &self.image_name, false, log)
             })
             .and_then(|()| {
                 let opts = RunOptions {
@@ -267,7 +267,7 @@ impl SelfImprove {
         let input = DiagnoseInput {
             entry_id: &entry,
             commit: attempt.parent_commit,
-            root_dir: &self.agent_source,
+            root_dir: &self.harness_source,
             out_dir: &self.output_dir,
             dataset,
             patch_files: &patch_files,
@@ -294,7 +294,7 @@ impl SelfImprove {
             .filter(|text| !text.trim().is_empty())
             .ok_or_else(|| "Model patch file is empty or does not exist".to_owned())?;
         compile(started, log)
-            .and_then(|()| copy_binary(started, &attempt.run_dir.join(AGENT_BINARY), log))
+            .and_then(|()| copy_binary(started, &attempt.run_dir.join(HARNESS_BINARY), log))
             .map(|()| true)
     }
 }

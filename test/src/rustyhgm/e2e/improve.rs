@@ -12,7 +12,7 @@ use super::{binary, flags};
 const TASK: &str = "javascript__queen-attack";
 const HGM: &str = "rustyhgm";
 const IMPROVE_COMMAND: &str =
-    "cd /rustyhgm && printf 'pub const E2E: u8 = 1;\\n' >> src/coding-agent/lib.rs && echo ok";
+    "cd /rustyhgm && printf 'pub const E2E: u8 = 1;\\n' >> src/coding-harness/lib.rs && echo ok";
 const SOLVE_COMMAND: &str =
     "cd /testbed && printf 'export const e2e = 1;\\n' >> queen-attack.js && echo ok";
 const DIAGNOSIS: &str = "```json\n{\"log_summarization\": \"s\", \"potential_improvements\": [\"p\"], \"improvement_proposal\": \"i\", \"implementation_suggestion\": \"do it\", \"problem_description\": \"broken\"}\n```";
@@ -158,12 +158,12 @@ fn polyglot_tasks(root: &Path) -> Vec<String> {
 }
 
 fn write_progenitor(progenitors: &Path) {
-    let agent = progenitors.join("progenitor_polyglot/default_agent");
+    let harness = progenitors.join("progenitor_polyglot/default_harness");
     let tasks = polyglot_tasks(&repo_root());
     if tasks[0] != TASK {
         panic!("the first polyglot task is {}, not {TASK}", tasks[0]);
     }
-    fs::create_dir_all(agent.join("predictions")).unwrap();
+    fs::create_dir_all(harness.join("predictions")).unwrap();
     let metadata = json!({"run_id": "progenitor", "overall_performance": {
         "accuracy_score": 1.0 / tasks.len() as f64,
         "total_resolved_instances": 1,
@@ -174,8 +174,8 @@ fn write_progenitor(progenitors: &Path) {
         "total_resolved_ids": tasks[..1],
         "total_submitted_ids": tasks,
     }});
-    fs::write(agent.join("metadata.json"), metadata.to_string()).unwrap();
-    rustyhgm::progenitor::write(&agent.join("src")).unwrap();
+    fs::write(harness.join("metadata.json"), metadata.to_string()).unwrap();
+    rustyhgm::progenitor::write(&harness.join("src")).unwrap();
 }
 
 fn records(path: &Path) -> Vec<Value> {
@@ -189,7 +189,7 @@ fn records(path: &Path) -> Vec<Value> {
 }
 
 fn run_args(host: &str, key: &str, progenitors: &str) -> Vec<String> {
-    let agent_url = format!("http://{host}:8000/v1");
+    let harness_url = format!("http://{host}:8000/v1");
     flags(&[
         ("--api_key_file", key),
         ("--progenitor_dir", progenitors),
@@ -204,14 +204,14 @@ fn run_args(host: &str, key: &str, progenitors: &str) -> Vec<String> {
         ("--eval_random_level", "0"),
         ("--self_improve_llm", "vllm-model"),
         ("--self_improve_provider", "vllm"),
-        ("--self_improve_base_url", &agent_url),
+        ("--self_improve_base_url", &harness_url),
         ("--downstream_llm", "vllm-model"),
         ("--downstream_provider", "vllm"),
-        ("--downstream_base_url", &agent_url),
+        ("--downstream_base_url", &harness_url),
         ("--diagnose_llm", "vllm-model"),
         ("--diagnose_provider", "vllm"),
         ("--diagnose_base_url", "http://127.0.0.1:8000/v1"),
-        ("--progenitor_name", "default_agent"),
+        ("--progenitor_name", "default_harness"),
         ("--output_dir", "output_rustyhgm/run"),
     ])
 }
@@ -372,7 +372,7 @@ impl Shared {
 }
 
 #[test]
-fn a_run_improves_the_agent_and_measures_its_child() {
+fn a_run_improves_the_harness_and_measures_its_child() {
     let s = shared();
     assert_eq!(
         s.outcome["code"],
@@ -394,15 +394,21 @@ fn the_run_prepares_the_polyglot_dataset() {
 }
 
 #[test]
-fn the_run_prints_where_the_best_agent_is() {
-    let best = Path::new("output_rustyhgm").join("run").join("best_agent");
+fn the_run_prints_where_the_best_harness_is() {
+    let best = Path::new("output_rustyhgm")
+        .join("run")
+        .join("best_harness");
     assert!(shared().stdout().contains(&format!("{}\n", best.display())));
 }
 
 #[test]
-fn the_best_agent_carries_the_improvement() {
-    let lib =
-        fs::read_to_string(shared().run().join("best_agent/src/coding-agent/lib.rs")).unwrap();
+fn the_best_harness_carries_the_improvement() {
+    let lib = fs::read_to_string(
+        shared()
+            .run()
+            .join("best_harness/src/coding-harness/lib.rs"),
+    )
+    .unwrap();
     assert!(lib.ends_with("pub const E2E: u8 = 1;\n"), "{lib}");
 }
 
@@ -520,14 +526,19 @@ fn the_child_resolves_nothing() {
 }
 
 #[test]
-fn the_child_keeps_its_agent_patch() {
+fn the_child_keeps_its_harness_patch() {
     let patch = fs::read_to_string(shared().child_dir().join("model_patch.diff")).unwrap();
-    assert!(patch.contains("+++ b/src/coding-agent/lib.rs"), "{patch}");
+    assert!(patch.contains("+++ b/src/coding-harness/lib.rs"), "{patch}");
 }
 
 #[test]
-fn the_child_keeps_its_built_agent() {
-    assert!(shared().child_dir().join("rustyhgm-coding-agent").is_file());
+fn the_child_keeps_its_built_harness() {
+    assert!(
+        shared()
+            .child_dir()
+            .join("rustyhgm-coding-harness")
+            .is_file()
+    );
 }
 
 #[test]

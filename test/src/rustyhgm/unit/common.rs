@@ -5,10 +5,10 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use clap::Parser;
-use rustyhgm::agent_build::Build;
 use rustyhgm::cli::Cli;
+use rustyhgm::harness_build::Build;
 use rustyhgm::node::{Bench, Eval};
-use rustyhgm_coding_agent::llm::{Provider, Service};
+use rustyhgm_coding_harness::llm::{Provider, Service};
 use serde_json::{Value, json};
 
 pub const SETTINGS: [(&str, &str); 29] = [
@@ -40,7 +40,7 @@ pub const SETTINGS: [(&str, &str); 29] = [
     ("--self_improve_timeout", "3600"),
     ("--evaluation_timeout", "3600"),
     ("--output_dir", "out"),
-    ("--progenitor_name", "agent"),
+    ("--progenitor_name", "harness"),
 ];
 
 pub fn argv(changes: &[(&str, &str)], without: &[&str]) -> Vec<String> {
@@ -118,7 +118,7 @@ pub struct Seen {
     pub commit: String,
     pub tasks: Vec<String>,
     pub max_workers: usize,
-    pub agent: PathBuf,
+    pub harness: PathBuf,
 }
 
 #[derive(Default)]
@@ -136,7 +136,7 @@ impl Build for FakeBuild {
         if self.fail {
             return Err("build failed".to_owned());
         }
-        fs::write(binary, "agent").map_err(|e| e.to_string())
+        fs::write(binary, "harness").map_err(|e| e.to_string())
     }
 }
 
@@ -164,7 +164,7 @@ impl Bench for FakeBench {
             commit: eval.commit_id.to_owned(),
             tasks: eval.tasks.to_vec(),
             max_workers: eval.max_workers,
-            agent: eval.agent.clone(),
+            harness: eval.harness.clone(),
         });
         if self.fail {
             return Err("bench failed".to_owned());
