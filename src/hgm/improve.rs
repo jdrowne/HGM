@@ -203,9 +203,7 @@ impl SelfImprove {
             "--timeout",
             &timeout,
         ];
-        if self.polyglot {
-            argv.push("--polyglot");
-        }
+        argv.extend(self.polyglot.then_some("--polyglot"));
         let patch = attempt.run_dir.join(MODEL_PATCH_FILE);
         container
             .exec(

@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use crate::common::{DIAGNOSIS, node, performance, read_json, reply, serve};
 
-const IMAGE: &str = "hgm-fake-improve-agent:latest";
+pub const IMAGE: &str = "hgm-fake-improve-agent:latest";
 
 const GIT: &str = r#"#!/bin/sh
 mode=$(cat /hgm/mode 2>/dev/null)
@@ -49,7 +49,7 @@ else
 fi
 "#;
 
-fn image() {
+pub fn image() {
     let dir = tempfile::tempdir().unwrap();
     let ctx = dir.path();
     fs::create_dir_all(ctx.join("hgm")).unwrap();
@@ -71,7 +71,7 @@ fn image() {
     assert!(status.success());
 }
 
-fn mode_patch(mode: &str) -> String {
+pub fn mode_patch(mode: &str) -> String {
     format!("--- /dev/null\n+++ b/mode\n@@ -0,0 +1 @@\n+{mode}\n")
 }
 
