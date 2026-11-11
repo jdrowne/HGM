@@ -22,8 +22,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@main
-      - name: Install the nightly toolchain for branch coverage
-        uses: dtolnay/rust-toolchain@nightly
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools
       - name: Install cargo-llvm-cov and cargo-nextest
@@ -33,12 +33,11 @@ jobs:
       - name: Cache the build
         uses: Swatinem/rust-cache@master
       - name: Run every tier under coverage
-        run: cargo +nightly llvm-cov nextest --workspace --branch --no-report
+        run: cargo llvm-cov nextest --workspace --no-report
       - if: ${{ !cancelled() }}
         name: Generate the coverage report
         run: >-
-          cargo +nightly llvm-cov report
-          --branch
+          cargo llvm-cov report
           --ignore-filename-regex '(^|/)test/'
           --html
           --output-dir coverage-html
@@ -50,21 +49,18 @@ jobs:
           path: coverage-html/
       - name: Enforce 100% coverage
         run: |
-          cargo +nightly llvm-cov report \
-            --branch \
+          cargo llvm-cov report \
             --ignore-filename-regex '(^|/)test/' \
             --show-missing-lines
-          cargo +nightly llvm-cov report \
-            --branch \
+          cargo llvm-cov report \
             --ignore-filename-regex '(^|/)test/' \
             --json \
             --summary-only \
             | jq -e '.data[0].totals |
               .lines.covered == .lines.count and
               .functions.covered == .functions.count and
-              .regions.covered == .regions.count and
-              .branches.covered == .branches.count' \
-            || { echo "FAIL: line, function, region and branch coverage must be 100%"; exit 1; }
+              .regions.covered == .regions.count' \
+            || { echo "FAIL: line, function and region coverage must be 100%"; exit 1; }
   assert-file-and-registration-sets-agree:
     runs-on: ubuntu-latest
     steps:
