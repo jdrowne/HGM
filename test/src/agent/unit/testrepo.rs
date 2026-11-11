@@ -26,3 +26,9 @@ fn test_descriptions_match_the_python() {
         );
     }
 }
+
+#[test]
+fn a_one_line_script_is_its_own_test_command() {
+    let (command, _) = get_test_command("pytest -rA tests/test_a.py");
+    assert_eq!(command, "cd /testbed/ && pytest -rA <specific test files>");
+}

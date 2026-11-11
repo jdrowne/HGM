@@ -12,12 +12,8 @@ pub enum TestRepo {
 }
 
 pub fn get_test_command(eval_script: &str) -> (String, String) {
-    let lines: Vec<&str> = eval_script.trim().split('\n').collect();
-    let line = if lines.len() >= 2 {
-        lines[lines.len() - 2]
-    } else {
-        lines.last().copied().unwrap_or("")
-    };
+    let script = eval_script.trim();
+    let line = script.rsplit('\n').nth(1).unwrap_or(script);
     let mut parts: Vec<&str> = line.split_whitespace().collect();
     let mut hint = String::new();
     if let Some(last) = parts.last()

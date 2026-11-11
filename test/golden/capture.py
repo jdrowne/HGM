@@ -750,7 +750,7 @@ diff --git a/pkg/tox.ini b/pkg/tox.ini
 +w
 """
     cases = []
-    for targets in (["affine_cipher.py"], ["harness.py", "x.py"], ["nothing.py"], []):
+    for targets in (["affine_cipher.py"], ["harness.py", "x.py"], ["nothing.py"], [], ["src/affine_cipher.py"], ["polyglot/harness.py", "tox.ini"]):
         cases.append(
             {"name": f"filter_patch_by_files_{'_'.join(targets) or 'none'}", "input": {"patch": patch, "target_files": targets}, "output": filter_patch_by_files(patch, targets)}
         )

@@ -20,3 +20,10 @@ fn hgm_binary_runs() {
     let stdout = String::from_utf8(out.stdout).unwrap();
     assert!(stdout.starts_with("hgm "), "{stdout}");
 }
+
+#[test]
+fn hgm_without_a_known_command_exits_with_usage_status() {
+    let out = Command::new(binary("hgm")).output().expect("run hgm");
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8(out.stderr).unwrap().starts_with("hgm: "));
+}

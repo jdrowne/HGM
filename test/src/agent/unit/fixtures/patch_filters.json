@@ -41,6 +41,27 @@
       "output": ""
     },
     {
+      "name": "filter_patch_by_files_src/affine_cipher.py",
+      "input": {
+        "patch": "diff --git a/src/affine_cipher.py b/src/affine_cipher.py\nindex 1..2 100644\n--- a/src/affine_cipher.py\n+++ b/src/affine_cipher.py\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/tests/test_affine.py b/tests/test_affine.py\n--- a/tests/test_affine.py\n+++ b/tests/test_affine.py\n@@ -1 +1 @@\n-t\n+u\ndiff --git a/polyglot/harness.py b/polyglot/harness.py\n--- a/polyglot/harness.py\n+++ b/polyglot/harness.py\n@@ -1 +1 @@\n-h\n+i\ndiff --git a/pkg/testing/x.py b/pkg/testing/x.py\n+x\ndiff --git a/pkg/test_y.py b/pkg/test_y.py\n+y\ndiff --git a/tox.ini b/tox.ini\n+z\ndiff --git a/pkg/tox.ini b/pkg/tox.ini\n+w\n",
+        "target_files": [
+          "src/affine_cipher.py"
+        ]
+      },
+      "output": "diff --git a/src/affine_cipher.py b/src/affine_cipher.py\nindex 1..2 100644\n--- a/src/affine_cipher.py\n+++ b/src/affine_cipher.py\n@@ -1 +1 @@\n-old\n+new"
+    },
+    {
+      "name": "filter_patch_by_files_polyglot/harness.py_tox.ini",
+      "input": {
+        "patch": "diff --git a/src/affine_cipher.py b/src/affine_cipher.py\nindex 1..2 100644\n--- a/src/affine_cipher.py\n+++ b/src/affine_cipher.py\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/tests/test_affine.py b/tests/test_affine.py\n--- a/tests/test_affine.py\n+++ b/tests/test_affine.py\n@@ -1 +1 @@\n-t\n+u\ndiff --git a/polyglot/harness.py b/polyglot/harness.py\n--- a/polyglot/harness.py\n+++ b/polyglot/harness.py\n@@ -1 +1 @@\n-h\n+i\ndiff --git a/pkg/testing/x.py b/pkg/testing/x.py\n+x\ndiff --git a/pkg/test_y.py b/pkg/test_y.py\n+y\ndiff --git a/tox.ini b/tox.ini\n+z\ndiff --git a/pkg/tox.ini b/pkg/tox.ini\n+w\n",
+        "target_files": [
+          "polyglot/harness.py",
+          "tox.ini"
+        ]
+      },
+      "output": "diff --git a/polyglot/harness.py b/polyglot/harness.py\n--- a/polyglot/harness.py\n+++ b/polyglot/harness.py\n@@ -1 +1 @@\n-h\n+i\ndiff --git a/tox.ini b/tox.ini\n+z"
+    },
+    {
       "name": "remove_patch_by_files_polyglot",
       "input": {
         "patch": "diff --git a/src/affine_cipher.py b/src/affine_cipher.py\nindex 1..2 100644\n--- a/src/affine_cipher.py\n+++ b/src/affine_cipher.py\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/tests/test_affine.py b/tests/test_affine.py\n--- a/tests/test_affine.py\n+++ b/tests/test_affine.py\n@@ -1 +1 @@\n-t\n+u\ndiff --git a/polyglot/harness.py b/polyglot/harness.py\n--- a/polyglot/harness.py\n+++ b/polyglot/harness.py\n@@ -1 +1 @@\n-h\n+i\ndiff --git a/pkg/testing/x.py b/pkg/testing/x.py\n+x\ndiff --git a/pkg/test_y.py b/pkg/test_y.py\n+y\ndiff --git a/tox.ini b/tox.ini\n+z\ndiff --git a/pkg/tox.ini b/pkg/tox.ini\n+w\n",
