@@ -151,7 +151,7 @@ RUN echo "source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbe
 const DOCKERFILE_INSTANCE: &str = r"FROM --platform={platform} {env_image_name}
 
 COPY ./setup_repo.sh /root/
-COPY ./polyglot /polyglot
+COPY ./{repo_top} /{repo_top}
 RUN /bin/bash /root/setup_repo.sh
 
 WORKDIR /testbed/
@@ -252,6 +252,10 @@ impl TestSpec {
         DOCKERFILE_INSTANCE
             .replace("{platform}", self.platform())
             .replace("{env_image_name}", &self.env_image_key())
+            .replace(
+                "{repo_top}",
+                self.repo.split('/').next().unwrap_or_default(),
+            )
     }
 }
 

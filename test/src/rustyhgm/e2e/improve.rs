@@ -412,7 +412,7 @@ fn the_child_names_its_parent() {
 #[test]
 fn the_child_works_on_an_unresolved_entry() {
     let s = shared();
-    let unresolved = polyglot_tasks(&s.root)[1..].to_vec();
+    let unresolved = polyglot_tasks(&repo_root())[1..].to_vec();
     let entry = s.metadata()["entry"].clone();
     assert!(unresolved.iter().any(|t| entry == t.as_str()), "{entry}");
 }

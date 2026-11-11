@@ -209,3 +209,15 @@ fn a_namespace_renames_the_instance_dockerfile_base() {
             .starts_with("FROM --platform=linux/arm64/v8 fake.env.arm64.")
     );
 }
+
+#[test]
+fn the_instance_dockerfile_copies_the_folder_the_repo_starts_in() {
+    let spec = TestSpec {
+        repo: "polyglot-benchmark/javascript/exercises/practice/queen-attack".to_owned(),
+        ..arm_spec()
+    };
+    assert!(
+        spec.instance_dockerfile()
+            .contains("\nCOPY ./polyglot-benchmark /polyglot-benchmark\n")
+    );
+}

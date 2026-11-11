@@ -102,7 +102,7 @@ fn entry(mode: &str) -> Value {
     json!({
         "instance_id": format!("python__{mode}"),
         "language": "python",
-        "repo": format!("polyglot/polyglot-benchmark/python/exercises/practice/{mode}"),
+        "repo": format!("polyglot-benchmark/python/exercises/practice/{mode}"),
         "base_commit": "c",
         "test_commit": "t",
         "problem_statement": "p",
@@ -114,13 +114,13 @@ fn entry(mode: &str) -> Value {
 fn root_with_tasks(root: &Path, modes: &[&str]) -> PathBuf {
     for mode in modes {
         let task = root.join(format!(
-            "polyglot/polyglot-benchmark/python/exercises/practice/{mode}"
+            "polyglot-benchmark/python/exercises/practice/{mode}"
         ));
         fs::create_dir_all(&task).unwrap();
         fs::write(task.join("mode"), mode).unwrap();
         fs::write(task.join(format!("{mode}.py")), "").unwrap();
     }
-    let dataset = root.join("polyglot/meta.json");
+    let dataset = root.join("meta.json");
     let entries: Vec<Value> = modes.iter().map(|m| entry(m)).collect();
     fs::write(&dataset, serde_json::to_string(&entries).unwrap()).unwrap();
     dataset
