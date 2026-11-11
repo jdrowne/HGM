@@ -12,7 +12,7 @@ metadata:
 
 Do not pin versions anywhere in jdrowne/RustyHGM. Always use the latest.
 
-**Why:** The user said so on 2026-11-10: "do not pin versions. always use `latest`". This overrides the "pin the Rust toolchain" step in issue #12.
+**Why:** On 2026-11-10 the user ruled out pinning any version and asked for the newest release of everything. This overrides the "pin the Rust toolchain" step in issue #12.
 
 **How to apply:**
 
@@ -23,3 +23,5 @@ Do not pin versions anywhere in jdrowne/RustyHGM. Always use the latest.
 - Python interpreters for tooling (such as `uv venv`): the newest available, unless it cannot run the code.
 
 Related: [[commit-directly-to-main]].
+
+**Stable only.** On 2026-11-11 the user limited the toolchain to stable Rust alone. "Latest" means the latest *stable* Rust, never nightly, even when a feature such as branch coverage exists only on nightly. Do what stable supports, and say what that leaves out.

@@ -7,3 +7,4 @@
 - [CI follows 10U-Labs conventions](ci-follows-10u-labs-conventions.md) — one workflow per thing guarded (release.yml, markdownlint.yml); build per platform; unit, integration and e2e each need only build
 - [Layout follows 10U-Labs](layout-follows-10u-labs.md) — crates in `src/<component>/` with flat files, no nested src; `lib/<language>/<pkg>` for shared support; `test/src/<component>/<tier>`
 - [Supported platforms](supported-platforms.md) — Linux x86_64/arm64, macOS arm64, Windows x86_64/arm64; integration and e2e only on Linux (Docker)
+- [User words are never recorded verbatim](user-words-are-never-recorded-verbatim.md) — restate what the user says in fresh words in memories, issues, commits and summaries; never quote or copy it
