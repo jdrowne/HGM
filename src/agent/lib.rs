@@ -1,3 +1,4 @@
+pub mod git;
 pub mod llm;
 pub mod patch;
 pub mod testrepo;

@@ -29,4 +29,5 @@ serde_json = { version = "*", features = ["preserve_order"] }
 ureq = { version = "*", features = ["json"] }
 
 [dev-dependencies]
+tempfile = "*"
 serde_json = { version = "*", features = ["preserve_order"] }

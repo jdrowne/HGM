@@ -1,4 +1,5 @@
 mod common;
+mod git;
 mod llm;
 mod patch;
 mod testrepo;
