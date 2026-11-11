@@ -1,0 +1,60 @@
+{
+  "source": "swe_bench/harness.py: json.dumps(result, indent=4); swe_bench/report.py: load_predictions, preds_to_jsonl",
+  "cases": [
+    {
+      "name": "prediction_json",
+      "input": {
+        "instance_id": "django__django-11099",
+        "model_name_or_path": "agent_1",
+        "model_patch": "diff --git a/x.py b/x.py\n+café ☃\n",
+        "proposed_model_patches": [
+          "p1",
+          "p\t2"
+        ]
+      },
+      "output": "{\n    \"instance_id\": \"django__django-11099\",\n    \"model_name_or_path\": \"agent_1\",\n    \"model_patch\": \"diff --git a/x.py b/x.py\\n+caf\\u00e9 \\u2603\\n\",\n    \"proposed_model_patches\": [\n        \"p1\",\n        \"p\\t2\"\n    ]\n}"
+    },
+    {
+      "name": "empty_prediction_json",
+      "input": {
+        "instance_id": "django__django-11099",
+        "model_name_or_path": "agent_1",
+        "model_patch": "",
+        "proposed_model_patches": []
+      },
+      "output": "{\n    \"instance_id\": \"django__django-11099\",\n    \"model_name_or_path\": \"agent_1\",\n    \"model_patch\": \"\",\n    \"proposed_model_patches\": []\n}"
+    },
+    {
+      "name": "preds_to_jsonl_sorted_lines",
+      "input": {
+        "a.json": {
+          "instance_id": "inst-a",
+          "model_name_or_path": "m_1",
+          "model_patch": "diff --git a/src/a.py b/src/a.py\n+a\ndiff --git a/tests/test_a.py b/tests/test_a.py\n+t\ndiff --git a/src/b.py b/src/b.py\n+b\r\n"
+        },
+        "b.json": {
+          "model_name_or_path": "m_1",
+          "model_patch": "x"
+        },
+        "c.json": {
+          "instance_id": "inst-c",
+          "model_name_or_path": "m_1",
+          "model_patch": "ü",
+          "extra": 1
+        },
+        "notes.txt": {
+          "instance_id": "ignored"
+        }
+      },
+      "output": [
+        "{\"model_name_or_path\": \"m_1\", \"model_patch\": \"\\u00fc\", \"instance_id\": \"inst-c\"}\n",
+        "{\"model_name_or_path\": \"m_1\", \"model_patch\": \"diff --git a/src/a.py b/src/a.py\\n+a\\ndiff --git a/src/b.py b/src/b.py\\n+b\\r\\n\", \"instance_id\": \"inst-a\"}\n"
+      ]
+    },
+    {
+      "name": "load_predictions_skips",
+      "input": "b.json",
+      "output": 1
+    }
+  ]
+}

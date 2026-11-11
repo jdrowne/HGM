@@ -20,7 +20,12 @@ name = "integration"
 path = "../../test/src/bench/integration/main.rs"
 
 [dependencies]
+chrono = "*"
+hgm-agent = { path = "../agent" }
+hgm-core = { path = "../core" }
+hgm-sandbox = { path = "../sandbox" }
 parquet = { version = "*", default-features = false, features = ["snap"] }
+serde = { version = "*", features = ["derive"] }
 serde_json = { version = "*", features = ["preserve_order"] }
 ureq = { version = "*", features = ["json"] }
 

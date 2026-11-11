@@ -1115,6 +1115,45 @@ def capture_dataset_rows():
     )
 
 
+def capture_swe_report():
+    from swe_bench import report
+
+    result = {
+        "instance_id": "django__django-11099",
+        "model_name_or_path": "agent_1",
+        "model_patch": "diff --git a/x.py b/x.py\n+caf\u00e9 \u2603\n",
+        "proposed_model_patches": ["p1", "p\t2"],
+    }
+    empty = dict(result, model_patch="", proposed_model_patches=[])
+    patch = (
+        "diff --git a/src/a.py b/src/a.py\n+a\n"
+        "diff --git a/tests/test_a.py b/tests/test_a.py\n+t\n"
+        "diff --git a/src/b.py b/src/b.py\n+b\r\n"
+    )
+    files = {
+        "a.json": {"instance_id": "inst-a", "model_name_or_path": "m_1", "model_patch": patch},
+        "b.json": {"model_name_or_path": "m_1", "model_patch": "x"},
+        "c.json": {"instance_id": "inst-c", "model_name_or_path": "m_1", "model_patch": "\u00fc", "extra": 1},
+        "notes.txt": {"instance_id": "ignored"},
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, body in files.items():
+            Path(tmp, name).write_text(json.dumps(body))
+        preds, printed = quiet(report.load_predictions, [tmp])
+        jsonl = Path(report.preds_to_jsonl(tmp, preds)).read_text()
+    write(
+        "bench",
+        "swe_report",
+        "swe_bench/harness.py: json.dumps(result, indent=4); swe_bench/report.py: load_predictions, preds_to_jsonl",
+        [
+            {"name": "prediction_json", "input": result, "output": json.dumps(result, indent=4)},
+            {"name": "empty_prediction_json", "input": empty, "output": json.dumps(empty, indent=4)},
+            {"name": "preds_to_jsonl_sorted_lines", "input": files, "output": sorted(jsonl.splitlines(keepends=True))},
+            {"name": "load_predictions_skips", "input": "b.json", "output": printed.count("Skipping json without instance_id")},
+        ],
+    )
+
+
 def main():
     capture_config()
     capture_tree()
@@ -1135,6 +1174,7 @@ def main():
     capture_polyglot_specs()
     capture_py_shuffle()
     capture_dataset_rows()
+    capture_swe_report()
 
 
 if __name__ == "__main__":

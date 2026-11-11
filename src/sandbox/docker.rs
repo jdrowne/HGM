@@ -77,6 +77,14 @@ impl ExecOptions {
     }
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RunOptions {
+    pub user: Option<String>,
+    pub platform: Option<String>,
+    pub nano_cpus: Option<u64>,
+    pub command: Vec<String>,
+}
+
 struct Output {
     code: Option<i32>,
     bytes: Vec<u8>,
@@ -239,6 +247,42 @@ impl Docker {
             }
             Err(e) => {
                 log.error(format!("Error while starting the container: {e}"));
+                Err(e)
+            }
+        }
+    }
+
+    pub fn run_detached_as(
+        &self,
+        image: &str,
+        name: &str,
+        opts: &RunOptions,
+        log: &Log,
+    ) -> Result<Container, Error> {
+        let mut args = vec![
+            "run".to_owned(),
+            "-d".to_owned(),
+            "--name".to_owned(),
+            name.to_owned(),
+        ];
+        if let Some(user) = &opts.user {
+            args.extend(["--user".to_owned(), user.clone()]);
+        }
+        if let Some(platform) = &opts.platform {
+            args.extend(["--platform".to_owned(), platform.clone()]);
+        }
+        if let Some(nano) = opts.nano_cpus {
+            args.extend(["--cpus".to_owned(), format!("{}", nano as f64 / 1e9)]);
+        }
+        args.push(image.to_owned());
+        args.extend(opts.command.iter().cloned());
+        match self.run(&args) {
+            Ok(_) => {
+                log.info(format!("Container for {name} created and started."));
+                Ok(self.container(name))
+            }
+            Err(e) => {
+                log.error(format!("Error creating container {name}: {e}"));
                 Err(e)
             }
         }
