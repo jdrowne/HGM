@@ -4,6 +4,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::Duration;
 
+use hgm_core::config::ExpansionStatistic;
 use hgm_core::log::Log;
 use hgm_core::metadata::update_metadata;
 use hgm_core::pool;
@@ -27,6 +28,7 @@ pub struct Settings {
     pub beta: f64,
     pub cool_down: bool,
     pub n_pseudo_descendant_evals: usize,
+    pub expansion_statistic: ExpansionStatistic,
     pub eval_random_level: f64,
     pub jitter: Duration,
 }
@@ -93,6 +95,7 @@ impl Search<'_> {
             let parent = select_for_expansion(
                 &state.tree,
                 self.settings.n_pseudo_descendant_evals,
+                self.settings.expansion_statistic,
                 cool_down,
                 &mut state.rng,
             )

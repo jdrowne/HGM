@@ -4,7 +4,7 @@
     {
       "name": "shipped_config_yaml",
       "input": {
-        "yaml": "llm:\n  self_improve_llm: \"gpt-5-mini\"\n  downstream_llm: \"gpt-5-mini\"\n  diagnose_llm: \"gpt-5-mini\"\n\noptimization:\n  alpha: 0.6\n  beta: 1.0\n  cool_down: false\n  eval_random_level: 1.0\n  n_pseudo_descendant_evals: 10000\n\nexecution:\n  max_workers: 20\n  self_improve_timeout: 3600\n  evaluation_timeout: 3600\n  max_task_evals: 800\n\nevaluation:\n  full_eval: false\n  polyglot: false\n\npaths:\n  output_dir: null\n  continue_from: null\n  initial_agent_name: \"default_agent\"\n"
+        "yaml": "llm:\n  self_improve_llm: \"gpt-5-mini\"\n  downstream_llm: \"gpt-5-mini\"\n  diagnose_llm: \"gpt-5-mini\"\n\noptimization:\n  alpha: 0.6\n  beta: 1.0\n  cool_down: false\n  eval_random_level: 1.0\n  n_pseudo_descendant_evals: 10000\n  expansion_statistic: \"clade\"\n\nexecution:\n  max_workers: 20\n  self_improve_timeout: 3600\n  evaluation_timeout: 3600\n  max_task_evals: 800\n\nevaluation:\n  full_eval: false\n  polyglot: false\n\npaths:\n  output_dir: null\n  continue_from: null\n  initial_agent_name: \"default_agent\"\n"
       },
       "output": {
         "llm": {
@@ -17,7 +17,8 @@
           "beta": 1.0,
           "cool_down": false,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 20,
@@ -52,7 +53,8 @@
           "beta": 1.0,
           "cool_down": false,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 16,
@@ -87,7 +89,8 @@
           "beta": 1.0,
           "cool_down": false,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 16,
@@ -122,7 +125,8 @@
           "beta": 1.0,
           "cool_down": true,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 16,
@@ -157,7 +161,8 @@
           "beta": 1.0,
           "cool_down": false,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 16,
@@ -192,7 +197,8 @@
           "beta": 1.0,
           "cool_down": false,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 16,
@@ -227,7 +233,8 @@
           "beta": 1.0,
           "cool_down": false,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 16,
@@ -262,7 +269,8 @@
           "beta": 2,
           "cool_down": false,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 16,
@@ -297,7 +305,8 @@
           "beta": 1.0,
           "cool_down": false,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": "8",
@@ -332,7 +341,8 @@
           "beta": 1.0,
           "cool_down": false,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 16,
@@ -376,7 +386,8 @@
           "beta": 1.0,
           "cool_down": true,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 4,
@@ -415,7 +426,8 @@
           "beta": 1.0,
           "cool_down": false,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 20,
@@ -454,7 +466,8 @@
           "beta": 1.0,
           "cool_down": false,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 20,
@@ -493,7 +506,8 @@
           "beta": 1.0,
           "cool_down": false,
           "eval_random_level": 1.0,
-          "n_pseudo_descendant_evals": 10000
+          "n_pseudo_descendant_evals": 10000,
+          "expansion_statistic": "clade"
         },
         "execution": {
           "max_workers": 20,

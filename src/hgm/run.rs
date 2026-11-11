@@ -212,6 +212,7 @@ pub fn settings(config: &HgmConfig, jitter: Duration) -> Settings {
         beta: config.optimization.beta,
         cool_down: config.optimization.cool_down,
         n_pseudo_descendant_evals: config.optimization.n_pseudo_descendant_evals,
+        expansion_statistic: config.optimization.expansion_statistic,
         eval_random_level: config.optimization.eval_random_level,
         jitter,
     }

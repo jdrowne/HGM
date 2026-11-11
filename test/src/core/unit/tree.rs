@@ -1,3 +1,4 @@
+use hgm_core::config::ExpansionStatistic;
 use hgm_core::tree::Tree;
 use serde_json::{Value, json};
 
@@ -46,6 +47,25 @@ fn descendant_evals_leave_every_node_unchanged() {
         }
     }
     assert_eq!(tree, before);
+}
+
+#[test]
+fn expansion_evals_take_the_clade_or_only_the_node_itself() {
+    let tree = build_tree(&crate::common::case("tree", "branching")["input"]);
+    for id in tree.sub_tree(0) {
+        assert_eq!(
+            tree.expansion_evals(id, 3, ExpansionStatistic::Clade),
+            tree.descendant_evals(id, 3)
+        );
+        assert_eq!(
+            tree.expansion_evals(id, 3, ExpansionStatistic::Own),
+            tree.get(id).unwrap().utility_measures
+        );
+    }
+    assert!(
+        tree.expansion_evals(99, 3, ExpansionStatistic::Own)
+            .is_empty()
+    );
 }
 
 #[test]

@@ -20,6 +20,24 @@ impl Default for LlmConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExpansionStatistic {
+    #[default]
+    Clade,
+    Own,
+}
+
+impl ExpansionStatistic {
+    pub fn parse(name: &str) -> Option<Self> {
+        match name {
+            "clade" => Some(Self::Clade),
+            "own" => Some(Self::Own),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct OptimizationConfig {
@@ -28,6 +46,7 @@ pub struct OptimizationConfig {
     pub cool_down: bool,
     pub eval_random_level: f64,
     pub n_pseudo_descendant_evals: usize,
+    pub expansion_statistic: ExpansionStatistic,
 }
 
 impl Default for OptimizationConfig {
@@ -38,6 +57,7 @@ impl Default for OptimizationConfig {
             cool_down: false,
             eval_random_level: 1.0,
             n_pseudo_descendant_evals: 10000,
+            expansion_statistic: ExpansionStatistic::Clade,
         }
     }
 }
@@ -180,6 +200,10 @@ impl HgmConfig {
             ("optimization", "n_pseudo_descendant_evals") => put(
                 &mut self.optimization.n_pseudo_descendant_evals,
                 u(&value).map(|x| x as usize),
+            ),
+            ("optimization", "expansion_statistic") => put(
+                &mut self.optimization.expansion_statistic,
+                s(&value).as_deref().and_then(ExpansionStatistic::parse),
             ),
             ("execution", "max_workers") => put(
                 &mut self.execution.max_workers,

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::config::ExpansionStatistic;
 use crate::pyjson::PyValue;
 
 pub const ROOT_COMMIT: &str = "initial";
@@ -152,6 +153,22 @@ impl Tree {
             evals.extend_from_slice(&self.nodes[&descendant].utility_measures);
         }
         evals
+    }
+
+    pub fn expansion_evals(
+        &self,
+        id: usize,
+        num_pseudo: usize,
+        statistic: ExpansionStatistic,
+    ) -> Vec<f64> {
+        match statistic {
+            ExpansionStatistic::Clade => self.descendant_evals(id, num_pseudo),
+            ExpansionStatistic::Own => self
+                .nodes
+                .get(&id)
+                .map(|n| n.utility_measures.clone())
+                .unwrap_or_default(),
+        }
     }
 
     pub fn total_evals(&self) -> usize {

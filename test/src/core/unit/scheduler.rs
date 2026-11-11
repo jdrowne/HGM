@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use hgm_core::config::ExpansionStatistic;
 use hgm_core::scheduler::{
     NoExpandableNode, initial_expansions, pick_task, sample_budget, select_for_evaluation,
     select_for_expansion, should_expand,
@@ -33,13 +34,19 @@ fn expansion_fails_fast_when_no_node_has_resolved_a_task() {
     let mut rng = StdRng::seed_from_u64(0);
     let unevaluated = Tree::with_root();
     assert_eq!(
-        select_for_expansion(&unevaluated, 10000, None, &mut rng),
+        select_for_expansion(
+            &unevaluated,
+            10000,
+            ExpansionStatistic::Clade,
+            None,
+            &mut rng
+        ),
         Err(NoExpandableNode)
     );
     let mut failed = Tree::with_root();
     failed.get_mut(0).unwrap().utility_measures = vec![0.0, 0.0];
     assert_eq!(
-        select_for_expansion(&failed, 10000, None, &mut rng),
+        select_for_expansion(&failed, 10000, ExpansionStatistic::Clade, None, &mut rng),
         Err(NoExpandableNode)
     );
     assert!(NoExpandableNode.to_string().contains("initial_swe/<agent>"));
@@ -50,9 +57,36 @@ fn expansion_only_picks_nodes_with_a_positive_finite_mean() {
     let tree = build_tree(&case("tree", "branching")["input"]);
     let mut rng = StdRng::seed_from_u64(3);
     for _ in 0..200 {
-        let id = select_for_expansion(&tree, 10000, None, &mut rng).unwrap();
+        let id =
+            select_for_expansion(&tree, 10000, ExpansionStatistic::Clade, None, &mut rng).unwrap();
         assert!(tree.get(id).unwrap().is_expandable(), "picked node {id}");
     }
+}
+
+fn lucky_parent_of_a_failing_child() -> Tree {
+    let mut tree = Tree::with_root();
+    let parent = tree.add_child(0, "parent");
+    let child = tree.add_child(parent, "child");
+    let mut root = vec![0.0; 99];
+    root.push(1.0);
+    tree.get_mut(0).unwrap().utility_measures = root;
+    tree.get_mut(parent).unwrap().utility_measures = vec![1.0; 50];
+    tree.get_mut(child).unwrap().utility_measures = vec![0.0; 5000];
+    tree
+}
+
+#[test]
+fn the_expansion_statistic_decides_whose_evaluations_count() {
+    let tree = lucky_parent_of_a_failing_child();
+    let mut rng = StdRng::seed_from_u64(5);
+    let mut picks = |statistic| {
+        (0..200)
+            .filter(|_| select_for_expansion(&tree, 10000, statistic, None, &mut rng).unwrap() == 1)
+            .count()
+    };
+    assert_eq!(picks(ExpansionStatistic::Own), 200);
+    let clade = picks(ExpansionStatistic::Clade);
+    assert!((20..180).contains(&clade), "{clade}");
 }
 
 #[test]

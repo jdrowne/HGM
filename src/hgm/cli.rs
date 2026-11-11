@@ -56,6 +56,8 @@ pub struct RunArgs {
     pub evaluation_timeout: Option<i64>,
     #[arg(long = "n_pseudo_descendant_evals")]
     pub n_pseudo_descendant_evals: Option<i64>,
+    #[arg(long = "expansion_statistic", value_parser = ["clade", "own"])]
+    pub expansion_statistic: Option<String>,
     #[arg(long = "eval_random_level")]
     pub eval_random_level: Option<f64>,
     #[arg(long = "initial_agent_name", default_value = "default_agent")]
@@ -104,6 +106,10 @@ impl RunArgs {
             (
                 "optimization.n_pseudo_descendant_evals",
                 self.n_pseudo_descendant_evals.map(Int),
+            ),
+            (
+                "optimization.expansion_statistic",
+                self.expansion_statistic.clone().map(Str),
             ),
             (
                 "optimization.eval_random_level",

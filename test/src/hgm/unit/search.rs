@@ -7,6 +7,7 @@ use std::time::Duration;
 use hgm::FAILED;
 use hgm::improve::Improver;
 use hgm::search::{Search, Settings, State};
+use hgm_core::config::ExpansionStatistic;
 use hgm_core::log::Log;
 use hgm_core::metadata::load_hgm_metadata;
 use hgm_core::tree::Tree;
@@ -47,6 +48,7 @@ fn settings(max_task_evals: usize) -> Settings {
         beta: 1.0,
         cool_down: false,
         n_pseudo_descendant_evals: 10000,
+        expansion_statistic: ExpansionStatistic::Clade,
         eval_random_level: 0.0,
         jitter: Duration::ZERO,
     }

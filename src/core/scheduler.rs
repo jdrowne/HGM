@@ -4,6 +4,7 @@ use std::fmt;
 use rand::seq::IndexedRandom;
 use rand::{Rng, RngExt};
 
+use crate::config::ExpansionStatistic;
 use crate::sampling::{CoolDown, thompson_sample};
 use crate::tree::Tree;
 
@@ -47,6 +48,7 @@ pub fn sample_budget(max_task_evals: usize) -> usize {
 pub fn select_for_expansion<R: Rng + ?Sized>(
     tree: &Tree,
     num_pseudo: usize,
+    statistic: ExpansionStatistic,
     cool_down: Option<CoolDown>,
     rng: &mut R,
 ) -> Result<usize, NoExpandableNode> {
@@ -57,7 +59,7 @@ pub fn select_for_expansion<R: Rng + ?Sized>(
         .collect();
     let evals: Vec<Vec<f64>> = candidates
         .iter()
-        .map(|&id| tree.descendant_evals(id, num_pseudo))
+        .map(|&id| tree.expansion_evals(id, num_pseudo, statistic))
         .collect();
     thompson_sample(&evals, cool_down, rng)
         .map(|i| candidates[i])

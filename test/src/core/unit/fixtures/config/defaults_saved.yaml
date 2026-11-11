@@ -15,6 +15,7 @@ optimization:
   beta: 1.0
   cool_down: false
   eval_random_level: 1.0
+  expansion_statistic: clade
   n_pseudo_descendant_evals: 10000
 paths:
   continue_from: null

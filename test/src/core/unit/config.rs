@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use hgm_core::config::{HgmConfig, OverrideValue};
+use hgm_core::config::{ExpansionStatistic, HgmConfig, OverrideValue};
 use serde_json::Value;
 
 use crate::common::{assert_same, case, cases, fixtures_dir};
@@ -129,6 +129,10 @@ fn set_takes_each_field_only_with_its_type() {
             "optimization.n_pseudo_descendant_evals",
             OverrideValue::Int(7),
         ),
+        (
+            "optimization.expansion_statistic",
+            OverrideValue::Str("own".into()),
+        ),
         ("execution.max_workers", OverrideValue::Int(3)),
         ("execution.self_improve_timeout", OverrideValue::Int(60)),
         ("execution.evaluation_timeout", OverrideValue::Int(61)),
@@ -182,4 +186,39 @@ fn yaml_writes_floats_like_python_and_empty_strings_quoted() {
     assert!(yaml.contains("  alpha: 0.1\n"), "{yaml}");
     assert!(yaml.contains("  initial_agent_name: ''\n"), "{yaml}");
     assert!(yaml.contains("  output_dir: null\n"), "{yaml}");
+}
+
+#[test]
+fn the_expansion_statistic_is_read_by_name() {
+    let own = HgmConfig::parse_yaml("optimization:\n  expansion_statistic: own\n").unwrap();
+    assert_eq!(
+        own.optimization.expansion_statistic,
+        ExpansionStatistic::Own
+    );
+    assert_eq!(
+        HgmConfig::default().optimization.expansion_statistic,
+        ExpansionStatistic::Clade
+    );
+    assert!(HgmConfig::parse_yaml("optimization:\n  expansion_statistic: both\n").is_err());
+    let mut config = HgmConfig::default();
+    assert!(!config.set(
+        "optimization.expansion_statistic",
+        OverrideValue::Str("both".into())
+    ));
+    assert!(config.set(
+        "optimization.expansion_statistic",
+        OverrideValue::Str("own".into())
+    ));
+    assert!(config.set(
+        "optimization.expansion_statistic",
+        OverrideValue::Str("clade".into())
+    ));
+    assert_eq!(
+        config.optimization.expansion_statistic,
+        ExpansionStatistic::Clade
+    );
+    assert_eq!(
+        ExpansionStatistic::parse("own"),
+        Some(ExpansionStatistic::Own)
+    );
 }
