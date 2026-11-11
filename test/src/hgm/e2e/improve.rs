@@ -215,6 +215,10 @@ fn run_args(host: &str, key: &str) -> Vec<String> {
     flags(&[
         ("--api_key_file", key),
         ("--docker", "docker"),
+        (
+            "--polyglot_repo",
+            "https://github.com/Aider-AI/polyglot-benchmark.git",
+        ),
         ("--polyglot", "true"),
         ("--max_task_evals", "1"),
         ("--max_workers", "1"),
