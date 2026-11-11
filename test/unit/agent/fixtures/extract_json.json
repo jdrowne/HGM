@@ -1,10 +1,5 @@
 {
   "source": "llm.py: extract_json_between_markers",
-  "notes": [
-    "Fallback regex is non-greedy \\{.*?\\} with DOTALL, so nested objects are cut at the first '}'.",
-    "On a parse error, control characters [\\x00-\\x1F\\x7F] are removed and parsing is retried.",
-    "null output means None."
-  ],
   "cases": [
     {
       "name": "fenced",

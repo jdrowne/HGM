@@ -1,15 +1,9 @@
 {
   "source": "utils/docker_utils.py: read_dockerignore, get_files_respecting_dockerignore (pathspec gitwildmatch)",
-  "notes": [
-    "read_dockerignore strips each line and drops empty lines and lines starting with '#' or '<!--'.",
-    "Patterns are matched with pathspec's gitwildmatch (gitignore rules), not Docker's own rules.",
-    "Directories are tested as 'rel/path/' and pruned when they match; files as 'rel/path'.",
-    "A negation cannot re-include a file inside a pruned directory."
-  ],
   "cases": [
     {
       "name": "read_dockerignore_repo",
-      "input": "__pycache__/\n**/__pycache__/\n*.pyc\n*.pyo\n.vscode\n.env\n.ipynb\n.git\n.gitignore\n.gitattributes\n<!-- swe-bench -->\nlogs/\nswe_bench/\ninitial_swe/\n\n<!-- polyglot -->\npolyglot/\ninitial_polyglot/\n\n<!-- outputs -->\noutput_hgm/\nresults/\n<!-- misc -->\nmisc/\n<!-- README.md -->\nDockerfile\n.dockerignore\n\n<!-- code outside of coding agent -->\nself_improve_step.py\nprompts/self_improvement_prompt.py\nprompts/diagnose_improvement_prompt.py\nutils/evo_utils.py\nutils/docker_utils.py\nhgm_utils.py\nhgm.py\nevaluate_agent.py\nrun.sh\n# Rust build output\ntarget/\n",
+      "input": "__pycache__/\n**/__pycache__/\n*.pyc\n*.pyo\n.vscode\n.env\n.ipynb\n.git\n.gitignore\n.gitattributes\n<!-- swe-bench -->\nlogs/\nswe_bench/\ninitial_swe/\n\n<!-- polyglot -->\npolyglot/\ninitial_polyglot/\n\n<!-- outputs -->\noutput_hgm/\nresults/\n<!-- misc -->\nmisc/\n<!-- README.md -->\nDockerfile\n.dockerignore\n\n<!-- code outside of coding agent -->\nself_improve_step.py\nprompts/self_improvement_prompt.py\nprompts/diagnose_improvement_prompt.py\nutils/evo_utils.py\nutils/docker_utils.py\nhgm_utils.py\nhgm.py\nevaluate_agent.py\nrun.sh\ntarget/\n",
       "output": [
         "__pycache__/",
         "**/__pycache__/",

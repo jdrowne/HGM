@@ -1,12 +1,8 @@
-//! Unit tests for `hgm-core`.
-
 #[test]
 fn crate_is_linked() {
     assert_eq!(hgm_core::CRATE_NAME, "hgm-core");
 }
 
-/// Every golden fixture captured from the Python (test/golden/capture.py)
-/// parses and has the expected shape.
 #[test]
 fn golden_fixtures_load() {
     let dir =

@@ -1,36 +1,69 @@
-name: CI
-
-on:
-  push:
-  pull_request:
-
+---
 env:
   CARGO_TERM_COLOR: always
-
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@main
-      # rustup installs the toolchain pinned in rust-toolchain.toml.
-      - run: rustup show active-toolchain
-      - uses: Swatinem/rust-cache@master
-      - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@main
-      - run: rustup show active-toolchain
-      - uses: Swatinem/rust-cache@master
-      # Unit and integration tiers. Integration tests may use the runner's
-      # Docker daemon. The e2e tier runs in e2e.yml.
-      - run: cargo test --workspace --lib --bins --test unit --test integration
-
   agent-subtree:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@main
-      - run: rustup show active-toolchain
-      - run: test/agent-subtree.sh
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        run: rustup show active-toolchain
+      - name: Build and test the agent subtree on its own
+        run: test/agent-subtree.sh
+  assert-no-comments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Assert no comments
+        uses: 10U-Labs/assert-no-comments@latest
+        with:
+          trees: .claude/statusline.sh .github/workflows config.yaml lib src test
+          verbose: "true"
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        run: rustup show active-toolchain
+      - name: Cache the build
+        uses: Swatinem/rust-cache@master
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        run: rustup show active-toolchain
+      - name: Cache the build
+        uses: Swatinem/rust-cache@master
+      - name: Run the unit and integration tiers
+        run: cargo test --workspace --lib --bins --test unit --test integration
+  yamllint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Lint YAML
+        uses: ibiqlik/action-yamllint@master
+        with:
+          config_data: |
+            extends: default
+            rules:
+              empty-lines: {max: 0, max-start: 0, max-end: 1}
+              key-ordering: enable
+              line-length: disable
+              new-line-at-end-of-file: enable
+              truthy: {allowed-values: ["true", "false", "on"]}
+          file_or_dir: .github/workflows/ci.yml .github/workflows/e2e.yml
+          strict: "true"
+name: CI
+on:
+  pull_request:
+  push:

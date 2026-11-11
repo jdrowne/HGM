@@ -1,12 +1,5 @@
 {
   "source": "hgm.py: update_metadata; utils/evo_utils.py: load_hgm_metadata",
-  "notes": [
-    "hgm_metadata.jsonl is not JSON Lines: each record is json.dumps(indent=2) followed by a newline, so records span many lines.",
-    "The initial node is left out of every record.",
-    "A node with no evals has mean_utility Infinity, which Python writes as the bare token Infinity (not valid JSON). load_hgm_metadata reads it back with json.loads.",
-    "load_hgm_metadata splits the file on '\\n{' and re-parses each piece.",
-    "init_evaluated_tasks.json is overwritten on every update."
-  ],
   "cases": [
     {
       "name": "branching_tree_two_updates",

@@ -1,6 +1,3 @@
-//! `hgm`: runs the search (`hgm run`), evaluates an agent (`hgm evaluate`)
-//! and prepares the Polyglot benchmark (`hgm prepare-polyglot`).
-
 use std::process::ExitCode;
 
 fn main() -> ExitCode {

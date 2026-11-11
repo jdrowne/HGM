@@ -1,9 +1,5 @@
 {
   "source": "utils/eval_utils.py: parse_eval_output, get_report_score, msg_history_to_report",
-  "notes": [
-    "parse_eval_output maps 'owner__repo-123' to 'owner/repo' (drop the last '-' part); an unknown repo or any error gives {}.",
-    "msg_history_to_report walks the converted history backwards and returns the first non-empty report from a user message containing 'Tool Result:'."
-  ],
   "cases": [
     {
       "name": "parse_eval_output_hgm",

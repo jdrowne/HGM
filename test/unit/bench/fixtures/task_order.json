@@ -1,10 +1,5 @@
 {
   "source": "hgm.py: task list construction; hgm_utils.init (dedup); polyglot/harness.py: get_eval_script",
-  "notes": [
-    "SWE tasks are shuffled with Python's random.seed(42); random.shuffle (Mersenne Twister). The Rust port must reproduce this order exactly, either from this fixture or by implementing CPython's shuffle.",
-    "Polyglot tasks are not shuffled.",
-    "hgm_utils.init removes duplicates and keeps first occurrences."
-  ],
   "cases": [
     {
       "name": "swe_small_plus_medium_shuffled_seed_42",

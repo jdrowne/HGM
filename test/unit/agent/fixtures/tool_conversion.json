@@ -1,9 +1,5 @@
 {
   "source": "llm_withtools.py: convert_tool_info",
-  "notes": [
-    "Model routing: 'vllm' anywhere -> chat-completions shape; else startswith('o') or 'gpt' in lower -> responses (strict) shape; else chat-completions shape.",
-    "The responses shape adds additionalProperties false to every dict with 'properties', makes every property required and turns optional types into [type, 'null']. The Python mutates its input; each case used a fresh copy."
-  ],
   "cases": [
     {
       "name": "convert_tool_info_bash_gpt-5",

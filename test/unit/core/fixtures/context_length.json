@@ -1,8 +1,5 @@
 {
   "source": "hgm_utils.py: any_exceeding_context_length",
-  "notes": [
-    "True only when one of the known error lines appears twice in a row (separated by a newline)."
-  ],
   "cases": [
     {
       "name": "twice_in_a_row",

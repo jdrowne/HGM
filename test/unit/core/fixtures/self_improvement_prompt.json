@@ -1,10 +1,5 @@
 {
   "source": "prompts/self_improvement_prompt.py: helpers; module-level templates in prompts/*.txt",
-  "notes": [
-    "get_eval_log_text: when FAIL_TO_PASS has no failures it still appends 'Pass All New Tests!' after the success list; same for PASS_TO_PASS.",
-    "read_mdlog_file(filter=True) drops lines that START with the error string; filter=False returns the whole file stripped.",
-    "prompts/*.txt hold every module-level string template verbatim."
-  ],
   "cases": [
     {
       "name": "get_problem_description_prompt_polyglot_False",

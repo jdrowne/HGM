@@ -1,11 +1,5 @@
 {
   "source": "tree.py: Node (num_evals, mean_utility, get_sub_tree, save_as_dict, get_decendant_evals)",
-  "notes": [
-    "Node ids are assigned in insertion order: len(hgm_utils.nodes) at construction.",
-    "mean_utility of a node with no evals is +Infinity.",
-    "get_sub_tree is a pre-order walk in child insertion order.",
-    "decendant_evals: if num_evals < num_pseudo the node's own evals, else [mean_utility] * num_pseudo; then every descendant's evals in pre-order. Each value was captured on a fresh tree, so the list aliasing of #1 does not show."
-  ],
   "cases": [
     {
       "name": "root_only_no_evals",

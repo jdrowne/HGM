@@ -1,12 +1,8 @@
-//! Unit tests for `hgm-sandbox`.
-
 #[test]
 fn crate_is_linked() {
     assert_eq!(hgm_sandbox::CRATE_NAME, "hgm-sandbox");
 }
 
-/// Every golden fixture captured from the Python (test/golden/capture.py)
-/// parses and has the expected shape.
 #[test]
 fn golden_fixtures_load() {
     let dir =

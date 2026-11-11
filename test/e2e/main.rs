@@ -1,5 +1,3 @@
-//! End-to-end tests of the built `hgm` binary.
-
 use std::process::Command;
 
 #[test]

@@ -1,6 +1,3 @@
-//! `hgm-agent`: the coding agent. It will take the same flags as
-//! `coding_agent.py`, with `--polyglot` replacing the file swap.
-
 use std::process::ExitCode;
 
 fn main() -> ExitCode {

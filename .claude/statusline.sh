@@ -65,7 +65,6 @@ if [ -n "$cwd" ]; then
   cache="${TMPDIR:-/tmp}/claude-statusline-issues-$(printf '%s' "$cwd" | cksum | cut -d' ' -f1)"
   trend_file="${cache}-trend"
   if stale "$cache"; then
-    # Count issues on origin, not gh's default repo: in a fork, gh resolves to the upstream parent.
     read -r repo count < <(cd "$cwd" 2>/dev/null && {
       origin=$(git remote get-url origin 2>/dev/null)
       GH_PROMPT_DISABLED=1 gh repo view ${origin:+"$origin"} --json nameWithOwner,issues \

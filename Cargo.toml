@@ -1,6 +1,4 @@
 [workspace]
-# Glob members: a checkout that holds only the agent subtree (src/agent,
-# lib/agent and their tests) is still a valid workspace.
 members = ["src/*", "lib/*"]
 resolver = "3"
 

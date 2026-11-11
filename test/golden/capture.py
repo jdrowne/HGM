@@ -1,23 +1,3 @@
-"""Capture golden outputs from the Python implementation (#12, phase 0).
-
-Calls pure functions of the Python code on fixed inputs and writes the
-results to test/unit/<crate>/fixtures/. The Rust unit tests compare against
-these files. Run from the repo root, with the Python dependencies installed:
-
-    venv/bin/python test/golden/capture.py
-
-The output is deterministic: re-running it must not change any fixture.
-Anything that depends on directory listing order or set order is sorted, and
-temporary paths are replaced with "<TMP>".
-
-Fixture format: each JSON file is {"source": ..., "notes": [...],
-"cases": [{"name": ..., "input": ..., "output": ...}]}. Non-finite floats,
-which JSON cannot hold, are written as the strings "Infinity", "-Infinity"
-and "NaN".
-
-This script is deleted together with the rest of the Python at cutover.
-"""
-
 import ast
 import contextlib
 import copy
@@ -35,19 +15,13 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 os.chdir(REPO)
 
-import numpy as np  # noqa: E402
-import pathspec  # noqa: E402
+import numpy as np
+import pathspec
 
 FIXTURES = REPO / "test" / "unit"
 
 
-# --------------------------------------------------------------------------
-# Helpers
-# --------------------------------------------------------------------------
-
-
 def plain(obj):
-    """Convert numpy scalars, tuples and non-finite floats to plain JSON."""
     if isinstance(obj, dict):
         return {str(k): plain(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
@@ -66,10 +40,10 @@ def plain(obj):
     return obj
 
 
-def write(crate, name, source, cases, notes=()):
+def write(crate, name, source, cases):
     path = FIXTURES / crate / "fixtures" / f"{name}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    doc = {"source": source, "notes": list(notes), "cases": plain(cases)}
+    doc = {"source": source, "cases": plain(cases)}
     text = json.dumps(doc, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
     path.write_text(text)
     print(f"wrote {path.relative_to(REPO)} ({len(cases)} cases)")
@@ -83,7 +57,6 @@ def write_text(crate, rel, text):
 
 
 def quiet(fn, *args, **kwargs):
-    """Call fn with stdout swallowed; return (result, stdout)."""
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         result = fn(*args, **kwargs)
@@ -103,7 +76,6 @@ def untmp(obj, tmp):
 
 @contextlib.contextmanager
 def sorted_listdir(*modules):
-    """Make os.listdir deterministic for the given modules."""
     real = os.listdir
     fake = SimpleNamespace(**{k: getattr(os, k) for k in dir(os) if not k.startswith("__")})
     fake.listdir = lambda p=".": sorted(real(p))
@@ -115,11 +87,6 @@ def sorted_listdir(*modules):
     finally:
         for m, o in saved:
             m.os = o
-
-
-# --------------------------------------------------------------------------
-# core: config
-# --------------------------------------------------------------------------
 
 
 def capture_config():
@@ -146,7 +113,6 @@ def capture_config():
         conf, _ = quiet(cfg.HGMConfig.from_yaml, str(Path(tmp) / "missing.yaml"))
         cases.append({"name": "missing_file", "input": {"yaml": None}, "output": conf.to_dict()})
 
-        # Overrides, in the dotted form hgm.py builds from its flags.
         p = Path(tmp) / "c.yaml"
         p.write_text((REPO / "config.yaml").read_text())
         override_sets = {
@@ -187,21 +153,8 @@ def capture_config():
         "config",
         "config.py: HGMConfig.from_yaml, load_config (overrides), to_dict",
         cases,
-        notes=[
-            "Any exception while loading (unknown key, YAML syntax error) makes "
-            "from_yaml print a message and return all defaults.",
-            "Values are not type-checked: '8' stays a string, 1 stays an int.",
-            "An override whose path does not exist is silently ignored; None skips the override.",
-            "An override key naming a whole section ('optimization') replaces that section object, "
-            "so to_dict then raises; recorded as {'error': ...}.",
-            "config/defaults_saved.yaml is HGMConfig().save_to_yaml(), keys sorted by PyYAML.",
-        ],
     )
 
-
-# --------------------------------------------------------------------------
-# core: tree
-# --------------------------------------------------------------------------
 
 TREES = {
     "root_only_no_evals": [("initial", None, [])],
@@ -244,9 +197,6 @@ def capture_tree():
         for nid, node in nodes.items():
             desc = {}
             for k in (0, 1, 2, 3, 10, 10000):
-                # Build a fresh tree for every call: get_decendant_evals mutates
-                # the node's own list when num_evals < num_pseudo (#1), and the
-                # fixtures must hold the first-call result.
                 fresh = build_tree(spec)
                 desc[str(k)] = list(fresh[nid].get_decendant_evals(num_pseudo=k))
             nodes = build_tree(spec)
@@ -270,20 +220,7 @@ def capture_tree():
         "tree",
         "tree.py: Node (num_evals, mean_utility, get_sub_tree, save_as_dict, get_decendant_evals)",
         cases,
-        notes=[
-            "Node ids are assigned in insertion order: len(hgm_utils.nodes) at construction.",
-            "mean_utility of a node with no evals is +Infinity.",
-            "get_sub_tree is a pre-order walk in child insertion order.",
-            "decendant_evals: if num_evals < num_pseudo the node's own evals, else "
-            "[mean_utility] * num_pseudo; then every descendant's evals in pre-order. "
-            "Each value was captured on a fresh tree, so the list aliasing of #1 does not show.",
-        ],
     )
-
-
-# --------------------------------------------------------------------------
-# core: Thompson sampling parameters (TS_sample, nested in hgm.main)
-# --------------------------------------------------------------------------
 
 
 def load_ts_sample():
@@ -313,8 +250,6 @@ def capture_ts_sample():
         def fake_beta(a, b):
             recorded["alphas"] = [float(x) for x in np.asarray(a, dtype=float)]
             recorded["betas"] = [float(x) for x in np.asarray(b, dtype=float)]
-            # Equal thetas everywhere pin down argmax tie-breaking: numpy
-            # returns the FIRST index of the maximum.
             return np.array([1.0] * len(recorded["alphas"]))
 
         ns = {
@@ -345,18 +280,7 @@ def capture_ts_sample():
         "ts_sample",
         "hgm.py: main.TS_sample, with np.random.beta replaced by a recorder",
         cases,
-        notes=[
-            "alpha_i = 1 + sum(evals_i), beta_i = 1 + len(evals_i) - sum(evals_i).",
-            "With cool_down both are multiplied by max**beta / (max - n)**beta, "
-            "or by 10000 when n == max.",
-            "Ties in the sampled thetas go to the first index (numpy argmax).",
-        ],
     )
-
-
-# --------------------------------------------------------------------------
-# core: run metadata (hgm_metadata.jsonl) and evo_utils
-# --------------------------------------------------------------------------
 
 
 def capture_run_metadata():
@@ -405,15 +329,6 @@ def capture_run_metadata():
                 },
             }
         ],
-        notes=[
-            "hgm_metadata.jsonl is not JSON Lines: each record is json.dumps(indent=2) "
-            "followed by a newline, so records span many lines.",
-            "The initial node is left out of every record.",
-            "A node with no evals has mean_utility Infinity, which Python writes as the bare "
-            "token Infinity (not valid JSON). load_hgm_metadata reads it back with json.loads.",
-            "load_hgm_metadata splits the file on '\\n{' and re-parses each piece.",
-            "init_evaluated_tasks.json is overwritten on every update.",
-        ],
     )
 
 
@@ -456,7 +371,6 @@ def capture_evo_utils():
                     }
                 )
 
-        # get_model_patch_paths walks parent_commit links back to "initial".
         run = Path(tmp) / "run"
         chain = {"c1": "initial", "c2": "c1", "c3": "c2", "nopatch": "c1"}
         for commit, parent in chain.items():
@@ -502,18 +416,7 @@ def capture_evo_utils():
         "evo_utils",
         "utils/evo_utils.py: get_all_performance, get_model_patch_paths, is_compiled_self_improve",
         cases,
-        notes=[
-            "get_all_performance matches '*.json' files whose name contains run_keyword. "
-            "os.listdir was sorted here; the Python itself uses directory order.",
-            "Per-file entries are {file, accuracy_score, **file contents}.",
-            "get_model_patch_paths returns patches oldest first and skips missing patch files.",
-        ],
     )
-
-
-# --------------------------------------------------------------------------
-# core: self-improvement prompt helpers
-# --------------------------------------------------------------------------
 
 
 def capture_self_improvement_prompts():
@@ -580,13 +483,6 @@ def capture_self_improvement_prompts():
         "self_improvement_prompt",
         "prompts/self_improvement_prompt.py: helpers; module-level templates in prompts/*.txt",
         cases,
-        notes=[
-            "get_eval_log_text: when FAIL_TO_PASS has no failures it still appends "
-            "'Pass All New Tests!' after the success list; same for PASS_TO_PASS.",
-            "read_mdlog_file(filter=True) drops lines that START with the error string; "
-            "filter=False returns the whole file stripped.",
-            "prompts/*.txt hold every module-level string template verbatim.",
-        ],
     )
 
 
@@ -619,13 +515,8 @@ def capture_context_length():
         "context_length",
         "hgm_utils.py: any_exceeding_context_length",
         cases,
-        notes=["True only when one of the known error lines appears twice in a row (separated by a newline)."],
     )
 
-
-# --------------------------------------------------------------------------
-# agent
-# --------------------------------------------------------------------------
 
 PYTEST_LOG = """\
 ============================= test session starts ==============================
@@ -720,10 +611,9 @@ def capture_log_parsers():
         for lname, l in {"sample": log, "empty": ""}.items():
             try:
                 out = {"ok": fn(l)}
-            except Exception as e:  # record crashes too
+            except Exception as e:
                 out = {"error": type(e).__name__}
             cases.append({"name": f"{fname}_{lname}", "input": {"parser": fname, "log": l}, "output": out})
-    # Inputs that crash some parsers.
     for fname, l in {"parse_log_pytest_v2": "PASSED\n", "parse_log_seaborn": "x PASSED \n"}.items():
         try:
             out = {"ok": getattr(slp, fname)(l)}
@@ -738,11 +628,6 @@ def capture_log_parsers():
         "swe_log_parsers",
         "utils/swe_log_parsers.py",
         cases,
-        notes=[
-            "Dict order is insertion order; a later line for the same test overwrites the earlier status.",
-            "{'error': <exception class>} records inputs where the Python raises.",
-            "map_repo_to_parser gives the function name behind each alias (parse_log_flask is parse_log_pytest, ...).",
-        ],
     )
 
 
@@ -798,12 +683,6 @@ def capture_eval_utils():
         "eval_utils",
         "utils/eval_utils.py: parse_eval_output, get_report_score, msg_history_to_report",
         cases,
-        notes=[
-            "parse_eval_output maps 'owner__repo-123' to 'owner/repo' (drop the last '-' part); "
-            "an unknown repo or any error gives {}.",
-            "msg_history_to_report walks the converted history backwards and returns the first "
-            "non-empty report from a user message containing 'Tool Result:'.",
-        ],
     )
 
 
@@ -830,11 +709,6 @@ def capture_llm_json():
         "extract_json",
         "llm.py: extract_json_between_markers",
         cases,
-        notes=[
-            "Fallback regex is non-greedy \\{.*?\\} with DOTALL, so nested objects are cut at the first '}'.",
-            "On a parse error, control characters [\\x00-\\x1F\\x7F] are removed and parsing is retried.",
-            "null output means None.",
-        ],
     )
 
 
@@ -887,14 +761,6 @@ diff --git a/pkg/tox.ini b/pkg/tox.ini
         "patch_filters",
         "utils/git_utils.py: filter_patch_by_files, remove_patch_by_files; swe_bench/report.py: remove_patches_to_tests",
         cases,
-        notes=[
-            "filter_patch_by_files and remove_patch_by_files join lines with '\\n' and drop the final newline.",
-            "filter_patch_by_files keeps a block when 'a/<target>' and 'b/<target>' are substrings of the header line.",
-            "remove_patches_to_tests keeps line endings, and tests the last header token for "
-            "/test/, /tests/, /testing/, /test_ or /tox.ini; top-level paths like b/tests/x do not "
-            "contain '/tests/' after the 'b' and are kept unless they match another substring.",
-            "remove_patches_to_tests is used by the bench crate (SWE-bench report).",
-        ],
     )
 
 
@@ -934,13 +800,6 @@ def capture_tool_conversion():
         "tool_conversion",
         "llm_withtools.py: convert_tool_info",
         cases,
-        notes=[
-            "Model routing: 'vllm' anywhere -> chat-completions shape; else startswith('o') or "
-            "'gpt' in lower -> responses (strict) shape; else chat-completions shape.",
-            "The responses shape adds additionalProperties false to every dict with 'properties', "
-            "makes every property required and turns optional types into [type, 'null']. "
-            "The Python mutates its input; each case used a fresh copy.",
-        ],
     )
 
     fn = SimpleNamespace(name="bash", arguments='{"command": "ls"}')
@@ -973,12 +832,6 @@ def capture_tool_conversion():
         "msg_history",
         "llm_withtools.py: convert_msg_history (openai and open_router)",
         hcases,
-        notes=[
-            "OpenAI: a dict without 'role' is a tool output -> role user, 'Tool Result: ' + output; "
-            "a non-dict is str(item) as assistant.",
-            "OpenRouter: role 'tool' content is prefixed with 'Tool Result: '; a message without "
-            "'content' is rendered from its first tool call.",
-        ],
     )
 
 
@@ -1048,18 +901,7 @@ def capture_tools():
         "tools",
         "tools/bash.py, tools/edit.py, prompts/testrepo_prompt.py, prompts/tooluse_prompt.py",
         cases,
-        notes=[
-            "format_output truncates to 10000 characters before expandtabs and numbering.",
-            "Directory view shells out to find and is not captured (order is not stable).",
-            "edit_tool_function_files_after shows the temp directory after all calls.",
-            "get_test_description(hgm) still mentions pytest; phase 5 rewrites it.",
-        ],
     )
-
-
-# --------------------------------------------------------------------------
-# sandbox: .dockerignore handling
-# --------------------------------------------------------------------------
 
 
 def capture_dockerignore():
@@ -1126,18 +968,7 @@ def capture_dockerignore():
         "dockerignore",
         "utils/docker_utils.py: read_dockerignore, get_files_respecting_dockerignore (pathspec gitwildmatch)",
         cases,
-        notes=[
-            "read_dockerignore strips each line and drops empty lines and lines starting with '#' or '<!--'.",
-            "Patterns are matched with pathspec's gitwildmatch (gitignore rules), not Docker's own rules.",
-            "Directories are tested as 'rel/path/' and pruned when they match; files as 'rel/path'.",
-            "A negation cannot re-include a file inside a pruned directory.",
-        ],
     )
-
-
-# --------------------------------------------------------------------------
-# bench: task lists
-# --------------------------------------------------------------------------
 
 
 def capture_task_order():
@@ -1167,13 +998,6 @@ def capture_task_order():
             {"name": "polyglot_medium_plus_small", "input": "polyglot/subsets/medium.json + small.json", "output": poly},
             {"name": "polyglot_total_tasks_after_init_dedup", "input": "polyglot list", "output": poly_dedup},
             {"name": "get_eval_script", "input": ["cd /repo", "cargo test"], "output": get_eval_script(["cd /repo", "cargo test"])},
-        ],
-        notes=[
-            "SWE tasks are shuffled with Python's random.seed(42); random.shuffle (Mersenne Twister). "
-            "The Rust port must reproduce this order exactly, either from this fixture or by "
-            "implementing CPython's shuffle.",
-            "Polyglot tasks are not shuffled.",
-            "hgm_utils.init removes duplicates and keeps first occurrences.",
         ],
     )
 

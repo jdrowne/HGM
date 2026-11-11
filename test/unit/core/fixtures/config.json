@@ -1,12 +1,5 @@
 {
   "source": "config.py: HGMConfig.from_yaml, load_config (overrides), to_dict",
-  "notes": [
-    "Any exception while loading (unknown key, YAML syntax error) makes from_yaml print a message and return all defaults.",
-    "Values are not type-checked: '8' stays a string, 1 stays an int.",
-    "An override whose path does not exist is silently ignored; None skips the override.",
-    "An override key naming a whole section ('optimization') replaces that section object, so to_dict then raises; recorded as {'error': ...}.",
-    "config/defaults_saved.yaml is HGMConfig().save_to_yaml(), keys sorted by PyYAML."
-  ],
   "cases": [
     {
       "name": "shipped_config_yaml",

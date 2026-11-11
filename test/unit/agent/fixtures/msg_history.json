@@ -1,9 +1,5 @@
 {
   "source": "llm_withtools.py: convert_msg_history (openai and open_router)",
-  "notes": [
-    "OpenAI: a dict without 'role' is a tool output -> role user, 'Tool Result: ' + output; a non-dict is str(item) as assistant.",
-    "OpenRouter: role 'tool' content is prefixed with 'Tool Result: '; a message without 'content' is rendered from its first tool call."
-  ],
   "cases": [
     {
       "name": "openai",

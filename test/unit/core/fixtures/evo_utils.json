@@ -1,10 +1,5 @@
 {
   "source": "utils/evo_utils.py: get_all_performance, get_model_patch_paths, is_compiled_self_improve",
-  "notes": [
-    "get_all_performance matches '*.json' files whose name contains run_keyword. os.listdir was sorted here; the Python itself uses directory order.",
-    "Per-file entries are {file, accuracy_score, **file contents}.",
-    "get_model_patch_paths returns patches oldest first and skips missing patch files."
-  ],
   "cases": [
     {
       "name": "get_all_performance_abc",

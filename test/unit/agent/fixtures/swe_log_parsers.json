@@ -1,10 +1,5 @@
 {
   "source": "utils/swe_log_parsers.py",
-  "notes": [
-    "Dict order is insertion order; a later line for the same test overwrites the earlier status.",
-    "{'error': <exception class>} records inputs where the Python raises.",
-    "map_repo_to_parser gives the function name behind each alias (parse_log_flask is parse_log_pytest, ...)."
-  ],
   "cases": [
     {
       "name": "parse_log_pytest_sample",

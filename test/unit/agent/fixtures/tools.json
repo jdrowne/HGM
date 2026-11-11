@@ -1,11 +1,5 @@
 {
   "source": "tools/bash.py, tools/edit.py, prompts/testrepo_prompt.py, prompts/tooluse_prompt.py",
-  "notes": [
-    "format_output truncates to 10000 characters before expandtabs and numbering.",
-    "Directory view shells out to find and is not captured (order is not stable).",
-    "edit_tool_function_files_after shows the temp directory after all calls.",
-    "get_test_description(hgm) still mentions pytest; phase 5 rewrites it."
-  ],
   "cases": [
     {
       "name": "bash_tool_info",

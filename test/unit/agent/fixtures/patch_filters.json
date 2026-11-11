@@ -1,11 +1,5 @@
 {
   "source": "utils/git_utils.py: filter_patch_by_files, remove_patch_by_files; swe_bench/report.py: remove_patches_to_tests",
-  "notes": [
-    "filter_patch_by_files and remove_patch_by_files join lines with '\\n' and drop the final newline.",
-    "filter_patch_by_files keeps a block when 'a/<target>' and 'b/<target>' are substrings of the header line.",
-    "remove_patches_to_tests keeps line endings, and tests the last header token for /test/, /tests/, /testing/, /test_ or /tox.ini; top-level paths like b/tests/x do not contain '/tests/' after the 'b' and are kept unless they match another substring.",
-    "remove_patches_to_tests is used by the bench crate (SWE-bench report)."
-  ],
   "cases": [
     {
       "name": "filter_patch_by_files_affine_cipher.py",

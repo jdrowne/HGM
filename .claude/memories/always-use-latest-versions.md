@@ -15,7 +15,7 @@ Do not pin versions anywhere in jdrowne/RustyHGM. Always use the latest.
 **How to apply:**
 - Rust toolchain: `channel = "stable"` in `rust-toolchain.toml`, and no `rust-version` MSRV.
 - Crate dependencies: `version = "*"`. `Cargo.lock` is gitignored, not committed, and CI does not pass `--locked`.
-- GitHub Actions: use the action's default branch (`@main` or `@master`), since actions have no `@latest` tag.
+- GitHub Actions: `@latest` where the action publishes that tag (the 10U-Labs actions do); otherwise its default branch (`@main` or `@master`).
 - Docker images: use the `:latest` tag.
 - Python interpreters for tooling (such as `uv venv`): the newest available, unless it cannot run the code.
 

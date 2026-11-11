@@ -9,6 +9,5 @@ publish.workspace = true
 name = "hgm-agent"
 path = "src/main.rs"
 
-# Only crates inside the agent subtree may be listed here.
 [dependencies]
 hgm-agent = { path = "../../lib/agent" }
