@@ -1,3 +1,7 @@
 {
-  "autoMemoryEnabled": true
+  "autoMemoryEnabled": true,
+  "statusLine": {
+    "type": "command",
+    "command": "\"$(git rev-parse --show-toplevel)\"/.claude/statusline.sh"
+  }
 }
