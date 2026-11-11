@@ -14,6 +14,7 @@ pub struct Cli {
 pub enum Command {
     Run(RunArgs),
     Evaluate(EvaluateArgs),
+    PreparePolyglot,
 }
 
 #[derive(Clone, Debug, Default, Args)]

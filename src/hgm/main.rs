@@ -2,7 +2,7 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use hgm::cli::{Cli, Command};
-use hgm::run::{JITTER, evaluate, run};
+use hgm::run::{JITTER, evaluate, prepare_polyglot, run};
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -11,6 +11,7 @@ fn main() -> ExitCode {
         .and_then(|cwd| match &cli.command {
             Command::Run(args) => run(args, &cwd, JITTER),
             Command::Evaluate(args) => evaluate(args, &cwd),
+            Command::PreparePolyglot => prepare_polyglot(&cwd),
         });
     match result {
         Ok(()) => ExitCode::SUCCESS,

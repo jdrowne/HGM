@@ -5,10 +5,17 @@ use hgm_core::config::OverrideValue::{Bool, Float, Int, Str};
 fn run_args(args: &[&str]) -> RunArgs {
     let mut argv = vec!["hgm", "run"];
     argv.extend(args);
-    match Cli::try_parse_from(argv).unwrap().command {
-        Command::Run(args) => args,
-        Command::Evaluate(_) => panic!("not a run"),
-    }
+    let Command::Run(args) = Cli::try_parse_from(argv).unwrap().command else {
+        panic!("not a run")
+    };
+    args
+}
+
+#[test]
+fn prepare_polyglot_takes_no_arguments() {
+    let cli = Cli::try_parse_from(["hgm", "prepare-polyglot"]).unwrap();
+    assert!(matches!(cli.command, Command::PreparePolyglot));
+    assert!(Cli::try_parse_from(["hgm", "prepare-polyglot", "x"]).is_err());
 }
 
 #[test]

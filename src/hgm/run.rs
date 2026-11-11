@@ -9,6 +9,7 @@ use hgm_agent::llm::create_client;
 use hgm_bench::dataset::{Hub, SWE_BENCH_VERIFIED, instance_ids};
 use hgm_bench::polyglot::{self, DATASET};
 use hgm_bench::polyglot_build::copy_tree;
+use hgm_bench::polyglot_prepare::{REPO_URL, prepare};
 use hgm_bench::swe;
 use hgm_bench::swebench::Swebench;
 use hgm_bench::tasks::{dedup, polyglot_run_tasks, shuffled, swe_run_tasks};
@@ -315,4 +316,9 @@ pub fn evaluate(args: &EvaluateArgs, root_dir: &Path) -> Result<(), String> {
     }
     .eval_agent(&agent_name, &ids)
     .map(drop)
+}
+
+pub fn prepare_polyglot(root_dir: &Path) -> Result<(), String> {
+    let url = std::env::var("HGM_POLYGLOT_REPO").unwrap_or_else(|_| REPO_URL.to_owned());
+    prepare(root_dir, &url).map(|_| ())
 }

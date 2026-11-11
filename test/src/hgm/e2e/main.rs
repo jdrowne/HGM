@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+#[cfg(unix)]
+mod prepare;
+
 fn binary(name: &str) -> PathBuf {
     std::env::var_os(format!("NEXTEST_BIN_EXE_{name}"))
         .map(PathBuf::from)
