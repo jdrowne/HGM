@@ -327,6 +327,7 @@ jobs:
           cargo-nextest nextest run
           --archive-file build.tar.zst
           --workspace-remap .
+          --no-fail-fast
           -E 'binary(integration)'
     strategy:
       fail-fast: false
