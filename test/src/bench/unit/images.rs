@@ -267,6 +267,11 @@ fn dependents_are_images_whose_history_holds_the_base() {
         ["child:latest", "sha256:bare", "sha256:solo"]
     );
     fs::remove_file(history.join("sha256_other")).unwrap();
+    assert_eq!(
+        find_dependent_images(&fake.docker, "env:latest").unwrap(),
+        ["child:latest", "sha256:bare", "sha256:solo"]
+    );
+    fake.image("sha256:other", "sha256:other", "1");
     assert!(find_dependent_images(&fake.docker, "env:latest").is_err());
     fake.flag("lsfail");
     assert!(find_dependent_images(&fake.docker, "env:latest").is_err());

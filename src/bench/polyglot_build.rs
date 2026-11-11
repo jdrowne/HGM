@@ -113,6 +113,14 @@ pub fn remove_image_quietly(docker: &Docker, image: &str) -> Result<(), String> 
     Ok(())
 }
 
+fn derives_from(docker: &Docker, id: &str, base_id: &str) -> Result<bool, String> {
+    match docker.history(id) {
+        Ok(layers) => Ok(layers.iter().any(|layer| layer == base_id)),
+        Err(_) if matches!(docker.image_exists(id), Ok(false)) => Ok(false),
+        Err(e) => Err(message(e)),
+    }
+}
+
 pub fn find_dependent_images(docker: &Docker, image: &str) -> Result<Vec<String>, String> {
     let Some(base_id) = docker.inspect_image(image, "{{.Id}}").map_err(message)? else {
         println!("Base image {image} not found.");
@@ -120,7 +128,7 @@ pub fn find_dependent_images(docker: &Docker, image: &str) -> Result<Vec<String>
     };
     let mut dependents = Vec::new();
     for (id, name) in docker.images().map_err(message)? {
-        if id != base_id && docker.history(&id).map_err(message)?.contains(&base_id) {
+        if id != base_id && derives_from(docker, &id, &base_id)? {
             dependents.push(name);
         }
     }
