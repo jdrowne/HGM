@@ -16,17 +16,13 @@ If an autopilot reminder exists, suggest `restart`. Otherwise create a recurring
 
 ```text
 REMINDER (autopilot)
-1. List the open issues: gh issue list -R jdrowne/RustyHGM --state open --limit 10000 --json number,labels --jq 'map(.number) | sort'
+1. List the open issues that do not need a decision: gh issue list -R jdrowne/RustyHGM --state open --limit 10000 --json number,labels --jq 'map(select(all(.labels[]; .name != "needs decision"))) | map(.number) | sort'
 2. If the list is empty, delete this reminder with CronList and CronDelete, and tell me.
-3. Otherwise work each issue, lowest number first, until it closes. Pass over any whose last comment says it needs a person. If one needs a person, comment why and move on.
+3. Otherwise work each issue, lowest number first, until it closes. If one needs a decision from me, add the "needs decision" label to it, comment explaining the decision, and move on to the next.
 ```
 
-If `--skip-label` is given, put this in front of `map(.number)`, with one
-`.name != "..."` per given label, joined with `and`:
-
-```text
-map(select(all(.labels[]; .name != "LABEL1" and .name != "LABEL2"))) |
-```
+For each `--skip-label`, add ` and .name != "LABEL"` after
+`.name != "needs decision"`.
 
 Report the reminder's ID, next run and seven-day expiry.
 
