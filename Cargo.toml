@@ -7,3 +7,9 @@ version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 publish = false
+
+[workspace.lints.clippy]
+cognitive_complexity = "warn"
+excessive_nesting = "warn"
+too_many_arguments = "warn"
+too_many_lines = "warn"

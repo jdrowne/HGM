@@ -17,6 +17,54 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Build and test the agent subtree on its own
         run: test/agent-subtree.sh
+  assert-file-and-registration-sets-agree:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Check every test file is built and every registration has a file
+        run: |
+          fail=0
+          for dir in $(find test/src -name '*.rs' -exec dirname {} \; | sort -u)
+          do
+            if [ ! -f "$dir/main.rs" ]; then
+              echo "::error file=$dir::$dir holds Rust files but no main.rs," \
+                "so none of them is built; add $dir/main.rs and register it"
+              fail=1
+            fi
+          done
+          for main in $(find test/src -name main.rs | sort)
+          do
+            dir=${main%/main.rs}
+            rest=${dir#test/src/}
+            manifest=src/${rest%%/*}/Cargo.toml
+            if ! grep -qxF "path = \"../../$main\"" "$manifest"; then
+              echo "::error file=$main::$main is never built; add a [[test]]" \
+                "with path = \"../../$main\" to $manifest, or delete it"
+              fail=1
+            fi
+            for f in "$dir"/*.rs
+            do
+              name=$(basename "$f" .rs)
+              if [ "$name" != main ] && ! grep -qxE "(pub )?mod $name;" "$main"; then
+                echo "::error file=$f::$f is never compiled; add" \
+                  "'mod $name;' to $main, or delete it"
+                fail=1
+              fi
+            done
+          done
+          for manifest in src/*/Cargo.toml
+          do
+            for path in $(sed -nE 's#^path = "\.\./\.\./(test/[^"]+)"$#\1#p' "$manifest")
+            do
+              if [ ! -f "$path" ]; then
+                echo "::error file=$manifest::$manifest registers $path," \
+                  "but it does not exist"
+                fail=1
+              fi
+            done
+          done
+          exit $fail
   assert-no-comments:
     runs-on: ubuntu-latest
     steps:
@@ -25,8 +73,92 @@ jobs:
       - name: Assert no comments
         uses: 10U-Labs/assert-no-comments@latest
         with:
-          trees: .claude/statusline.sh .github/workflows/release.yml config.yaml src test
+          trees: .claude/statusline.sh .github/workflows/release.yml config.yaml etc src test
           verbose: "true"
+  assert-no-empty-test-files:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Check no test file is empty of tests
+        run: |
+          fail=0
+          for f in $(find test/src -name '*.rs' -not -name main.rs -not -name common.rs)
+          do
+            if ! grep -q '#\[test\]' "$f"; then
+              echo "::error file=$f::$f has no #[test] functions; delete" \
+                "the file and its mod declaration"
+              fail=1
+            fi
+          done
+          exit $fail
+  assert-no-inline-directives:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Assert no inline lint or format directives in Rust
+        run: |
+          fail=0
+          pattern='#!?\[(allow|expect|warn|deny|forbid|rustfmt::skip)\b|#!?\[cfg_attr\('
+          while IFS=: read -r f n text
+          do
+            echo "::error file=$f,line=$n::$f sets a lint level or skips" \
+              "rustfmt inline; lint levels live in Cargo.toml and" \
+              "thresholds in etc/clippy, so fix the code instead"
+            fail=1
+          done < <(grep -rnE --include='*.rs' "$pattern" src test lib || true)
+          exit $fail
+  assert-no-linter-config-files:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install tools
+        run: pip install assert-no-linter-config-files
+      - if: ${{ !cancelled() }}
+        name: Assert no linter config files
+        run: >-
+          assert-no-linter-config-files
+          --linters mypy,pylint,yamllint
+          --verbose
+          ${{ github.workspace }}
+      - if: ${{ !cancelled() }}
+        name: Assert no rustfmt or clippy config outside etc/clippy
+        run: |
+          fail=0
+          for f in $(find . -path ./.git -prune -o -path ./target -prune -o \
+                       \( -name rustfmt.toml -o -name .rustfmt.toml \
+                          -o -name clippy.toml -o -name .clippy.toml \) -print)
+          do
+            case "$f" in
+              ./etc/clippy/src/clippy.toml|./etc/clippy/test/clippy.toml) ;;
+              *)
+                echo "::error file=$f::$f configures a Rust linter or" \
+                  "formatter; rustfmt runs with the Rust Style Guide defaults," \
+                  "and clippy thresholds live only in etc/clippy"
+                fail=1
+                ;;
+            esac
+          done
+          exit $fail
+  assert-no-oversized-source-files:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Check file line limits
+        run: |
+          fail=0
+          for f in $(find src test lib -name '*.rs')
+          do
+            lines=$(wc -l < "$f" | tr -d " ")
+            if [ "$lines" -ge 950 ]; then
+              echo "::error file=$f,line=$lines::$f has $lines lines (max 949); split it before adding to it"
+              fail=1
+            fi
+          done
+          exit $fail
   build:
     name: build-${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
@@ -92,8 +224,16 @@ jobs:
           components: clippy
       - name: Cache the build
         uses: Swatinem/rust-cache@master
-      - name: Run clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+      - env:
+          CLIPPY_CONF_DIR: ${{ github.workspace }}/etc/clippy/src
+        if: ${{ !cancelled() }}
+        name: Run clippy on src with the src thresholds
+        run: cargo clippy --workspace --lib --bins -- -D warnings
+      - env:
+          CLIPPY_CONF_DIR: ${{ github.workspace }}/etc/clippy/test
+        if: ${{ !cancelled() }}
+        name: Run clippy on test with the test thresholds
+        run: cargo clippy --workspace --tests -- -D warnings
   e2e-test:
     name: e2e-test-${{ matrix.platform }}
     needs: build
@@ -158,7 +298,12 @@ jobs:
       && github.event_name == 'push'
     needs:
       - agent-subtree
+      - assert-file-and-registration-sets-agree
       - assert-no-comments
+      - assert-no-empty-test-files
+      - assert-no-inline-directives
+      - assert-no-linter-config-files
+      - assert-no-oversized-source-files
       - clippy
       - e2e-test
       - integration-test
@@ -289,6 +434,7 @@ on:
       - Cargo.toml
       - Dockerfile
       - config.yaml
+      - etc/**
       - lib/**
       - rust-toolchain.toml
       - src/**
