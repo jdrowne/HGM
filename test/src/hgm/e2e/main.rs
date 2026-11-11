@@ -134,7 +134,10 @@ fn a_finished_run_can_be_continued_without_more_work() {
     assert!(
         stdout.contains(&format!(
             "{}\n",
-            std::path::Path::new("output_hgm/prev/best_agent").display()
+            std::path::Path::new("output_hgm")
+                .join("prev")
+                .join("best_agent")
+                .display()
         )),
         "{stdout}"
     );
@@ -164,6 +167,7 @@ fn a_run_without_an_agent_name_fails() {
     );
 }
 
+#[cfg(unix)]
 fn swe_cache(root: &std::path::Path) -> PathBuf {
     for split in ["SWE-bench_Lite", "SWE-bench"] {
         let cache = root.join("cache/princeton-nlp").join(split).join("test");
@@ -182,14 +186,12 @@ fn swe_cache(root: &std::path::Path) -> PathBuf {
         "#!/bin/sh\n[ \"$1\" = -m ] && exit 0\ncat > /dev/null\n",
     )
     .unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&python, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&python, std::fs::Permissions::from_mode(0o755)).unwrap();
     python
 }
 
+#[cfg(unix)]
 #[test]
 fn a_holdout_split_scores_the_best_agent_after_the_run() {
     let tmp = tempfile::tempdir().unwrap();

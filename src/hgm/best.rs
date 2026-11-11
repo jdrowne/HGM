@@ -83,7 +83,7 @@ pub fn pick(run_dir: &Path, epsilon: f64) -> Result<Belief, String> {
 
 fn git(dir: &Path, args: &[&str]) -> Result<(), String> {
     let out = Command::new("git")
-        .arg("-C")
+        .args(["-c", "core.autocrlf=false", "-C"])
         .arg(dir)
         .args(args)
         .output()

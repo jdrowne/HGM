@@ -309,7 +309,10 @@ fn a_run_improves_the_agent_and_measures_its_child() {
     assert!(
         stdout.contains(&format!(
             "{}\n",
-            Path::new("output_hgm/run/best_agent").display()
+            Path::new("output_hgm")
+                .join("run")
+                .join("best_agent")
+                .display()
         )),
         "{stdout}"
     );
