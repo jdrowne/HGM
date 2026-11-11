@@ -138,6 +138,7 @@ fn runs(out: &Path) -> Vec<PathBuf> {
 struct Attempt {
     tmp: tempfile::TempDir,
     child: String,
+    fresh: Vec<PathBuf>,
     run: Option<PathBuf>,
     seen: Arc<Mutex<Vec<String>>>,
 }
@@ -152,6 +153,22 @@ impl Attempt {
 
     fn child_dir(&self) -> PathBuf {
         self.tmp.path().join(&self.child)
+    }
+
+    fn report(&self) -> String {
+        let logs: String = self
+            .fresh
+            .iter()
+            .map(|run| {
+                let text = fs::read_to_string(run.join("self_improve.log")).unwrap_or_default();
+                format!("==> {} <==\n{text}\n", run.display())
+            })
+            .collect();
+        format!(
+            "child {} with {} new run folders\n{logs}",
+            self.child,
+            self.fresh.len()
+        )
     }
 
     fn requests(&self) -> usize {
@@ -210,6 +227,7 @@ fn attempt(case: Case<'_>) -> Attempt {
     Attempt {
         tmp,
         child,
+        fresh,
         run,
         seen,
     }
@@ -367,7 +385,11 @@ fn child_failure() -> Attempt {
 }
 
 fn logged(a: &Attempt, text: &str) -> bool {
-    a.log().contains(text)
+    let found = a.log().contains(text);
+    if !found {
+        eprintln!("{}", a.report());
+    }
+    found
 }
 
 #[test]
