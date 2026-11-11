@@ -1,0 +1,162 @@
+{
+  "source": "hgm.py: update_metadata; utils/evo_utils.py: load_hgm_metadata",
+  "notes": [
+    "hgm_metadata.jsonl is not JSON Lines: each record is json.dumps(indent=2) followed by a newline, so records span many lines.",
+    "The initial node is left out of every record.",
+    "A node with no evals has mean_utility Infinity, which Python writes as the bare token Infinity (not valid JSON). load_hgm_metadata reads it back with json.loads.",
+    "load_hgm_metadata splits the file on '\\n{' and re-parses each piece.",
+    "init_evaluated_tasks.json is overwritten on every update."
+  ],
+  "cases": [
+    {
+      "name": "branching_tree_two_updates",
+      "input": {
+        "tree": "branching",
+        "updates": [
+          {
+            "n_task_evals": 7,
+            "init_evaluated_tasks": [
+              "t1",
+              "t2"
+            ]
+          },
+          {
+            "n_task_evals": 8,
+            "append_eval_to_node": 5,
+            "init_evaluated_tasks": [
+              "t1",
+              "t2",
+              "t3"
+            ]
+          }
+        ]
+      },
+      "output": {
+        "jsonl_file": "run_metadata/hgm_metadata.jsonl",
+        "init_evaluated_tasks_file": "run_metadata/init_evaluated_tasks.json",
+        "load_all": [
+          {
+            "n_task_evals": 7,
+            "nodes": [
+              {
+                "commit_id": "a",
+                "id": 1,
+                "parent_id": 0,
+                "mean_utility": 1.0,
+                "num_evals": 1
+              },
+              {
+                "commit_id": "b",
+                "id": 2,
+                "parent_id": 0,
+                "mean_utility": 0.0,
+                "num_evals": 2
+              },
+              {
+                "commit_id": "a1",
+                "id": 3,
+                "parent_id": 1,
+                "mean_utility": 1.0,
+                "num_evals": 3
+              },
+              {
+                "commit_id": "a2",
+                "id": 4,
+                "parent_id": 1,
+                "mean_utility": "Infinity",
+                "num_evals": 0
+              },
+              {
+                "commit_id": "b1",
+                "id": 5,
+                "parent_id": 2,
+                "mean_utility": 0.6,
+                "num_evals": 5
+              }
+            ]
+          },
+          {
+            "n_task_evals": 8,
+            "nodes": [
+              {
+                "commit_id": "a",
+                "id": 1,
+                "parent_id": 0,
+                "mean_utility": 1.0,
+                "num_evals": 1
+              },
+              {
+                "commit_id": "b",
+                "id": 2,
+                "parent_id": 0,
+                "mean_utility": 0.0,
+                "num_evals": 2
+              },
+              {
+                "commit_id": "a1",
+                "id": 3,
+                "parent_id": 1,
+                "mean_utility": 1.0,
+                "num_evals": 3
+              },
+              {
+                "commit_id": "a2",
+                "id": 4,
+                "parent_id": 1,
+                "mean_utility": "Infinity",
+                "num_evals": 0
+              },
+              {
+                "commit_id": "b1",
+                "id": 5,
+                "parent_id": 2,
+                "mean_utility": 0.6666666666666666,
+                "num_evals": 6
+              }
+            ]
+          }
+        ],
+        "load_last_only": {
+          "n_task_evals": 8,
+          "nodes": [
+            {
+              "commit_id": "a",
+              "id": 1,
+              "parent_id": 0,
+              "mean_utility": 1.0,
+              "num_evals": 1
+            },
+            {
+              "commit_id": "b",
+              "id": 2,
+              "parent_id": 0,
+              "mean_utility": 0.0,
+              "num_evals": 2
+            },
+            {
+              "commit_id": "a1",
+              "id": 3,
+              "parent_id": 1,
+              "mean_utility": 1.0,
+              "num_evals": 3
+            },
+            {
+              "commit_id": "a2",
+              "id": 4,
+              "parent_id": 1,
+              "mean_utility": "Infinity",
+              "num_evals": 0
+            },
+            {
+              "commit_id": "b1",
+              "id": 5,
+              "parent_id": 2,
+              "mean_utility": 0.6666666666666666,
+              "num_evals": 6
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

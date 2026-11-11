@@ -1,0 +1,43 @@
+{
+  "source": "hgm_utils.py: any_exceeding_context_length",
+  "notes": [
+    "True only when one of the known error lines appears twice in a row (separated by a newline)."
+  ],
+  "cases": [
+    {
+      "name": "twice_in_a_row",
+      "input": {
+        "md_log": "start\nError in get_response_withtools: Error code: 400 - {'message': 'Input is too long for requested model.'}\nError in get_response_withtools: Error code: 400 - {'message': 'Input is too long for requested model.'}\nend"
+      },
+      "output": true
+    },
+    {
+      "name": "only_once",
+      "input": {
+        "md_log": "start\nError in get_response_withtools: Error code: 400 - {'message': 'Input is too long for requested model.'}\nend"
+      },
+      "output": false
+    },
+    {
+      "name": "twice_not_adjacent",
+      "input": {
+        "md_log": "Error in get_response_withtools: Error code: 400 - {'message': 'Input is too long for requested model.'}\nother\nError in get_response_withtools: Error code: 400 - {'message': 'Input is too long for requested model.'}"
+      },
+      "output": false
+    },
+    {
+      "name": "vllm_style_twice",
+      "input": {
+        "md_log": "Error in get_response_withtools: Error code: 400 - {'object': 'error', 'message': \"This model's maximum context length is 32768 tokens. However, you requested 40000 tokens in the messages, Please reduce the length of the messages. None\", 'type': 'BadRequestError', 'param': None, 'code': 400}\nError in get_response_withtools: Error code: 400 - {'object': 'error', 'message': \"This model's maximum context length is 32768 tokens. However, you requested 40000 tokens in the messages, Please reduce the length of the messages. None\", 'type': 'BadRequestError', 'param': None, 'code': 400}\n"
+      },
+      "output": true
+    },
+    {
+      "name": "none",
+      "input": {
+        "md_log": "all good"
+      },
+      "output": false
+    }
+  ]
+}

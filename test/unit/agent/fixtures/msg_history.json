@@ -1,0 +1,115 @@
+{
+  "source": "llm_withtools.py: convert_msg_history (openai and open_router)",
+  "notes": [
+    "OpenAI: a dict without 'role' is a tool output -> role user, 'Tool Result: ' + output; a non-dict is str(item) as assistant.",
+    "OpenRouter: role 'tool' content is prefixed with 'Tool Result: '; a message without 'content' is rendered from its first tool call."
+  ],
+  "cases": [
+    {
+      "name": "openai",
+      "input": {
+        "model": "gpt-5",
+        "msg_history": [
+          {
+            "role": "user",
+            "content": "hi"
+          },
+          {
+            "type": "function_call_output",
+            "call_id": "x",
+            "output": "out"
+          },
+          {
+            "type": "function_call_output",
+            "call_id": "y"
+          },
+          "ResponseFunctionToolCall(name='bash')"
+        ]
+      },
+      "output": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "user",
+          "content": "Tool Result: out"
+        },
+        {
+          "role": "user",
+          "content": "Tool Result: "
+        },
+        {
+          "role": "assistant",
+          "content": "ResponseFunctionToolCall(name='bash')"
+        }
+      ]
+    },
+    {
+      "name": "open_router",
+      "input": {
+        "model": "qwen",
+        "msg_history": [
+          {
+            "role": "user",
+            "content": "hi"
+          },
+          {
+            "role": "tool",
+            "content": "out"
+          },
+          {
+            "role": "assistant",
+            "content": null
+          },
+          {
+            "content": "no role"
+          }
+        ]
+      },
+      "output": [
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "tool",
+          "content": "Tool Result: out"
+        },
+        {
+          "role": "assistant",
+          "content": null
+        },
+        {
+          "role": "",
+          "content": "no role"
+        }
+      ]
+    },
+    {
+      "name": "open_router_tool_calls",
+      "input": {
+        "model": "qwen",
+        "msg_history": [
+          {
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "name": "bash",
+                "function": {
+                  "arguments": "{\"command\": \"ls\"}"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Function: bash\nArguments: {\"command\": \"ls\"}"
+        }
+      ]
+    }
+  ]
+}

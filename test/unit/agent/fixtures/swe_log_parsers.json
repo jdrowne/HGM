@@ -1,0 +1,246 @@
+{
+  "source": "utils/swe_log_parsers.py",
+  "notes": [
+    "Dict order is insertion order; a later line for the same test overwrites the earlier status.",
+    "{'error': <exception class>} records inputs where the Python raises.",
+    "map_repo_to_parser gives the function name behind each alias (parse_log_flask is parse_log_pytest, ...)."
+  ],
+  "cases": [
+    {
+      "name": "parse_log_pytest_sample",
+      "input": {
+        "parser": "parse_log_pytest",
+        "log": "============================= test session starts ==============================\ncollected 6 items\n\ntests/test_a.py::test_one PASSED                                         [ 16%]\nPASSED tests/test_a.py::test_one\nPASSED tests/test_a.py::test_param[1-2]\nFAILED tests/test_a.py::test_two - AssertionError: boom\nERROR tests/test_b.py::test_three - fixture 'x' not found\nSKIPPED [1] tests/test_c.py:12: no reason\nXFAIL tests/test_c.py::test_xfail - known\nPASSED\nFAILED\n=========================== short test summary info ============================\n"
+      },
+      "output": {
+        "ok": {
+          "tests/test_a.py::test_one": "PASSED",
+          "tests/test_a.py::test_param[1-2]": "PASSED",
+          "tests/test_a.py::test_two": "FAILED",
+          "tests/test_b.py::test_three": "ERROR",
+          "[1]": "SKIPPED",
+          "tests/test_c.py::test_xfail": "XFAIL"
+        }
+      }
+    },
+    {
+      "name": "parse_log_pytest_empty",
+      "input": {
+        "parser": "parse_log_pytest",
+        "log": ""
+      },
+      "output": {
+        "ok": {}
+      }
+    },
+    {
+      "name": "parse_log_pytest_options_sample",
+      "input": {
+        "parser": "parse_log_pytest_options",
+        "log": "PASSED tests/test_x.py::test_path[/usr/lib/python3/site-packages/foo]\nPASSED tests/test_x.py::test_path[//double/slash]\nPASSED tests/test_x.py::test_path[/glob/*/star]\nFAILED tests/test_x.py::test_plain - ValueError\nPASSED tests/test_x.py::test_opt[a-b]\n"
+      },
+      "output": {
+        "ok": {
+          "tests/test_x.py::test_path[/foo]": "PASSED",
+          "tests/test_x.py::test_path[//double/slash]": "PASSED",
+          "tests/test_x.py::test_path[/glob/*/star]": "PASSED",
+          "tests/test_x.py::test_plain": "FAILED",
+          "tests/test_x.py::test_opt[a-b]": "PASSED"
+        }
+      }
+    },
+    {
+      "name": "parse_log_pytest_options_empty",
+      "input": {
+        "parser": "parse_log_pytest_options",
+        "log": ""
+      },
+      "output": {
+        "ok": {}
+      }
+    },
+    {
+      "name": "parse_log_django_sample",
+      "input": {
+        "parser": "parse_log_django",
+        "log": "test_one (app.tests.TestA) ... ok\ntest_two (app.tests.TestA) ... OK\ntest_three (app.tests.TestA) ...  OK\ntest_skip (app.tests.TestA) ... skipped 'no db'\ntest_fail (app.tests.TestA) ... FAIL\ntest_err (app.tests.TestA) ... ERROR\nFAIL: test_fail2 (app.tests.TestB)\nERROR: test_err2 (app.tests.TestB)\ntest_multi (app.tests.TestC) ... some output\nok\n--version is equivalent to version\ntest_sys (app.tests.TestD) ... System check identified no issues (0 silenced)\nok\ntest_ise (app.tests.TestE) ... Internal Server Error: /path/x/\nok\nApplying sites.0002_alter_domain_unique...test_no_migrations (migrations.test.T) ... ok\n"
+      },
+      "output": {
+        "ok": {
+          "test_one (app.tests.TestA)": "PASSED",
+          "test_two (app.tests.TestA)": "PASSED",
+          "test_three (app.tests.TestA)": "PASSED",
+          "test_skip (app.tests.TestA)": "SKIPPED",
+          "test_fail (app.tests.TestA)": "FAILED",
+          "test_err (app.tests.TestA)": "ERROR",
+          "test_fail2": "FAILED",
+          "test_err2": "ERROR",
+          "test_multi (app.tests.TestC)": "PASSED",
+          "--version is equivalent to version": "PASSED",
+          "test_sys (app.tests.TestD)": "PASSED",
+          "test_ise (app.tests.TestE)": "PASSED",
+          "test_no_migrations (migrations.test.T)": "PASSED"
+        }
+      }
+    },
+    {
+      "name": "parse_log_django_empty",
+      "input": {
+        "parser": "parse_log_django",
+        "log": ""
+      },
+      "output": {
+        "ok": {}
+      }
+    },
+    {
+      "name": "parse_log_pytest_v2_sample",
+      "input": {
+        "parser": "parse_log_pytest_v2",
+        "log": "\u001b[32mPASSED\u001b[0m tests/test_a.py::test_color\nFAILED tests/test_a.py::test_f - boom\ntests/test_old.py::test_old PASSED\ntests/test_old.py::test_old_fail FAILED\nPASSED\u0007 tests/test_a.py::test_bell\n"
+      },
+      "output": {
+        "ok": {
+          "tests/test_a.py::test_color": "PASSED",
+          "tests/test_a.py::test_f": "FAILED",
+          "tests/test_old.py::test_old": "PASSED",
+          "tests/test_old.py::test_old_fail": "FAILED",
+          "tests/test_a.py::test_bell": "PASSED"
+        }
+      }
+    },
+    {
+      "name": "parse_log_pytest_v2_empty",
+      "input": {
+        "parser": "parse_log_pytest_v2",
+        "log": ""
+      },
+      "output": {
+        "ok": {}
+      }
+    },
+    {
+      "name": "parse_log_seaborn_sample",
+      "input": {
+        "parser": "parse_log_seaborn",
+        "log": "FAILED tests/test_s.py::test_fail - err\ntests/test_s.py::test_pass PASSED [ 50%]\nPASSED tests/test_s.py::test_pass2\nsomething PASSED in middle\n"
+      },
+      "output": {
+        "ok": {
+          "tests/test_s.py::test_fail": "FAILED",
+          "tests/test_s.py::test_pass": "PASSED",
+          "tests/test_s.py::test_pass2": "PASSED",
+          "something": "PASSED"
+        }
+      }
+    },
+    {
+      "name": "parse_log_seaborn_empty",
+      "input": {
+        "parser": "parse_log_seaborn",
+        "log": ""
+      },
+      "output": {
+        "ok": {}
+      }
+    },
+    {
+      "name": "parse_log_sympy_sample",
+      "input": {
+        "parser": "parse_log_sympy",
+        "log": "________________ sympy/core/tests/test_basic.py:test_fail ________________\ntest_ok ok\ntest_err E\ntest_f F\ntest_with_marker ok [OK]\ntest_with_fail F [FAIL]\n  test_indented ok\n"
+      },
+      "output": {
+        "ok": {
+          "sympy/core/tests/test_basic.py:test_fail": "FAILED",
+          "test_ok": "PASSED",
+          "test_err": "ERROR",
+          "test_f": "FAILED",
+          "test_with_marker": "PASSED",
+          "test_with_fail": "FAILED",
+          "test_indented": "PASSED"
+        }
+      }
+    },
+    {
+      "name": "parse_log_sympy_empty",
+      "input": {
+        "parser": "parse_log_sympy",
+        "log": ""
+      },
+      "output": {
+        "ok": {}
+      }
+    },
+    {
+      "name": "parse_log_matplotlib_sample",
+      "input": {
+        "parser": "parse_log_matplotlib",
+        "log": "PASSED lib/matplotlib/tests/test_x.py::test_click[MouseButton.LEFT]\nFAILED lib/matplotlib/tests/test_x.py::test_click[MouseButton.RIGHT] - err\nPASSED\n"
+      },
+      "output": {
+        "ok": {
+          "lib/matplotlib/tests/test_x.py::test_click[1]": "PASSED",
+          "lib/matplotlib/tests/test_x.py::test_click[3]": "FAILED"
+        }
+      }
+    },
+    {
+      "name": "parse_log_matplotlib_empty",
+      "input": {
+        "parser": "parse_log_matplotlib",
+        "log": ""
+      },
+      "output": {
+        "ok": {}
+      }
+    },
+    {
+      "name": "parse_log_pytest_v2_crash",
+      "input": {
+        "parser": "parse_log_pytest_v2",
+        "log": "PASSED\n"
+      },
+      "output": {
+        "error": "IndexError"
+      }
+    },
+    {
+      "name": "parse_log_seaborn_crash",
+      "input": {
+        "parser": "parse_log_seaborn",
+        "log": "x PASSED \n"
+      },
+      "output": {
+        "ok": {
+          "x": "PASSED"
+        }
+      }
+    },
+    {
+      "name": "map_repo_to_parser",
+      "input": null,
+      "output": {
+        "astropy/astropy": "parse_log_pytest_v2",
+        "django/django": "parse_log_django",
+        "marshmallow-code/marshmallow": "parse_log_pytest",
+        "matplotlib/matplotlib": "parse_log_matplotlib",
+        "mwaskom/seaborn": "parse_log_seaborn",
+        "pallets/flask": "parse_log_pytest",
+        "psf/requests": "parse_log_pytest_options",
+        "pvlib/pvlib-python": "parse_log_pytest",
+        "pydata/xarray": "parse_log_pytest",
+        "pydicom/pydicom": "parse_log_pytest_options",
+        "pylint-dev/astroid": "parse_log_pytest",
+        "pylint-dev/pylint": "parse_log_pytest_options",
+        "pytest-dev/pytest": "parse_log_pytest",
+        "pyvista/pyvista": "parse_log_pytest",
+        "scikit-learn/scikit-learn": "parse_log_pytest_v2",
+        "sqlfluff/sqlfluff": "parse_log_pytest",
+        "sphinx-doc/sphinx": "parse_log_pytest_v2",
+        "sympy/sympy": "parse_log_sympy",
+        "hgm": "parse_log_pytest"
+      }
+    }
+  ]
+}

@@ -1,0 +1,346 @@
+{
+  "source": "hgm.py: main.TS_sample, with np.random.beta replaced by a recorder",
+  "notes": [
+    "alpha_i = 1 + sum(evals_i), beta_i = 1 + len(evals_i) - sum(evals_i).",
+    "With cool_down both are multiplied by max**beta / (max - n)**beta, or by 10000 when n == max.",
+    "Ties in the sampled thetas go to the first index (numpy argmax)."
+  ],
+  "cases": [
+    {
+      "name": "no_cool_down",
+      "input": {
+        "evals": [
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            0,
+            0
+          ],
+          [],
+          [
+            1,
+            1,
+            1,
+            1
+          ],
+          [
+            0.5,
+            1
+          ]
+        ],
+        "cool_down": false,
+        "beta": 1.0,
+        "max_task_evals": 800,
+        "n_task_evals": 0
+      },
+      "output": {
+        "alphas": [
+          3.0,
+          1.0,
+          1.0,
+          5.0,
+          2.5
+        ],
+        "betas": [
+          2.0,
+          3.0,
+          1.0,
+          1.0,
+          1.5
+        ],
+        "argmax_when_all_thetas_equal": 0
+      }
+    },
+    {
+      "name": "no_cool_down_midway",
+      "input": {
+        "evals": [
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            0,
+            0
+          ],
+          [],
+          [
+            1,
+            1,
+            1,
+            1
+          ],
+          [
+            0.5,
+            1
+          ]
+        ],
+        "cool_down": false,
+        "beta": 1.0,
+        "max_task_evals": 800,
+        "n_task_evals": 400
+      },
+      "output": {
+        "alphas": [
+          3.0,
+          1.0,
+          1.0,
+          5.0,
+          2.5
+        ],
+        "betas": [
+          2.0,
+          3.0,
+          1.0,
+          1.0,
+          1.5
+        ],
+        "argmax_when_all_thetas_equal": 0
+      }
+    },
+    {
+      "name": "cool_down_start",
+      "input": {
+        "evals": [
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            0,
+            0
+          ],
+          [],
+          [
+            1,
+            1,
+            1,
+            1
+          ],
+          [
+            0.5,
+            1
+          ]
+        ],
+        "cool_down": true,
+        "beta": 1.0,
+        "max_task_evals": 800,
+        "n_task_evals": 0
+      },
+      "output": {
+        "alphas": [
+          3.0,
+          1.0,
+          1.0,
+          5.0,
+          2.5
+        ],
+        "betas": [
+          2.0,
+          3.0,
+          1.0,
+          1.0,
+          1.5
+        ],
+        "argmax_when_all_thetas_equal": 0
+      }
+    },
+    {
+      "name": "cool_down_midway",
+      "input": {
+        "evals": [
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            0,
+            0
+          ],
+          [],
+          [
+            1,
+            1,
+            1,
+            1
+          ],
+          [
+            0.5,
+            1
+          ]
+        ],
+        "cool_down": true,
+        "beta": 1.0,
+        "max_task_evals": 800,
+        "n_task_evals": 400
+      },
+      "output": {
+        "alphas": [
+          6.0,
+          2.0,
+          2.0,
+          10.0,
+          5.0
+        ],
+        "betas": [
+          4.0,
+          6.0,
+          2.0,
+          2.0,
+          3.0
+        ],
+        "argmax_when_all_thetas_equal": 0
+      }
+    },
+    {
+      "name": "cool_down_beta_2",
+      "input": {
+        "evals": [
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            0,
+            0
+          ],
+          [],
+          [
+            1,
+            1,
+            1,
+            1
+          ],
+          [
+            0.5,
+            1
+          ]
+        ],
+        "cool_down": true,
+        "beta": 2.0,
+        "max_task_evals": 800,
+        "n_task_evals": 600
+      },
+      "output": {
+        "alphas": [
+          48.0,
+          16.0,
+          16.0,
+          80.0,
+          40.0
+        ],
+        "betas": [
+          32.0,
+          48.0,
+          16.0,
+          16.0,
+          24.0
+        ],
+        "argmax_when_all_thetas_equal": 0
+      }
+    },
+    {
+      "name": "cool_down_beta_half",
+      "input": {
+        "evals": [
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            0,
+            0
+          ],
+          [],
+          [
+            1,
+            1,
+            1,
+            1
+          ],
+          [
+            0.5,
+            1
+          ]
+        ],
+        "cool_down": true,
+        "beta": 0.5,
+        "max_task_evals": 800,
+        "n_task_evals": 799
+      },
+      "output": {
+        "alphas": [
+          84.8528137423857,
+          28.284271247461902,
+          28.284271247461902,
+          141.4213562373095,
+          70.71067811865476
+        ],
+        "betas": [
+          56.568542494923804,
+          84.8528137423857,
+          28.284271247461902,
+          28.284271247461902,
+          42.42640687119285
+        ],
+        "argmax_when_all_thetas_equal": 0
+      }
+    },
+    {
+      "name": "cool_down_at_budget",
+      "input": {
+        "evals": [
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            0,
+            0
+          ],
+          [],
+          [
+            1,
+            1,
+            1,
+            1
+          ],
+          [
+            0.5,
+            1
+          ]
+        ],
+        "cool_down": true,
+        "beta": 1.0,
+        "max_task_evals": 800,
+        "n_task_evals": 800
+      },
+      "output": {
+        "alphas": [
+          30000.0,
+          10000.0,
+          10000.0,
+          50000.0,
+          25000.0
+        ],
+        "betas": [
+          20000.0,
+          30000.0,
+          10000.0,
+          10000.0,
+          15000.0
+        ],
+        "argmax_when_all_thetas_equal": 0
+      }
+    }
+  ]
+}

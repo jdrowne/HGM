@@ -1,0 +1,535 @@
+{
+  "source": "config.py: HGMConfig.from_yaml, load_config (overrides), to_dict",
+  "notes": [
+    "Any exception while loading (unknown key, YAML syntax error) makes from_yaml print a message and return all defaults.",
+    "Values are not type-checked: '8' stays a string, 1 stays an int.",
+    "An override whose path does not exist is silently ignored; None skips the override.",
+    "An override key naming a whole section ('optimization') replaces that section object, so to_dict then raises; recorded as {'error': ...}.",
+    "config/defaults_saved.yaml is HGMConfig().save_to_yaml(), keys sorted by PyYAML."
+  ],
+  "cases": [
+    {
+      "name": "shipped_config_yaml",
+      "input": {
+        "yaml": "# This file contains all configurable parameters for the HGM system.\n\n# Language Model Configuration\nllm:\n  # Model used for self-improvement tasks\n  self_improve_llm: \"gpt-5-mini\"\n  \n  # Model used for downstream evaluation tasks\n  downstream_llm: \"gpt-5-mini\"\n  \n  # Model used for problem diagnosis\n  diagnose_llm: \"gpt-5-mini\"\n\n# Optimization Algorithm Parameters\noptimization:\n  # Alpha parameter for node expansion (controls exploration vs exploitation)\n  alpha: 0.6\n  \n  # Beta parameter for cooling down factor\n  beta: 1.0\n  \n  # Whether to use decreasing temperature over iterations\n  cool_down: false\n  \n  # Randomness level for evaluation task selection (0.0 = deterministic, 1.0 = fully random)\n  eval_random_level: 1.0\n  \n  # Number of pseudo descendant evaluations for tree search\n  n_pseudo_descendant_evals: 10000\n\n# Execution and Resource Management\nexecution:\n  # Number of parallel workers for self-improvement attempts\n  max_workers: 20\n  \n  # Timeout for self-improvement attempts (in seconds)\n  self_improve_timeout: 3600  # 1 hour\n  \n  # Timeout for evaluation attempts (in seconds)\n  evaluation_timeout: 3600   # 1 hour\n  \n  # Maximum number of task evaluations (evolution iterations)\n  max_task_evals: 800\n\n# Evaluation Settings\nevaluation:\n  # Skip full evaluation on SWE-bench if node is top N performing\n  full_eval: false\n  \n  # Use Polyglot benchmark instead of SWE-bench\n  polyglot: false\n\n# Path Configuration\npaths:\n  # Output directory for results (if null, will be auto-generated)\n  output_dir: \"output_hgm:\"\n  \n  # Directory to continue a previous run from\n  continue_from: null\n  \n  # Name of the initial agent (required)\n  initial_agent_name: \"default_agent\""
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.6,
+          "beta": 1.0,
+          "cool_down": false,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 20,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": "output_hgm:",
+          "continue_from": null,
+          "initial_agent_name": "default_agent"
+        }
+      }
+    },
+    {
+      "name": "empty_file",
+      "input": {
+        "yaml": ""
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.6,
+          "beta": 1.0,
+          "cool_down": false,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 16,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": null,
+          "continue_from": null,
+          "initial_agent_name": ""
+        }
+      }
+    },
+    {
+      "name": "null_document",
+      "input": {
+        "yaml": "null\n"
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.6,
+          "beta": 1.0,
+          "cool_down": false,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 16,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": null,
+          "continue_from": null,
+          "initial_agent_name": ""
+        }
+      }
+    },
+    {
+      "name": "partial_optimization",
+      "input": {
+        "yaml": "optimization:\n  alpha: 0.3\n  cool_down: true\n"
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.3,
+          "beta": 1.0,
+          "cool_down": true,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 16,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": null,
+          "continue_from": null,
+          "initial_agent_name": ""
+        }
+      }
+    },
+    {
+      "name": "partial_paths_null_output_dir",
+      "input": {
+        "yaml": "paths:\n  output_dir: null\n  initial_agent_name: agent_x\n"
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.6,
+          "beta": 1.0,
+          "cool_down": false,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 16,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": null,
+          "continue_from": null,
+          "initial_agent_name": "agent_x"
+        }
+      }
+    },
+    {
+      "name": "unknown_key_falls_back_to_defaults",
+      "input": {
+        "yaml": "optimization:\n  alpha: 0.3\n  gamma: 2\n"
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.6,
+          "beta": 1.0,
+          "cool_down": false,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 16,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": null,
+          "continue_from": null,
+          "initial_agent_name": ""
+        }
+      }
+    },
+    {
+      "name": "invalid_yaml_falls_back_to_defaults",
+      "input": {
+        "yaml": "llm: [unclosed\n"
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.6,
+          "beta": 1.0,
+          "cool_down": false,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 16,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": null,
+          "continue_from": null,
+          "initial_agent_name": ""
+        }
+      }
+    },
+    {
+      "name": "int_where_float_expected",
+      "input": {
+        "yaml": "optimization:\n  alpha: 1\n  beta: 2\n"
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 1,
+          "beta": 2,
+          "cool_down": false,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 16,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": null,
+          "continue_from": null,
+          "initial_agent_name": ""
+        }
+      }
+    },
+    {
+      "name": "string_where_int_expected",
+      "input": {
+        "yaml": "execution:\n  max_workers: '8'\n"
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.6,
+          "beta": 1.0,
+          "cool_down": false,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": "8",
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": null,
+          "continue_from": null,
+          "initial_agent_name": ""
+        }
+      }
+    },
+    {
+      "name": "missing_file",
+      "input": {
+        "yaml": null
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.6,
+          "beta": 1.0,
+          "cool_down": false,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 16,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": null,
+          "continue_from": null,
+          "initial_agent_name": ""
+        }
+      }
+    },
+    {
+      "name": "cli_style_overrides",
+      "input": {
+        "yaml": "<shipped config.yaml>",
+        "overrides": {
+          "execution.max_task_evals": 50,
+          "execution.max_workers": 4,
+          "paths.output_dir": "out/run1",
+          "optimization.alpha": 0.7,
+          "optimization.cool_down": true,
+          "evaluation.polyglot": true,
+          "paths.initial_agent_name": "default_agent"
+        }
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.7,
+          "beta": 1.0,
+          "cool_down": true,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 4,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 50
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": true
+        },
+        "paths": {
+          "output_dir": "out/run1",
+          "continue_from": null,
+          "initial_agent_name": "default_agent"
+        }
+      }
+    },
+    {
+      "name": "none_values_are_skipped",
+      "input": {
+        "yaml": "<shipped config.yaml>",
+        "overrides": {
+          "optimization.alpha": null,
+          "llm.self_improve_llm": null
+        }
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.6,
+          "beta": 1.0,
+          "cool_down": false,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 20,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": "output_hgm:",
+          "continue_from": null,
+          "initial_agent_name": "default_agent"
+        }
+      }
+    },
+    {
+      "name": "unknown_paths_are_ignored",
+      "input": {
+        "yaml": "<shipped config.yaml>",
+        "overrides": {
+          "nope.alpha": 1,
+          "optimization.nope": 2
+        }
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.6,
+          "beta": 1.0,
+          "cool_down": false,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 20,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": "output_hgm:",
+          "continue_from": null,
+          "initial_agent_name": "default_agent"
+        }
+      }
+    },
+    {
+      "name": "false_is_applied",
+      "input": {
+        "yaml": "<shipped config.yaml>",
+        "overrides": {
+          "optimization.cool_down": false,
+          "evaluation.full_eval": false
+        }
+      },
+      "output": {
+        "llm": {
+          "self_improve_llm": "gpt-5-mini",
+          "downstream_llm": "gpt-5-mini",
+          "diagnose_llm": "gpt-5-mini"
+        },
+        "optimization": {
+          "alpha": 0.6,
+          "beta": 1.0,
+          "cool_down": false,
+          "eval_random_level": 1.0,
+          "n_pseudo_descendant_evals": 10000
+        },
+        "execution": {
+          "max_workers": 20,
+          "self_improve_timeout": 3600,
+          "evaluation_timeout": 3600,
+          "max_task_evals": 800
+        },
+        "evaluation": {
+          "full_eval": false,
+          "polyglot": false
+        },
+        "paths": {
+          "output_dir": "output_hgm:",
+          "continue_from": null,
+          "initial_agent_name": "default_agent"
+        }
+      }
+    },
+    {
+      "name": "section_name_replaces_whole_section",
+      "input": {
+        "yaml": "<shipped config.yaml>",
+        "overrides": {
+          "optimization": 3
+        }
+      },
+      "output": {
+        "error": "AttributeError"
+      }
+    }
+  ]
+}

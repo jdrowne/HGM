@@ -1,0 +1,170 @@
+{
+  "source": "utils/eval_utils.py: parse_eval_output, get_report_score, msg_history_to_report",
+  "notes": [
+    "parse_eval_output maps 'owner__repo-123' to 'owner/repo' (drop the last '-' part); an unknown repo or any error gives {}.",
+    "msg_history_to_report walks the converted history backwards and returns the first non-empty report from a user message containing 'Tool Result:'."
+  ],
+  "cases": [
+    {
+      "name": "parse_eval_output_hgm",
+      "input": {
+        "instance_id": "hgm",
+        "eval_output": "============================= test session starts ==============================\ncollected 6 items\n\ntests/test_a.py::test_one PASSED                                         [ 16%]\nPASSED tests/test_a.py::test_one\nPASSED tests/test_a.py::test_param[1-2]\nFAILED tests/test_a.py::test_two - AssertionError: boom\nERROR tests/test_b.py::test_three - fixture 'x' not found\nSKIPPED [1] tests/test_c.py:12: no reason\nXFAIL tests/test_c.py::test_xfail - known\nPASSED\nFAILED\n=========================== short test summary info ============================\n"
+      },
+      "output": {
+        "tests/test_a.py::test_one": "PASSED",
+        "tests/test_a.py::test_param[1-2]": "PASSED",
+        "tests/test_a.py::test_two": "FAILED",
+        "tests/test_b.py::test_three": "ERROR",
+        "[1]": "SKIPPED",
+        "tests/test_c.py::test_xfail": "XFAIL"
+      }
+    },
+    {
+      "name": "parse_eval_output_django__django-11099",
+      "input": {
+        "instance_id": "django__django-11099",
+        "eval_output": "test_one (app.tests.TestA) ... ok\ntest_two (app.tests.TestA) ... OK\ntest_three (app.tests.TestA) ...  OK\ntest_skip (app.tests.TestA) ... skipped 'no db'\ntest_fail (app.tests.TestA) ... FAIL\ntest_err (app.tests.TestA) ... ERROR\nFAIL: test_fail2 (app.tests.TestB)\nERROR: test_err2 (app.tests.TestB)\ntest_multi (app.tests.TestC) ... some output\nok\n--version is equivalent to version\ntest_sys (app.tests.TestD) ... System check identified no issues (0 silenced)\nok\ntest_ise (app.tests.TestE) ... Internal Server Error: /path/x/\nok\nApplying sites.0002_alter_domain_unique...test_no_migrations (migrations.test.T) ... ok\n"
+      },
+      "output": {
+        "test_one (app.tests.TestA)": "PASSED",
+        "test_two (app.tests.TestA)": "PASSED",
+        "test_three (app.tests.TestA)": "PASSED",
+        "test_skip (app.tests.TestA)": "SKIPPED",
+        "test_fail (app.tests.TestA)": "FAILED",
+        "test_err (app.tests.TestA)": "ERROR",
+        "test_fail2": "FAILED",
+        "test_err2": "ERROR",
+        "test_multi (app.tests.TestC)": "PASSED",
+        "--version is equivalent to version": "PASSED",
+        "test_sys (app.tests.TestD)": "PASSED",
+        "test_ise (app.tests.TestE)": "PASSED",
+        "test_no_migrations (migrations.test.T)": "PASSED"
+      }
+    },
+    {
+      "name": "parse_eval_output_scikit-learn__scikit-learn-12421",
+      "input": {
+        "instance_id": "scikit-learn__scikit-learn-12421",
+        "eval_output": "\u001b[32mPASSED\u001b[0m tests/test_a.py::test_color\nFAILED tests/test_a.py::test_f - boom\ntests/test_old.py::test_old PASSED\ntests/test_old.py::test_old_fail FAILED\nPASSED\u0007 tests/test_a.py::test_bell\n"
+      },
+      "output": {
+        "tests/test_a.py::test_color": "PASSED",
+        "tests/test_a.py::test_f": "FAILED",
+        "tests/test_old.py::test_old": "PASSED",
+        "tests/test_old.py::test_old_fail": "FAILED",
+        "tests/test_a.py::test_bell": "PASSED"
+      }
+    },
+    {
+      "name": "parse_eval_output_pvlib__pvlib-python-1072",
+      "input": {
+        "instance_id": "pvlib__pvlib-python-1072",
+        "eval_output": "============================= test session starts ==============================\ncollected 6 items\n\ntests/test_a.py::test_one PASSED                                         [ 16%]\nPASSED tests/test_a.py::test_one\nPASSED tests/test_a.py::test_param[1-2]\nFAILED tests/test_a.py::test_two - AssertionError: boom\nERROR tests/test_b.py::test_three - fixture 'x' not found\nSKIPPED [1] tests/test_c.py:12: no reason\nXFAIL tests/test_c.py::test_xfail - known\nPASSED\nFAILED\n=========================== short test summary info ============================\n"
+      },
+      "output": {
+        "tests/test_a.py::test_one": "PASSED",
+        "tests/test_a.py::test_param[1-2]": "PASSED",
+        "tests/test_a.py::test_two": "FAILED",
+        "tests/test_b.py::test_three": "ERROR",
+        "[1]": "SKIPPED",
+        "tests/test_c.py::test_xfail": "XFAIL"
+      }
+    },
+    {
+      "name": "parse_eval_output_unknown__repo-1",
+      "input": {
+        "instance_id": "unknown__repo-1",
+        "eval_output": "============================= test session starts ==============================\ncollected 6 items\n\ntests/test_a.py::test_one PASSED                                         [ 16%]\nPASSED tests/test_a.py::test_one\nPASSED tests/test_a.py::test_param[1-2]\nFAILED tests/test_a.py::test_two - AssertionError: boom\nERROR tests/test_b.py::test_three - fixture 'x' not found\nSKIPPED [1] tests/test_c.py:12: no reason\nXFAIL tests/test_c.py::test_xfail - known\nPASSED\nFAILED\n=========================== short test summary info ============================\n"
+      },
+      "output": {}
+    },
+    {
+      "name": "parse_eval_output_nohyphen",
+      "input": {
+        "instance_id": "nohyphen",
+        "eval_output": "============================= test session starts ==============================\ncollected 6 items\n\ntests/test_a.py::test_one PASSED                                         [ 16%]\nPASSED tests/test_a.py::test_one\nPASSED tests/test_a.py::test_param[1-2]\nFAILED tests/test_a.py::test_two - AssertionError: boom\nERROR tests/test_b.py::test_three - fixture 'x' not found\nSKIPPED [1] tests/test_c.py:12: no reason\nXFAIL tests/test_c.py::test_xfail - known\nPASSED\nFAILED\n=========================== short test summary info ============================\n"
+      },
+      "output": {}
+    },
+    {
+      "name": "get_report_score_half",
+      "input": {
+        "a": "PASSED",
+        "b": "FAILED"
+      },
+      "output": 0.5
+    },
+    {
+      "name": "get_report_score_empty",
+      "input": {},
+      "output": 0
+    },
+    {
+      "name": "get_report_score_xfail_not_passed",
+      "input": {
+        "a": "XFAIL",
+        "b": "PASSED",
+        "c": "PASSED"
+      },
+      "output": 0.6666666666666666
+    },
+    {
+      "name": "msg_history_to_report_openai",
+      "input": {
+        "instance_id": "hgm",
+        "model": "gpt-5",
+        "msg_history": [
+          {
+            "role": "user",
+            "content": "do it"
+          },
+          {
+            "type": "function_call_output",
+            "call_id": "c1",
+            "output": "Tool Result? no: ============================= test session starts ==============================\ncollected 6 items\n\ntests/test_a.py::test_one PASSED                                         [ 16%]\nPASSED tests/test_a.py::test_one\nPASSED tests/test_a.py::test_param[1-2]\nFAILED tests/test_a.py::test_two - AssertionError: boom\nERROR tests/test_b.py::test_three - fixture 'x' not found\nSKIPPED [1] tests/test_c.py:12: no reason\nXFAIL tests/test_c.py::test_xfail - known\nPASSED\nFAILED\n=========================== short test summary info ============================\n"
+          },
+          {
+            "type": "function_call_output",
+            "call_id": "c2",
+            "output": "nothing parseable"
+          },
+          {
+            "role": "assistant",
+            "content": "done"
+          }
+        ]
+      },
+      "output": {
+        "tests/test_a.py::test_one": "PASSED",
+        "tests/test_a.py::test_param[1-2]": "PASSED",
+        "tests/test_a.py::test_two": "FAILED",
+        "tests/test_b.py::test_three": "ERROR",
+        "[1]": "SKIPPED",
+        "tests/test_c.py::test_xfail": "XFAIL"
+      }
+    },
+    {
+      "name": "msg_history_to_report_open_router",
+      "input": {
+        "instance_id": "hgm",
+        "model": "anthropic/claude-sonnet-4",
+        "msg_history": [
+          {
+            "role": "user",
+            "content": "do it"
+          },
+          {
+            "role": "tool",
+            "content": "============================= test session starts ==============================\ncollected 6 items\n\ntests/test_a.py::test_one PASSED                                         [ 16%]\nPASSED tests/test_a.py::test_one\nPASSED tests/test_a.py::test_param[1-2]\nFAILED tests/test_a.py::test_two - AssertionError: boom\nERROR tests/test_b.py::test_three - fixture 'x' not found\nSKIPPED [1] tests/test_c.py:12: no reason\nXFAIL tests/test_c.py::test_xfail - known\nPASSED\nFAILED\n=========================== short test summary info ============================\n"
+          },
+          {
+            "role": "tool",
+            "content": "no tests here"
+          }
+        ]
+      },
+      "output": {}
+    }
+  ]
+}

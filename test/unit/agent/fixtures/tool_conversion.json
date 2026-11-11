@@ -1,0 +1,537 @@
+{
+  "source": "llm_withtools.py: convert_tool_info",
+  "notes": [
+    "Model routing: 'vllm' anywhere -> chat-completions shape; else startswith('o') or 'gpt' in lower -> responses (strict) shape; else chat-completions shape.",
+    "The responses shape adds additionalProperties false to every dict with 'properties', makes every property required and turns optional types into [type, 'null']. The Python mutates its input; each case used a fresh copy."
+  ],
+  "cases": [
+    {
+      "name": "convert_tool_info_bash_gpt-5",
+      "input": {
+        "model": "gpt-5",
+        "tool_info": {
+          "name": "bash",
+          "description": "Run commands in a bash shell\n\n* When invoking this tool, the contents of the \"command\" parameter does NOT need to be XML-escaped.\n\n* You don't have access to the internet via this tool.\n\n* You do have access to a mirror of common linux and python packages via apt and pip.\n\n* State is persistent across command calls and discussions with the user.\n\n* To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.\n\n* Please avoid commands that may produce a very large amount of output.\n\n* Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The bash command to run."
+              }
+            },
+            "required": [
+              "command"
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "function",
+        "name": "bash",
+        "description": "Run commands in a bash shell\n\n* When invoking this tool, the contents of the \"command\" parameter does NOT need to be XML-escaped.\n\n* You don't have access to the internet via this tool.\n\n* You do have access to a mirror of common linux and python packages via apt and pip.\n\n* State is persistent across command calls and discussions with the user.\n\n* To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.\n\n* Please avoid commands that may produce a very large amount of output.\n\n* Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The bash command to run."
+            }
+          },
+          "required": [
+            "command"
+          ],
+          "additionalProperties": false
+        },
+        "strict": true
+      }
+    },
+    {
+      "name": "convert_tool_info_editor_gpt-5",
+      "input": {
+        "model": "gpt-5",
+        "tool_info": {
+          "name": "editor",
+          "description": "Custom editing tool for viewing, creating, and editing files\n\n* State is persistent across command calls and discussions with the user.\n\n* If `path` is a file, `view` displays the entire file with line numbers. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep.\n\n* The `create` command cannot be used if the specified `path` already exists as a file.\n\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`.\n\n* The `edit` command overwrites the entire file with the provided `file_text`.\n\n* No partial/line-range edits or partial viewing are supported.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "enum": [
+                  "view",
+                  "create",
+                  "edit"
+                ],
+                "description": "The command to run: `view`, `create`, or `edit`."
+              },
+              "path": {
+                "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
+                "type": "string"
+              },
+              "file_text": {
+                "description": "Required parameter of `create` or `edit` command, containing the content for the entire file.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "command",
+              "path"
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "function",
+        "name": "editor",
+        "description": "Custom editing tool for viewing, creating, and editing files\n\n* State is persistent across command calls and discussions with the user.\n\n* If `path` is a file, `view` displays the entire file with line numbers. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep.\n\n* The `create` command cannot be used if the specified `path` already exists as a file.\n\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`.\n\n* The `edit` command overwrites the entire file with the provided `file_text`.\n\n* No partial/line-range edits or partial viewing are supported.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "enum": [
+                "view",
+                "create",
+                "edit"
+              ],
+              "description": "The command to run: `view`, `create`, or `edit`."
+            },
+            "path": {
+              "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
+              "type": "string"
+            },
+            "file_text": {
+              "description": "Required parameter of `create` or `edit` command, containing the content for the entire file.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "command",
+            "path",
+            "file_text"
+          ],
+          "additionalProperties": false
+        },
+        "strict": true
+      }
+    },
+    {
+      "name": "convert_tool_info_bash_o3",
+      "input": {
+        "model": "o3",
+        "tool_info": {
+          "name": "bash",
+          "description": "Run commands in a bash shell\n\n* When invoking this tool, the contents of the \"command\" parameter does NOT need to be XML-escaped.\n\n* You don't have access to the internet via this tool.\n\n* You do have access to a mirror of common linux and python packages via apt and pip.\n\n* State is persistent across command calls and discussions with the user.\n\n* To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.\n\n* Please avoid commands that may produce a very large amount of output.\n\n* Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The bash command to run."
+              }
+            },
+            "required": [
+              "command"
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "function",
+        "name": "bash",
+        "description": "Run commands in a bash shell\n\n* When invoking this tool, the contents of the \"command\" parameter does NOT need to be XML-escaped.\n\n* You don't have access to the internet via this tool.\n\n* You do have access to a mirror of common linux and python packages via apt and pip.\n\n* State is persistent across command calls and discussions with the user.\n\n* To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.\n\n* Please avoid commands that may produce a very large amount of output.\n\n* Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The bash command to run."
+            }
+          },
+          "required": [
+            "command"
+          ],
+          "additionalProperties": false
+        },
+        "strict": true
+      }
+    },
+    {
+      "name": "convert_tool_info_editor_o3",
+      "input": {
+        "model": "o3",
+        "tool_info": {
+          "name": "editor",
+          "description": "Custom editing tool for viewing, creating, and editing files\n\n* State is persistent across command calls and discussions with the user.\n\n* If `path` is a file, `view` displays the entire file with line numbers. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep.\n\n* The `create` command cannot be used if the specified `path` already exists as a file.\n\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`.\n\n* The `edit` command overwrites the entire file with the provided `file_text`.\n\n* No partial/line-range edits or partial viewing are supported.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "enum": [
+                  "view",
+                  "create",
+                  "edit"
+                ],
+                "description": "The command to run: `view`, `create`, or `edit`."
+              },
+              "path": {
+                "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
+                "type": "string"
+              },
+              "file_text": {
+                "description": "Required parameter of `create` or `edit` command, containing the content for the entire file.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "command",
+              "path"
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "function",
+        "name": "editor",
+        "description": "Custom editing tool for viewing, creating, and editing files\n\n* State is persistent across command calls and discussions with the user.\n\n* If `path` is a file, `view` displays the entire file with line numbers. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep.\n\n* The `create` command cannot be used if the specified `path` already exists as a file.\n\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`.\n\n* The `edit` command overwrites the entire file with the provided `file_text`.\n\n* No partial/line-range edits or partial viewing are supported.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "enum": [
+                "view",
+                "create",
+                "edit"
+              ],
+              "description": "The command to run: `view`, `create`, or `edit`."
+            },
+            "path": {
+              "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
+              "type": "string"
+            },
+            "file_text": {
+              "description": "Required parameter of `create` or `edit` command, containing the content for the entire file.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "command",
+            "path",
+            "file_text"
+          ],
+          "additionalProperties": false
+        },
+        "strict": true
+      }
+    },
+    {
+      "name": "convert_tool_info_bash_vllm-qwen",
+      "input": {
+        "model": "vllm-qwen",
+        "tool_info": {
+          "name": "bash",
+          "description": "Run commands in a bash shell\n\n* When invoking this tool, the contents of the \"command\" parameter does NOT need to be XML-escaped.\n\n* You don't have access to the internet via this tool.\n\n* You do have access to a mirror of common linux and python packages via apt and pip.\n\n* State is persistent across command calls and discussions with the user.\n\n* To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.\n\n* Please avoid commands that may produce a very large amount of output.\n\n* Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The bash command to run."
+              }
+            },
+            "required": [
+              "command"
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "function",
+        "function": {
+          "name": "bash",
+          "description": "Run commands in a bash shell\n\n* When invoking this tool, the contents of the \"command\" parameter does NOT need to be XML-escaped.\n\n* You don't have access to the internet via this tool.\n\n* You do have access to a mirror of common linux and python packages via apt and pip.\n\n* State is persistent across command calls and discussions with the user.\n\n* To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.\n\n* Please avoid commands that may produce a very large amount of output.\n\n* Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The bash command to run."
+              }
+            },
+            "required": [
+              "command"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "name": "convert_tool_info_editor_vllm-qwen",
+      "input": {
+        "model": "vllm-qwen",
+        "tool_info": {
+          "name": "editor",
+          "description": "Custom editing tool for viewing, creating, and editing files\n\n* State is persistent across command calls and discussions with the user.\n\n* If `path` is a file, `view` displays the entire file with line numbers. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep.\n\n* The `create` command cannot be used if the specified `path` already exists as a file.\n\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`.\n\n* The `edit` command overwrites the entire file with the provided `file_text`.\n\n* No partial/line-range edits or partial viewing are supported.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "enum": [
+                  "view",
+                  "create",
+                  "edit"
+                ],
+                "description": "The command to run: `view`, `create`, or `edit`."
+              },
+              "path": {
+                "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
+                "type": "string"
+              },
+              "file_text": {
+                "description": "Required parameter of `create` or `edit` command, containing the content for the entire file.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "command",
+              "path"
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "function",
+        "function": {
+          "name": "editor",
+          "description": "Custom editing tool for viewing, creating, and editing files\n\n* State is persistent across command calls and discussions with the user.\n\n* If `path` is a file, `view` displays the entire file with line numbers. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep.\n\n* The `create` command cannot be used if the specified `path` already exists as a file.\n\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`.\n\n* The `edit` command overwrites the entire file with the provided `file_text`.\n\n* No partial/line-range edits or partial viewing are supported.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "enum": [
+                  "view",
+                  "create",
+                  "edit"
+                ],
+                "description": "The command to run: `view`, `create`, or `edit`."
+              },
+              "path": {
+                "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
+                "type": "string"
+              },
+              "file_text": {
+                "description": "Required parameter of `create` or `edit` command, containing the content for the entire file.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "command",
+              "path",
+              "file_text"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "name": "convert_tool_info_bash_anthropic/claude-sonnet-4",
+      "input": {
+        "model": "anthropic/claude-sonnet-4",
+        "tool_info": {
+          "name": "bash",
+          "description": "Run commands in a bash shell\n\n* When invoking this tool, the contents of the \"command\" parameter does NOT need to be XML-escaped.\n\n* You don't have access to the internet via this tool.\n\n* You do have access to a mirror of common linux and python packages via apt and pip.\n\n* State is persistent across command calls and discussions with the user.\n\n* To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.\n\n* Please avoid commands that may produce a very large amount of output.\n\n* Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The bash command to run."
+              }
+            },
+            "required": [
+              "command"
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "function",
+        "function": {
+          "name": "bash",
+          "description": "Run commands in a bash shell\n\n* When invoking this tool, the contents of the \"command\" parameter does NOT need to be XML-escaped.\n\n* You don't have access to the internet via this tool.\n\n* You do have access to a mirror of common linux and python packages via apt and pip.\n\n* State is persistent across command calls and discussions with the user.\n\n* To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.\n\n* Please avoid commands that may produce a very large amount of output.\n\n* Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The bash command to run."
+              }
+            },
+            "required": [
+              "command"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "name": "convert_tool_info_editor_anthropic/claude-sonnet-4",
+      "input": {
+        "model": "anthropic/claude-sonnet-4",
+        "tool_info": {
+          "name": "editor",
+          "description": "Custom editing tool for viewing, creating, and editing files\n\n* State is persistent across command calls and discussions with the user.\n\n* If `path` is a file, `view` displays the entire file with line numbers. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep.\n\n* The `create` command cannot be used if the specified `path` already exists as a file.\n\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`.\n\n* The `edit` command overwrites the entire file with the provided `file_text`.\n\n* No partial/line-range edits or partial viewing are supported.",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "enum": [
+                  "view",
+                  "create",
+                  "edit"
+                ],
+                "description": "The command to run: `view`, `create`, or `edit`."
+              },
+              "path": {
+                "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
+                "type": "string"
+              },
+              "file_text": {
+                "description": "Required parameter of `create` or `edit` command, containing the content for the entire file.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "command",
+              "path"
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "function",
+        "function": {
+          "name": "editor",
+          "description": "Custom editing tool for viewing, creating, and editing files\n\n* State is persistent across command calls and discussions with the user.\n\n* If `path` is a file, `view` displays the entire file with line numbers. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep.\n\n* The `create` command cannot be used if the specified `path` already exists as a file.\n\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`.\n\n* The `edit` command overwrites the entire file with the provided `file_text`.\n\n* No partial/line-range edits or partial viewing are supported.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "enum": [
+                  "view",
+                  "create",
+                  "edit"
+                ],
+                "description": "The command to run: `view`, `create`, or `edit`."
+              },
+              "path": {
+                "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
+                "type": "string"
+              },
+              "file_text": {
+                "description": "Required parameter of `create` or `edit` command, containing the content for the entire file.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "command",
+              "path",
+              "file_text"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "name": "convert_tool_info_nested_gpt",
+      "input": {
+        "model": "gpt-5",
+        "tool_info": {
+          "name": "nested",
+          "description": "d",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "a": {
+                "type": "string"
+              },
+              "b": {
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              },
+              "c": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "required": [
+              "a"
+            ]
+          }
+        }
+      },
+      "output": {
+        "type": "function",
+        "name": "nested",
+        "description": "d",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "type": "string"
+            },
+            "b": {
+              "type": [
+                "integer",
+                "string",
+                "null"
+              ]
+            },
+            "c": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "x": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "a",
+            "b",
+            "c"
+          ],
+          "additionalProperties": false
+        },
+        "strict": true
+      }
+    }
+  ]
+}

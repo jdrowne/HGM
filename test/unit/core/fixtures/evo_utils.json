@@ -1,0 +1,405 @@
+{
+  "source": "utils/evo_utils.py: get_all_performance, get_model_patch_paths, is_compiled_self_improve",
+  "notes": [
+    "get_all_performance matches '*.json' files whose name contains run_keyword. os.listdir was sorted here; the Python itself uses directory order.",
+    "Per-file entries are {file, accuracy_score, **file contents}.",
+    "get_model_patch_paths returns patches oldest first and skips missing patch files."
+  ],
+  "cases": [
+    {
+      "name": "get_all_performance_abc",
+      "input": {
+        "files": {
+          "abc_0.json": {
+            "resolved_instances": 2,
+            "submitted_instances": 3,
+            "resolved_ids": [
+              "r1",
+              "r2"
+            ],
+            "unresolved_ids": [
+              "u1"
+            ],
+            "empty_patch_ids": [],
+            "submitted_ids": [
+              "r1",
+              "r2",
+              "u1"
+            ]
+          },
+          "abc_1.json": {
+            "resolved_instances": 0,
+            "submitted_instances": 1,
+            "empty_patch_ids": [
+              "e1"
+            ],
+            "submitted_ids": [
+              "e1"
+            ]
+          },
+          "abc_2.json": {
+            "note": "no counts at all"
+          },
+          "other_0.json": {
+            "resolved_instances": 5,
+            "submitted_instances": 5
+          },
+          "abc_notes.txt": "ignored, not .json"
+        },
+        "run_keyword": "abc"
+      },
+      "output": {
+        "performance_results": [
+          {
+            "file": "abc_0.json",
+            "accuracy_score": 0.6666666666666666,
+            "resolved_instances": 2,
+            "submitted_instances": 3,
+            "resolved_ids": [
+              "r1",
+              "r2"
+            ],
+            "unresolved_ids": [
+              "u1"
+            ],
+            "empty_patch_ids": [],
+            "submitted_ids": [
+              "r1",
+              "r2",
+              "u1"
+            ]
+          },
+          {
+            "file": "abc_1.json",
+            "accuracy_score": 0.0,
+            "resolved_instances": 0,
+            "submitted_instances": 1,
+            "empty_patch_ids": [
+              "e1"
+            ],
+            "submitted_ids": [
+              "e1"
+            ]
+          },
+          {
+            "file": "abc_2.json",
+            "accuracy_score": 0,
+            "note": "no counts at all"
+          }
+        ],
+        "overall_performance": {
+          "accuracy_score": 0.5,
+          "total_resolved_instances": 2,
+          "total_submitted_instances": 4,
+          "files": [
+            "abc_0.json",
+            "abc_1.json",
+            "abc_2.json"
+          ],
+          "total_unresolved_ids": [
+            "u1"
+          ],
+          "total_emptypatch_ids": [
+            "e1"
+          ],
+          "total_resolved_ids": [
+            "r1",
+            "r2"
+          ],
+          "total_submitted_ids": [
+            "r1",
+            "r2",
+            "u1",
+            "e1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_all_performance_other",
+      "input": {
+        "files": {
+          "abc_0.json": {
+            "resolved_instances": 2,
+            "submitted_instances": 3,
+            "resolved_ids": [
+              "r1",
+              "r2"
+            ],
+            "unresolved_ids": [
+              "u1"
+            ],
+            "empty_patch_ids": [],
+            "submitted_ids": [
+              "r1",
+              "r2",
+              "u1"
+            ]
+          },
+          "abc_1.json": {
+            "resolved_instances": 0,
+            "submitted_instances": 1,
+            "empty_patch_ids": [
+              "e1"
+            ],
+            "submitted_ids": [
+              "e1"
+            ]
+          },
+          "abc_2.json": {
+            "note": "no counts at all"
+          },
+          "other_0.json": {
+            "resolved_instances": 5,
+            "submitted_instances": 5
+          },
+          "abc_notes.txt": "ignored, not .json"
+        },
+        "run_keyword": "other"
+      },
+      "output": {
+        "performance_results": [
+          {
+            "file": "other_0.json",
+            "accuracy_score": 1.0,
+            "resolved_instances": 5,
+            "submitted_instances": 5
+          }
+        ],
+        "overall_performance": {
+          "accuracy_score": 1.0,
+          "total_resolved_instances": 5,
+          "total_submitted_instances": 5,
+          "files": [
+            "other_0.json"
+          ],
+          "total_unresolved_ids": [],
+          "total_emptypatch_ids": [],
+          "total_resolved_ids": [],
+          "total_submitted_ids": []
+        }
+      }
+    },
+    {
+      "name": "get_all_performance_missing",
+      "input": {
+        "files": {
+          "abc_0.json": {
+            "resolved_instances": 2,
+            "submitted_instances": 3,
+            "resolved_ids": [
+              "r1",
+              "r2"
+            ],
+            "unresolved_ids": [
+              "u1"
+            ],
+            "empty_patch_ids": [],
+            "submitted_ids": [
+              "r1",
+              "r2",
+              "u1"
+            ]
+          },
+          "abc_1.json": {
+            "resolved_instances": 0,
+            "submitted_instances": 1,
+            "empty_patch_ids": [
+              "e1"
+            ],
+            "submitted_ids": [
+              "e1"
+            ]
+          },
+          "abc_2.json": {
+            "note": "no counts at all"
+          },
+          "other_0.json": {
+            "resolved_instances": 5,
+            "submitted_instances": 5
+          },
+          "abc_notes.txt": "ignored, not .json"
+        },
+        "run_keyword": "missing"
+      },
+      "output": {
+        "performance_results": [],
+        "overall_performance": {
+          "accuracy_score": 0,
+          "total_resolved_instances": 0,
+          "total_submitted_instances": 0,
+          "files": [],
+          "total_unresolved_ids": [],
+          "total_emptypatch_ids": [],
+          "total_resolved_ids": [],
+          "total_submitted_ids": []
+        }
+      }
+    },
+    {
+      "name": "get_model_patch_paths_initial",
+      "input": {
+        "parent_links": {
+          "c1": "initial",
+          "c2": "c1",
+          "c3": "c2",
+          "nopatch": "c1"
+        },
+        "no_patch_file": [
+          "nopatch"
+        ],
+        "parent_commit": "initial"
+      },
+      "output": []
+    },
+    {
+      "name": "get_model_patch_paths_c1",
+      "input": {
+        "parent_links": {
+          "c1": "initial",
+          "c2": "c1",
+          "c3": "c2",
+          "nopatch": "c1"
+        },
+        "no_patch_file": [
+          "nopatch"
+        ],
+        "parent_commit": "c1"
+      },
+      "output": [
+        "<TMP>/run/c1/model_patch.diff"
+      ]
+    },
+    {
+      "name": "get_model_patch_paths_c3",
+      "input": {
+        "parent_links": {
+          "c1": "initial",
+          "c2": "c1",
+          "c3": "c2",
+          "nopatch": "c1"
+        },
+        "no_patch_file": [
+          "nopatch"
+        ],
+        "parent_commit": "c3"
+      },
+      "output": [
+        "<TMP>/run/c1/model_patch.diff",
+        "<TMP>/run/c2/model_patch.diff",
+        "<TMP>/run/c3/model_patch.diff"
+      ]
+    },
+    {
+      "name": "get_model_patch_paths_nopatch",
+      "input": {
+        "parent_links": {
+          "c1": "initial",
+          "c2": "c1",
+          "c3": "c2",
+          "nopatch": "c1"
+        },
+        "no_patch_file": [
+          "nopatch"
+        ],
+        "parent_commit": "nopatch"
+      },
+      "output": [
+        "<TMP>/run/c1/model_patch.diff"
+      ]
+    },
+    {
+      "name": "is_compiled_self_improve_ok",
+      "input": {
+        "metadata": {
+          "overall_performance": {
+            "accuracy_score": 0.5,
+            "total_resolved_ids": [
+              "a"
+            ],
+            "total_unresolved_ids": [
+              "b"
+            ],
+            "total_emptypatch_ids": [],
+            "total_submitted_instances": 2
+          }
+        },
+        "num_swe_issues": [
+          2
+        ]
+      },
+      "output": true
+    },
+    {
+      "name": "is_compiled_self_improve_fewer_than_expected",
+      "input": {
+        "metadata": {
+          "overall_performance": {
+            "accuracy_score": 0.5,
+            "total_resolved_ids": [
+              "a"
+            ],
+            "total_unresolved_ids": [
+              "b"
+            ],
+            "total_emptypatch_ids": [],
+            "total_submitted_instances": 2
+          }
+        },
+        "num_swe_issues": [
+          3
+        ]
+      },
+      "output": false
+    },
+    {
+      "name": "is_compiled_self_improve_missing_key",
+      "input": {
+        "metadata": {
+          "overall_performance": {
+            "total_resolved_ids": [
+              "a"
+            ],
+            "total_unresolved_ids": [
+              "b"
+            ],
+            "total_emptypatch_ids": [],
+            "total_submitted_instances": 2
+          }
+        },
+        "num_swe_issues": [
+          1
+        ]
+      },
+      "output": false
+    },
+    {
+      "name": "is_compiled_self_improve_no_overall_performance",
+      "input": {
+        "metadata": {},
+        "num_swe_issues": [
+          1
+        ]
+      },
+      "output": false
+    },
+    {
+      "name": "is_compiled_self_improve_only_empty_patches",
+      "input": {
+        "metadata": {
+          "overall_performance": {
+            "accuracy_score": 0.5,
+            "total_resolved_ids": [],
+            "total_unresolved_ids": [],
+            "total_emptypatch_ids": [],
+            "total_submitted_instances": 2
+          }
+        },
+        "num_swe_issues": [
+          1
+        ]
+      },
+      "output": false
+    }
+  ]
+}

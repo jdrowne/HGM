@@ -1,0 +1,8 @@
+Here is the implementation of the coding agent.
+
+# Coding Agent Implementation
+----- Coding Agent Implementation Start -----
+{code}
+----- Coding Agent Implementation End -----
+
+Your task is to identify ONE detailed plan that would improve the agent's coding ability. The improvement should not be specific to any particular GitHub issue or repository. Focus on general improvements that can enhance the agent's overall coding capabilities.

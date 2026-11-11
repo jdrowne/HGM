@@ -8,3 +8,6 @@ publish.workspace = true
 [[test]]
 name = "unit"
 path = "../../test/unit/core/main.rs"
+
+[dev-dependencies]
+serde_json = "*"

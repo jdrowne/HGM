@@ -1,0 +1,149 @@
+{
+  "source": "utils/docker_utils.py: read_dockerignore, get_files_respecting_dockerignore (pathspec gitwildmatch)",
+  "notes": [
+    "read_dockerignore strips each line and drops empty lines and lines starting with '#' or '<!--'.",
+    "Patterns are matched with pathspec's gitwildmatch (gitignore rules), not Docker's own rules.",
+    "Directories are tested as 'rel/path/' and pruned when they match; files as 'rel/path'.",
+    "A negation cannot re-include a file inside a pruned directory."
+  ],
+  "cases": [
+    {
+      "name": "read_dockerignore_repo",
+      "input": "__pycache__/\n**/__pycache__/\n*.pyc\n*.pyo\n.vscode\n.env\n.ipynb\n.git\n.gitignore\n.gitattributes\n<!-- swe-bench -->\nlogs/\nswe_bench/\ninitial_swe/\n\n<!-- polyglot -->\npolyglot/\ninitial_polyglot/\n\n<!-- outputs -->\noutput_hgm/\nresults/\n<!-- misc -->\nmisc/\n<!-- README.md -->\nDockerfile\n.dockerignore\n\n<!-- code outside of coding agent -->\nself_improve_step.py\nprompts/self_improvement_prompt.py\nprompts/diagnose_improvement_prompt.py\nutils/evo_utils.py\nutils/docker_utils.py\nhgm_utils.py\nhgm.py\nevaluate_agent.py\nrun.sh\n# Rust build output\ntarget/\n",
+      "output": [
+        "__pycache__/",
+        "**/__pycache__/",
+        "*.pyc",
+        "*.pyo",
+        ".vscode",
+        ".env",
+        ".ipynb",
+        ".git",
+        ".gitignore",
+        ".gitattributes",
+        "logs/",
+        "swe_bench/",
+        "initial_swe/",
+        "polyglot/",
+        "initial_polyglot/",
+        "output_hgm/",
+        "results/",
+        "misc/",
+        "Dockerfile",
+        ".dockerignore",
+        "self_improve_step.py",
+        "prompts/self_improvement_prompt.py",
+        "prompts/diagnose_improvement_prompt.py",
+        "utils/evo_utils.py",
+        "utils/docker_utils.py",
+        "hgm_utils.py",
+        "hgm.py",
+        "evaluate_agent.py",
+        "run.sh",
+        "target/"
+      ]
+    },
+    {
+      "name": "read_dockerignore_synthetic",
+      "input": "# comment\n<!-- html comment -->\nlogs/\n*.pyc\n/top_only.txt\ndocs/**/*.md\n!docs/keep.md\nbuild\na/b/\n**/cache/\n  spaced.txt  \n\n",
+      "output": [
+        "logs/",
+        "*.pyc",
+        "/top_only.txt",
+        "docs/**/*.md",
+        "!docs/keep.md",
+        "build",
+        "a/b/",
+        "**/cache/",
+        "spaced.txt"
+      ]
+    },
+    {
+      "name": "files_respecting_dockerignore",
+      "input": {
+        "patterns": [
+          "logs/",
+          "*.pyc",
+          "/top_only.txt",
+          "docs/**/*.md",
+          "!docs/keep.md",
+          "build",
+          "a/b/",
+          "**/cache/",
+          "spaced.txt"
+        ],
+        "files": [
+          "main.py",
+          "main.pyc",
+          "logs/a.log",
+          "src/logs/b.log",
+          "top_only.txt",
+          "sub/top_only.txt",
+          "docs/x.md",
+          "docs/deep/y.md",
+          "docs/keep.md",
+          "docs/readme.txt",
+          "build/out.o",
+          "build",
+          "src/build/x",
+          "a/b/c.txt",
+          "x/a/b/c.txt",
+          "deep/cache/z",
+          "cache/z",
+          "spaced.txt",
+          ".hidden/f"
+        ]
+      },
+      "output": [
+        ".dockerignore",
+        ".hidden/f",
+        "docs/keep.md",
+        "docs/readme.txt",
+        "main.py",
+        "sub/top_only.txt",
+        "x/a/b/c.txt"
+      ]
+    },
+    {
+      "name": "gitwildmatch_match_file",
+      "input": {
+        "patterns": [
+          "logs/",
+          "*.pyc",
+          "/top_only.txt",
+          "docs/**/*.md",
+          "!docs/keep.md",
+          "build",
+          "a/b/",
+          "**/cache/",
+          "spaced.txt"
+        ]
+      },
+      "output": {
+        "main.py": false,
+        "main.pyc": true,
+        "logs/a.log": true,
+        "src/logs/b.log": true,
+        "top_only.txt": true,
+        "sub/top_only.txt": false,
+        "docs/x.md": true,
+        "docs/deep/y.md": true,
+        "docs/keep.md": false,
+        "docs/readme.txt": false,
+        "build/out.o": true,
+        "build": true,
+        "src/build/x": true,
+        "a/b/c.txt": true,
+        "x/a/b/c.txt": false,
+        "deep/cache/z": true,
+        "cache/z": true,
+        "spaced.txt": true,
+        ".hidden/f": false,
+        "logs/": true,
+        "docs/": false,
+        "a/b/": true,
+        "src/logs/": true
+      }
+    }
+  ]
+}

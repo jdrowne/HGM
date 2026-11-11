@@ -1,0 +1,94 @@
+{
+  "source": "llm.py: extract_json_between_markers",
+  "notes": [
+    "Fallback regex is non-greedy \\{.*?\\} with DOTALL, so nested objects are cut at the first '}'.",
+    "On a parse error, control characters [\\x00-\\x1F\\x7F] are removed and parsing is retried.",
+    "null output means None."
+  ],
+  "cases": [
+    {
+      "name": "fenced",
+      "input": "text\n```json\n{\"a\": 1, \"b\": [1, 2]}\n```\nmore",
+      "output": {
+        "a": 1,
+        "b": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "fenced_indented_markers",
+      "input": "  ```json\n{\"a\": 1}\n  ```",
+      "output": {
+        "a": 1
+      }
+    },
+    {
+      "name": "fenced_invalid_then_none",
+      "input": "```json\n{not json}\n```",
+      "output": null
+    },
+    {
+      "name": "fenced_control_chars",
+      "input": "```json\n{\"a\": \"x\ty\"}\n```",
+      "output": {
+        "a": "xy"
+      }
+    },
+    {
+      "name": "fenced_two_blocks_first_wins",
+      "input": "```json\n{\"a\": 1}\n```\n```json\n{\"a\": 2}\n```",
+      "output": {
+        "a": 1
+      }
+    },
+    {
+      "name": "fenced_unclosed",
+      "input": "```json\n{\"a\": 1}\n",
+      "output": {
+        "a": 1
+      }
+    },
+    {
+      "name": "fenced_empty_falls_back",
+      "input": "```json\n```\nthen {\"z\": 9}",
+      "output": {
+        "z": 9
+      }
+    },
+    {
+      "name": "fallback_bare_object",
+      "input": "Answer: {\"k\": \"v\"} end",
+      "output": {
+        "k": "v"
+      }
+    },
+    {
+      "name": "fallback_nested_object_fails_then_next",
+      "input": "{\"a\": {\"b\": 1}} and {\"c\": 2}",
+      "output": {
+        "c": 2
+      }
+    },
+    {
+      "name": "fallback_control_chars",
+      "input": "{\"a\": \"line\nbreak\"}",
+      "output": {
+        "a": "linebreak"
+      }
+    },
+    {
+      "name": "no_json",
+      "input": "nothing here",
+      "output": null
+    },
+    {
+      "name": "fallback_skips_invalid",
+      "input": "{bad} {\"ok\": true}",
+      "output": {
+        "ok": true
+      }
+    }
+  ]
+}

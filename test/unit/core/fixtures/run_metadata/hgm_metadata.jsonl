@@ -1,0 +1,80 @@
+{
+  "n_task_evals": 7,
+  "nodes": [
+    {
+      "commit_id": "a",
+      "id": 1,
+      "parent_id": 0,
+      "mean_utility": 1.0,
+      "num_evals": 1
+    },
+    {
+      "commit_id": "b",
+      "id": 2,
+      "parent_id": 0,
+      "mean_utility": 0.0,
+      "num_evals": 2
+    },
+    {
+      "commit_id": "a1",
+      "id": 3,
+      "parent_id": 1,
+      "mean_utility": 1.0,
+      "num_evals": 3
+    },
+    {
+      "commit_id": "a2",
+      "id": 4,
+      "parent_id": 1,
+      "mean_utility": Infinity,
+      "num_evals": 0
+    },
+    {
+      "commit_id": "b1",
+      "id": 5,
+      "parent_id": 2,
+      "mean_utility": 0.6,
+      "num_evals": 5
+    }
+  ]
+}
+{
+  "n_task_evals": 8,
+  "nodes": [
+    {
+      "commit_id": "a",
+      "id": 1,
+      "parent_id": 0,
+      "mean_utility": 1.0,
+      "num_evals": 1
+    },
+    {
+      "commit_id": "b",
+      "id": 2,
+      "parent_id": 0,
+      "mean_utility": 0.0,
+      "num_evals": 2
+    },
+    {
+      "commit_id": "a1",
+      "id": 3,
+      "parent_id": 1,
+      "mean_utility": 1.0,
+      "num_evals": 3
+    },
+    {
+      "commit_id": "a2",
+      "id": 4,
+      "parent_id": 1,
+      "mean_utility": Infinity,
+      "num_evals": 0
+    },
+    {
+      "commit_id": "b1",
+      "id": 5,
+      "parent_id": 2,
+      "mean_utility": 0.6666666666666666,
+      "num_evals": 6
+    }
+  ]
+}

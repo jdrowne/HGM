@@ -12,3 +12,6 @@ path = "../../test/unit/sandbox/main.rs"
 [[test]]
 name = "integration"
 path = "../../test/integration/sandbox/main.rs"
+
+[dev-dependencies]
+serde_json = "*"

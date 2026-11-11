@@ -12,3 +12,6 @@ path = "../../test/unit/bench/main.rs"
 [[test]]
 name = "integration"
 path = "../../test/integration/bench/main.rs"
+
+[dev-dependencies]
+serde_json = "*"

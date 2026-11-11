@@ -12,3 +12,6 @@ path = "../../test/unit/agent/main.rs"
 [[test]]
 name = "integration"
 path = "../../test/integration/agent/main.rs"
+
+[dev-dependencies]
+serde_json = "*"
