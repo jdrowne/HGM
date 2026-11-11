@@ -1,5 +1,4 @@
 use std::fs;
-use std::path::Path;
 
 use hgm_core::metadata::{
     OverallPerformance, get_all_performance, is_compiled_self_improve, load_hgm_metadata,
@@ -156,10 +155,14 @@ fn patch_paths_follow_the_parent_links() {
         let shown: Vec<String> = paths
             .iter()
             .map(|p| {
-                Path::new("<TMP>")
-                    .join(p.strip_prefix(tmp.path()).unwrap())
-                    .display()
-                    .to_string()
+                let rel = p.strip_prefix(tmp.path()).unwrap();
+                std::iter::once("<TMP>".to_owned())
+                    .chain(
+                        rel.components()
+                            .map(|c| c.as_os_str().to_string_lossy().into_owned()),
+                    )
+                    .collect::<Vec<_>>()
+                    .join("/")
             })
             .collect();
         assert_eq!(json!(shown), case["output"], "{name}");
