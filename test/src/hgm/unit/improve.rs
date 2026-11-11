@@ -315,7 +315,7 @@ fn a_child_starts_with_zeroed_performance() {
 fn improver(out: &Path, docker: Docker, dataset: Result<Vec<Value>, String>) -> SelfImprove {
     SelfImprove {
         docker,
-        root_dir: out.to_path_buf(),
+        agent_source: out.to_path_buf(),
         output_dir: out.to_path_buf(),
         polyglot: false,
         dataset,

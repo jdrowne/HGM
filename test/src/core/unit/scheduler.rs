@@ -89,7 +89,7 @@ fn expansion_fails_fast_when_no_node_has_resolved_a_task() {
 
 #[test]
 fn no_expandable_node_points_at_the_initial_agent() {
-    assert!(NoExpandableNode.to_string().contains("initial_swe/<agent>"));
+    assert!(NoExpandableNode.to_string().contains("--seed_dir"));
 }
 
 #[test]

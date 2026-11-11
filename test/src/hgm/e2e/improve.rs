@@ -5,12 +5,12 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::{Arc, Mutex};
 
-use hgm_sandbox::source::copy_filtered;
 use serde_json::{Value, json};
 
 use super::{binary, flags};
 
 const TASK: &str = "javascript__queen-attack";
+const HGM: &str = "hgm";
 const IMPROVE_COMMAND: &str =
     "cd /hgm && printf 'pub const E2E: u8 = 1;\\n' >> src/agent/lib.rs && echo ok";
 const SOLVE_COMMAND: &str =
@@ -129,30 +129,8 @@ fn repo_root() -> PathBuf {
         .join("../..")
 }
 
-fn copy_repo(root: &Path) {
-    let repo = repo_root();
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(&repo)
-        .args(["ls-files", "-z"])
-        .output()
-        .unwrap();
-    if !out.status.success() {
-        panic!("git ls-files failed: {out:?}");
-    }
-    for name in out.stdout.split(|b| *b == 0).filter(|n| !n.is_empty()) {
-        let name = std::str::from_utf8(name).unwrap();
-        let from = repo.join(name);
-        if from.is_file() {
-            let to = root.join(name);
-            fs::create_dir_all(to.parent().unwrap()).unwrap();
-            fs::copy(&from, &to).unwrap();
-        }
-    }
-}
-
 fn hgm(root: &Path) -> Command {
-    let mut cmd = Command::new(binary("hgm"));
+    let mut cmd = Command::new(root.join(HGM));
     cmd.current_dir(root);
     for key in ["AUTHOR", "COMMITTER"] {
         cmd.env(format!("GIT_{key}_NAME"), "hgm")
@@ -179,9 +157,9 @@ fn polyglot_tasks(root: &Path) -> Vec<String> {
     tasks
 }
 
-fn seed_initial_agent(root: &Path) {
-    let agent = root.join("initial_polyglot/default_agent");
-    let tasks = polyglot_tasks(root);
+fn seed_initial_agent(seed: &Path) {
+    let agent = seed.join("initial_polyglot/default_agent");
+    let tasks = polyglot_tasks(&repo_root());
     if tasks[0] != TASK {
         panic!("the first polyglot task is {}, not {TASK}", tasks[0]);
     }
@@ -197,7 +175,7 @@ fn seed_initial_agent(root: &Path) {
         "total_submitted_ids": tasks,
     }});
     fs::write(agent.join("metadata.json"), metadata.to_string()).unwrap();
-    copy_filtered(root, &agent.join("src")).unwrap();
+    hgm::seed::write(&agent.join("src")).unwrap();
 }
 
 fn records(path: &Path) -> Vec<Value> {
@@ -210,10 +188,11 @@ fn records(path: &Path) -> Vec<Value> {
         .collect()
 }
 
-fn run_args(host: &str, key: &str) -> Vec<String> {
+fn run_args(host: &str, key: &str, seed: &str) -> Vec<String> {
     let agent_url = format!("http://{host}:8000/v1");
     flags(&[
         ("--api_key_file", key),
+        ("--seed_dir", seed),
         ("--docker", "docker"),
         (
             "--polyglot_repo",
@@ -257,17 +236,34 @@ fn once(name: &str, build: impl FnOnce(&Path)) -> PathBuf {
     root
 }
 
+fn names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
 fn scenario(root: &Path) {
-    copy_repo(root);
-    seed_initial_agent(root);
+    fs::copy(binary("hgm"), root.join(HGM)).unwrap();
+    let seed = root.with_extension("seed");
+    seed_initial_agent(&seed);
+    let before = names(root);
     let seen = serve_llm();
     let key = root.with_extension("key");
     fs::write(&key, "k\n").unwrap();
     let out: Output = hgm(root)
-        .args(run_args(&llm_host(), &key.to_string_lossy()))
+        .args(run_args(
+            &llm_host(),
+            &key.to_string_lossy(),
+            &seed.to_string_lossy(),
+        ))
         .output()
         .unwrap();
     let outcome = json!({
+        "before": before,
         "code": out.status.code(),
         "stdout": String::from_utf8_lossy(&out.stdout),
         "stderr": String::from_utf8_lossy(&out.stderr),
@@ -338,6 +334,11 @@ fn a_run_improves_the_agent_and_measures_its_child() {
         s.stdout(),
         s.outcome["stderr"]
     );
+}
+
+#[test]
+fn the_run_starts_from_a_folder_holding_only_hgm() {
+    assert_eq!(shared().outcome["before"], json!([HGM]));
 }
 
 #[test]

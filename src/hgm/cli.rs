@@ -43,6 +43,10 @@ pub struct Cli {
     pub dataset_dir: PathBuf,
     #[arg(long = "polyglot_repo", value_name = "URL")]
     pub polyglot_repo: String,
+    #[arg(long = "polyglot_dir", value_name = "DIR")]
+    pub polyglot_dir: PathBuf,
+    #[arg(long = "seed_dir", value_name = "DIR")]
+    pub seed_dir: PathBuf,
     #[arg(long, value_name = "X")]
     pub alpha: f64,
     #[arg(long, value_name = "X")]

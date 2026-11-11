@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 use super::{binary, flags, key_file};
 
 const BENCH: &str = "polyglot/polyglot-benchmark";
+const CLONE: &str = "polyglot-benchmark";
 const COMMITS: &str = "polyglot_benchmark_commits.json";
 const DATASET: &str = "polyglot/polyglot_benchmark_metadata.json";
 const MARKER: &str = "get_filename_component(exercise ${CMAKE_CURRENT_SOURCE_DIR} NAME)";
@@ -16,7 +17,7 @@ fn native(path: &str) -> String {
 }
 
 fn under(rel: &str) -> String {
-    native(&format!("{BENCH}/{rel}"))
+    native(&format!("{CLONE}/{rel}"))
 }
 
 fn write(path: &Path, text: &str) {
@@ -287,17 +288,37 @@ fn a_first_polyglot_preparation_stops_at_the_missing_run() {
 fn a_polyglot_run_registers_each_exercise_and_writes_the_dataset() {
     let log = first().log();
     let expected = [
-        format!("Found polyglot-benchmark at {}\n", native(BENCH)),
+        "Found polyglot-benchmark at ".to_owned(),
+        format!("{}{}\n", std::path::MAIN_SEPARATOR, native(BENCH)),
         "Initializing git repositories for 10 practice directories...\n".to_owned(),
-        format!("Error initializing git in {}: git add gone.go failed: ", under("go/exercises/practice/missing")),
+        format!(
+            "Error initializing git in {}: git add gone.go failed: ",
+            under("go/exercises/practice/missing")
+        ),
         "Saved commit hashes to ".to_owned(),
         format!("{}\n", under(COMMITS)),
-        format!("Error processing {}: Problem statement cannot be empty\n", under("go/exercises/practice/emptydocs")),
-        format!("Error processing {}: 'go__missing'\n", under("go/exercises/practice/missing")),
-        format!("Error processing {}: ", under("rust/exercises/practice/badtest")),
-        format!("Error processing {}: ", under("rust/exercises/practice/baddoc")),
-        format!("Error processing {}: ", under("rust/exercises/practice/badexample")),
-        "Generated metadata for 4 tasks\nMetadata written to polyglot/polyglot_benchmark_metadata.json\n".to_owned(),
+        format!(
+            "Error processing {}: Problem statement cannot be empty\n",
+            under("go/exercises/practice/emptydocs")
+        ),
+        format!(
+            "Error processing {}: 'go__missing'\n",
+            under("go/exercises/practice/missing")
+        ),
+        format!(
+            "Error processing {}: ",
+            under("rust/exercises/practice/badtest")
+        ),
+        format!(
+            "Error processing {}: ",
+            under("rust/exercises/practice/baddoc")
+        ),
+        format!(
+            "Error processing {}: ",
+            under("rust/exercises/practice/badexample")
+        ),
+        "Generated metadata for 4 tasks\nMetadata written to ".to_owned(),
+        format!("{}{}\n", std::path::MAIN_SEPARATOR, native(DATASET)),
     ];
     let missing: Vec<String> = expected
         .into_iter()
@@ -709,10 +730,11 @@ fn a_cloning_preparation_stops_at_the_missing_run() {
 
 #[test]
 fn a_polyglot_run_clones_the_benchmark_when_it_is_missing() {
-    assert!(stdout(&cloned()).starts_with(&format!(
-        "Cloning polyglot-benchmark repository to {} ...\n",
-        native(BENCH)
-    )));
+    assert!(
+        stdout(&cloned())
+            .strip_prefix("Cloning polyglot-benchmark repository to ")
+            .is_some_and(|rest| rest.contains(&format!("{} ...\n", native(BENCH))))
+    );
 }
 
 #[test]
@@ -804,7 +826,7 @@ fn a_polyglot_run_stops_on_a_bad_exercise_config() {
 #[test]
 fn a_polyglot_run_stops_on_an_unwritable_output() {
     let wrong: Vec<String> = [
-        (DATASET.to_owned(), DATASET.to_owned()),
+        (DATASET.to_owned(), native(DATASET)),
         (format!("{BENCH}/{COMMITS}"), under(COMMITS)),
     ]
     .into_iter()

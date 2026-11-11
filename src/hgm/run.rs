@@ -31,6 +31,7 @@ use crate::cli::{Cli, Tools};
 use crate::improve::SelfImprove;
 use crate::node::{Bench, Evaluator, at};
 use crate::search::{Search, Settings, State};
+use crate::seed;
 
 pub const JITTER: Duration = Duration::from_secs(1);
 
@@ -65,7 +66,7 @@ pub fn resolve_output_dir(output_dir: &str, cwd: &Path) -> (PathBuf, String) {
 }
 
 pub struct Init<'a> {
-    pub root_dir: &'a Path,
+    pub seed_dir: &'a Path,
     pub output_dir: &'a Path,
     pub agent_name: &'a str,
     pub polyglot: bool,
@@ -92,18 +93,23 @@ fn previous_run(prev: &Path) -> Result<(Vec<String>, Tree), String> {
         .map_err(|e| at(&record, e))
 }
 
+fn build_seed(src_path: &Path, docker: &Docker, log: &Log) -> Result<(), hgm_sandbox::Error> {
+    let build = tempfile::tempdir()?;
+    seed::write(build.path())?;
+    prepare_initial_agent(build.path(), src_path, Some(docker), log).map(|_| ())
+}
+
 pub fn initialize_run(
     init: &Init,
     bench: &dyn Bench,
     docker: &Docker,
     log: &Log,
 ) -> Result<Start, String> {
-    let folder = init.root_dir.join(initial_folder(init.polyglot));
+    let folder = init.seed_dir.join(initial_folder(init.polyglot));
     let agent_dir = folder.join(init.agent_name);
     let src_path = agent_dir.join("src");
     if init.continue_from.is_none() && !agent_dir.exists() {
-        prepare_initial_agent(init.root_dir, &src_path, Some(docker), log)
-            .map_err(|e| e.to_string())?;
+        build_seed(&src_path, docker, log).map_err(|e| e.to_string())?;
         Evaluator {
             bench,
             output_dir: &folder,
@@ -157,9 +163,13 @@ pub fn run_tasks(config: &HgmConfig, hub: &Hub) -> Result<Vec<String>, String> {
     }
 }
 
-pub fn improve_dataset(polyglot: bool, root_dir: &Path, hub: &Hub) -> Result<Vec<Value>, String> {
+pub fn improve_dataset(
+    polyglot: bool,
+    polyglot_dir: &Path,
+    hub: &Hub,
+) -> Result<Vec<Value>, String> {
     if polyglot {
-        let path = root_dir.join(DATASET);
+        let path = polyglot_dir.join(DATASET);
         fs::read_to_string(&path)
             .map_err(|e| e.to_string())
             .and_then(|text| serde_json::from_str(&text).map_err(|e| e.to_string()))
@@ -173,7 +183,7 @@ pub fn improve_dataset(polyglot: bool, root_dir: &Path, hub: &Hub) -> Result<Vec
 pub fn bench_for(
     config: &HgmConfig,
     service: &Service,
-    root_dir: &Path,
+    polyglot_dir: &Path,
     tools: &Tools,
 ) -> Box<dyn Bench> {
     let llm = config.llm.downstream_llm.clone();
@@ -181,8 +191,8 @@ pub fn bench_for(
     if config.evaluation.polyglot {
         Box::new(polyglot::Harness {
             docker: tools.docker.clone(),
-            root: root_dir.to_path_buf(),
-            dataset: root_dir.join(DATASET),
+            root: polyglot_dir.to_path_buf(),
+            dataset: polyglot_dir.join(DATASET),
             machine: std::env::consts::ARCH.to_owned(),
             namespace: NAMESPACE.to_owned(),
             llm,
@@ -227,8 +237,9 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
         );
     }
     let services = args.services(root_dir)?;
+    let polyglot_dir = root_dir.join(&args.polyglot_dir);
     if config.evaluation.polyglot {
-        prepare_polyglot(root_dir, &args.polyglot_repo)?;
+        prepare_polyglot(&polyglot_dir, &args.polyglot_repo)?;
     }
     let (output_dir, run_id) = resolve_output_dir(&config.paths.output_dir, root_dir);
     fs::create_dir_all(&output_dir).map_err(|e| at(&output_dir, e))?;
@@ -239,7 +250,7 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
     let log = Log::to_file(&outer).map_err(|e| at(&outer, e))?;
     let tools = args.tools(root_dir);
     let tasks = dedup(&run_tasks(&config, &tools.hub)?);
-    let bench = bench_for(&config, &services.downstream, root_dir, &tools);
+    let bench = bench_for(&config, &services.downstream, &polyglot_dir, &tools);
     let polyglot = config.evaluation.polyglot;
     let max_workers = config.execution.max_workers;
     let continue_from = config
@@ -249,7 +260,7 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
         .map(|p| root_dir.join(p));
     let start = initialize_run(
         &Init {
-            root_dir,
+            seed_dir: &root_dir.join(&args.seed_dir),
             output_dir: &output_dir,
             agent_name: &config.paths.initial_agent_name,
             polyglot,
@@ -267,10 +278,10 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
     ));
     let improver = SelfImprove {
         docker: tools.docker.clone(),
-        root_dir: root_dir.to_path_buf(),
+        agent_source: start.src_path.clone(),
         output_dir: output_dir.clone(),
         polyglot,
-        dataset: improve_dataset(polyglot, root_dir, &tools.hub),
+        dataset: improve_dataset(polyglot, &polyglot_dir, &tools.hub),
         image_name: format!("{}:latest", config.paths.initial_agent_name),
         diagnose: services
             .diagnose
@@ -399,6 +410,6 @@ pub fn holdout(h: &Holdout) -> Result<(), String> {
     Ok(())
 }
 
-pub fn prepare_polyglot(root_dir: &Path, repo_url: &str) -> Result<(), String> {
-    prepare(root_dir, repo_url).map(|_| ())
+pub fn prepare_polyglot(polyglot_dir: &Path, repo_url: &str) -> Result<(), String> {
+    prepare(polyglot_dir, repo_url).map(|_| ())
 }

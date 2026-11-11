@@ -6,30 +6,44 @@ HGM is based on the paper [*Huxley-Gödel Machine: Human-Level Coding Agent Deve
 
 ## Commands
 
-RustyHGM is one command, `hgm`, with no sub-commands. You run it and get back a better agent. Build it, then run it from the repository root, since it looks for `Dockerfile` and `polyglot/` relative to the working directory.
+RustyHGM is one command, `hgm`, with no sub-commands. You run it and get back a better agent. It is a single file that carries the seed agent and everything needed to build it, so it runs from any folder. Download it for your platform from the [latest release](https://github.com/jdrowne/RustyHGM/releases/latest):
+
+| Platform | File |
+| --- | --- |
+| Linux x86_64 | `hgm-linux-x86-64` |
+| Linux arm64 | `hgm-linux-arm64` |
+| macOS arm64 | `hgm-macos-arm64` |
+| Windows x86_64 | `hgm-windows-x86-64.exe` |
+| Windows arm64 | `hgm-windows-arm64.exe` |
 
 ```sh
-cargo build --release -p hgm
-target/release/hgm [flags]
+curl -L -o hgm https://github.com/jdrowne/RustyHGM/releases/latest/download/hgm-linux-x86-64
+chmod +x hgm
+./hgm [flags]
 ```
+
+Or build it from a clone with `cargo build --release -p hgm`, which puts it at `target/release/hgm`.
+
+Every folder and file `hgm` uses comes from a flag. A relative path is taken from the folder you run it in, as usual, and nothing else is looked up there.
 
 One run does the whole job:
 
-1. **Fetches task data** it doesn't have yet. For `--polyglot` runs, that means cloning the [Aider Polyglot benchmark](https://github.com/Aider-AI/polyglot-benchmark) into `polyglot/polyglot-benchmark` and writing its task list to `polyglot/polyglot_benchmark_metadata.json`.
-2. **Improves the agent** until the task budget is spent. On the first run with a given agent name, it also copies the seed agent and measures it on every task in the pool.
+1. **Fetches task data** it doesn't have yet. For `--polyglot` runs, that means cloning the [Aider Polyglot benchmark](https://github.com/Aider-AI/polyglot-benchmark) into `polyglot-benchmark` in the `--polyglot_dir` folder and writing its task list next to it, to `polyglot_benchmark_metadata.json`.
+2. **Improves the agent** until the task budget is spent. On the first run with a given agent name, it also writes out its built-in seed agent, builds it and measures it on every task in the pool.
 3. **Picks the best version**: the one with the highest success rate it can trust, given how many tasks it was tried on.
 4. **Writes that version's source** to `best_agent/` in the `--output_dir` folder and prints where it went. This folder is the improved agent: the seed with every patch on its line applied.
 5. **Optionally scores it on held-out tasks** with `--holdout_split`. These are SWE-bench tasks it never practised on, so the score shows whether it really got better.
 
 ```sh
-target/release/hgm \
+./hgm \
   --self_improve_llm gpt-5-mini --self_improve_provider openai --self_improve_base_url https://api.openai.com/v1 \
   --downstream_llm gpt-5-mini --downstream_provider openai --downstream_base_url https://api.openai.com/v1 \
   --diagnose_llm gpt-5-mini --diagnose_provider openai --diagnose_base_url https://api.openai.com/v1 \
   --api_key_file ~/.config/hgm/api_key \
   --docker docker --swebench_python python3 \
   --dataset_endpoint https://huggingface.co --dataset_dir ~/.cache/hgm/datasets \
-  --polyglot_repo https://github.com/Aider-AI/polyglot-benchmark.git \
+  --polyglot_repo https://github.com/Aider-AI/polyglot-benchmark.git --polyglot_dir hgm/polyglot \
+  --seed_dir hgm/seeds \
   --alpha 0.6 --beta 1.0 --cool_down false --eval_random_level 1.0 \
   --n_pseudo_descendant_evals 10000 --expansion_statistic clade --epsilon 0.01 \
   --max_workers 20 --max_task_evals 100 --self_improve_timeout 3600 --evaluation_timeout 3600 \
@@ -69,6 +83,8 @@ Every setting is a required flag with no default, so the command line alone says
 | `--dataset_endpoint <url>` | Hugging Face server, or mirror, that SWE-bench tasks come from |
 | `--dataset_dir <dir>` | Where downloaded datasets are kept |
 | `--polyglot_repo <url>` | Clone URL for the Polyglot benchmark |
+| `--polyglot_dir <dir>` | Where the Polyglot benchmark is cloned and its task list written |
+| `--seed_dir <dir>` | Where the seed agent is built and measured, and found again by later runs |
 | `--alpha <x>` | How bushy the tree grows: more children per evaluation as it rises |
 | `--beta <x>` | How fast `--cool_down` sharpens; ignored without it |
 | `--cool_down <true\|false>` | Sharpens every draw as the budget runs out |
@@ -93,7 +109,7 @@ These flags ask for an extra step, so they are given only when that step is want
 | `--holdout_split <name>` | After the run, scores the best agent on `princeton-nlp/SWE-bench_<name>`, such as `Lite`; needs `--holdout_tasks` and is not allowed with `--polyglot true` |
 | `--holdout_tasks <n>` | Scores the first `n` held-out tasks; needs `--holdout_split` |
 
-The first run with a given agent name copies the seed into `initial_swe/<name>/` or `initial_polyglot/<name>/` and measures it on every task in the pool. Later runs reuse that folder and its results, so delete it to measure a changed seed again.
+The first run with a given agent name writes the seed into `initial_swe/<name>/` or `initial_polyglot/<name>/` in the `--seed_dir` folder and measures it on every task in the pool. The seed is the `hgm-agent` source as it was when `hgm` was built, with the builder `Dockerfile` beside it. Later runs with the same `--seed_dir` reuse that folder and its results, so delete it to measure a newer seed.
 
 The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout` limit and `--max_workers`, and writes its results to `holdout/best_agent/` in the `--output_dir` folder.
 

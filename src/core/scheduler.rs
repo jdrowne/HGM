@@ -20,7 +20,7 @@ impl fmt::Display for NoExpandableNode {
         f.write_str(
             "no node can be expanded: none has a finite mean utility above 0. \
              The initial agent resolved no task, or was never evaluated; \
-             check the API keys and Docker, or delete initial_swe/<agent> to re-evaluate it",
+             check the API key file and Docker, or delete its folder under --seed_dir to re-evaluate it",
         )
     }
 }

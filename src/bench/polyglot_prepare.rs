@@ -11,6 +11,7 @@ use serde_json::{Map, Value, json};
 
 use crate::polyglot::DATASET;
 
+pub const BENCH: &str = "polyglot-benchmark";
 pub const COMMITS: &str = "polyglot_benchmark_commits.json";
 const MARKER: &str = "get_filename_component(exercise ${CMAKE_CURRENT_SOURCE_DIR} NAME)";
 const WORKERS: usize = 50;
@@ -290,21 +291,24 @@ pub fn generate_dataset_metadata(root: &Path, bench: &Path, commits: &Commits) -
     .collect()
 }
 
-pub fn prepare(root: &Path, repo_url: &str) -> Result<usize, String> {
-    let bench = Path::new("polyglot").join("polyglot-benchmark");
-    if root.join(&bench).exists() {
-        println!("Found polyglot-benchmark at {}", bench.display());
+pub fn prepare(dir: &Path, repo_url: &str) -> Result<usize, String> {
+    let bench = Path::new(BENCH);
+    let cloned = dir.join(bench);
+    if cloned.exists() {
+        println!("Found polyglot-benchmark at {}", cloned.display());
     } else {
         println!(
             "Cloning polyglot-benchmark repository to {} ...",
-            bench.display()
+            cloned.display()
         );
-        git(root, &["clone", repo_url, &bench.to_string_lossy()])?;
+        fs::create_dir_all(dir).map_err(message)?;
+        git(dir, &["clone", repo_url, BENCH])?;
     }
-    let commits = register_git(root, &bench)?;
-    let metadata = generate_dataset_metadata(root, &bench, &commits);
-    write_json(&root.join(DATASET), &Value::Array(metadata.clone()))?;
+    let commits = register_git(dir, bench)?;
+    let metadata = generate_dataset_metadata(dir, bench, &commits);
+    let dataset = dir.join(DATASET);
+    write_json(&dataset, &Value::Array(metadata.clone()))?;
     println!("Generated metadata for {} tasks", metadata.len());
-    println!("Metadata written to {DATASET}");
+    println!("Metadata written to {}", dataset.display());
     Ok(metadata.len())
 }

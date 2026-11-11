@@ -14,7 +14,7 @@ use crate::polyglot_build::Images;
 use crate::polyglot_spec::{TestSpec, get_eval_script, make_test_spec, test_cmd, test_commands};
 use crate::swe::{AGENT_PATH, Run, Step, key_mount, message, run_logged, run_step, service_flags};
 
-pub const DATASET: &str = "polyglot/polyglot_benchmark_metadata.json";
+pub const DATASET: &str = "polyglot_benchmark_metadata.json";
 
 #[derive(Clone, Debug)]
 pub struct Harness {

@@ -96,7 +96,7 @@ fn key_file(out: &Path) -> PathBuf {
 fn improver(out: &Path, polyglot: bool, base_url: String, dataset: Vec<Value>) -> SelfImprove {
     SelfImprove {
         docker: Docker::new("docker"),
-        root_dir: out.to_path_buf(),
+        agent_source: out.to_path_buf(),
         output_dir: out.to_path_buf(),
         polyglot,
         dataset: Ok(dataset),

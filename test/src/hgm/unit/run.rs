@@ -161,7 +161,7 @@ fn polyglot_dataset(contents: Option<&str>) -> Result<Vec<serde_json::Value>, St
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, text).unwrap();
     }
-    improve_dataset(true, tmp.path(), &offline(tmp.path()))
+    improve_dataset(true, &tmp.path().join("polyglot"), &offline(tmp.path()))
 }
 
 #[test]
@@ -210,17 +210,6 @@ fn the_polyglot_bench_follows_the_benchmark_flag() {
     assert!(e.starts_with("Dataset file not found: "), "{e}");
 }
 
-#[cfg(unix)]
-fn agent_source(root: &Path) {
-    fs::write(
-        root.join(".dockerignore"),
-        "initial_swe\ninitial_polyglot\nout\n",
-    )
-    .unwrap();
-    fs::write(root.join("Dockerfile"), "FROM scratch\n").unwrap();
-    fs::write(root.join("coding_agent.py"), "").unwrap();
-}
-
 fn init<'a>(
     root: &'a Path,
     out: &'a Path,
@@ -228,7 +217,7 @@ fn init<'a>(
     prev: Option<&'a Path>,
 ) -> Init<'a> {
     Init {
-        root_dir: root,
+        seed_dir: root,
         output_dir: out,
         agent_name: "agent",
         polyglot: false,
@@ -274,7 +263,6 @@ impl Started {
 fn started() -> Started {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    agent_source(root);
     let bench = FakeBench::resolving(&["a"]);
     let start = initialize_run(
         &init(root, &root.join("out"), &two_tasks(), None),
@@ -299,7 +287,7 @@ fn a_new_run_copies_the_agent_source() {
     assert!(
         started()
             .root()
-            .join("initial_swe/agent/src/coding_agent.py")
+            .join("initial_swe/agent/src/src/agent/main.rs")
             .is_file()
     );
 }
@@ -321,7 +309,7 @@ fn a_new_run_seeds_the_initial_node() {
     assert!(
         started()
             .root()
-            .join("out/initial/src/coding_agent.py")
+            .join("out/initial/src/src/agent/main.rs")
             .is_file()
     );
 }
@@ -429,7 +417,6 @@ fn a_missing_docker_fails_the_setup() {
 fn a_failing_initial_evaluation_is_reported() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    agent_source(root);
     let failing = FakeBench {
         fail: true,
         ..FakeBench::resolving(&[])

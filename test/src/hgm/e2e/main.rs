@@ -13,7 +13,7 @@ fn binary(name: &str) -> PathBuf {
         })
 }
 
-const SETTINGS: [(&str, &str); 30] = [
+const SETTINGS: [(&str, &str); 32] = [
     ("--self_improve_llm", "m"),
     ("--self_improve_provider", "openrouter"),
     ("--self_improve_base_url", "http://127.0.0.1:9/v1"),
@@ -29,6 +29,8 @@ const SETTINGS: [(&str, &str); 30] = [
     ("--dataset_endpoint", "http://127.0.0.1:9"),
     ("--dataset_dir", "cache"),
     ("--polyglot_repo", "no-such-repo"),
+    ("--polyglot_dir", "polyglot"),
+    ("--seed_dir", "seed"),
     ("--alpha", "0.6"),
     ("--beta", "1.0"),
     ("--cool_down", "false"),
@@ -158,7 +160,7 @@ fn hgm_in(dir: &std::path::Path) -> Command {
 }
 
 fn seed_source(root: &std::path::Path) {
-    let src = root.join("initial_swe/agent/src");
+    let src = root.join("seed/initial_swe/agent/src");
     std::fs::create_dir_all(&src).unwrap();
     std::fs::write(src.join("lib.rs"), "seed\n").unwrap();
 }
@@ -189,7 +191,11 @@ fn metadata(dir: &std::path::Path, commit: &str, extra: serde_json::Value) {
 }
 
 fn finished_run(root: &std::path::Path) {
-    metadata(&root.join("initial_swe"), "agent", serde_json::json!({}));
+    metadata(
+        &root.join("seed/initial_swe"),
+        "agent",
+        serde_json::json!({}),
+    );
     seed_source(root);
     let prev = root.join("output_hgm/prev");
     metadata(&prev, "c1", serde_json::json!({"parent_commit": "initial"}));
@@ -417,7 +423,11 @@ fn a_missing_holdout_dataset_still_writes_the_best_agent() {
 
 fn continued(root: &std::path::Path, nodes: &[&str], n_task_evals: usize) {
     let prev = root.join("output_hgm/prev");
-    metadata(&root.join("initial_swe"), "agent", serde_json::json!({}));
+    metadata(
+        &root.join("seed/initial_swe"),
+        "agent",
+        serde_json::json!({}),
+    );
     let mut records = Vec::new();
     for (i, commit) in nodes.iter().enumerate() {
         metadata(
@@ -518,6 +528,38 @@ fn a_run_without_its_key_file_names_it() {
         "{}",
         ran.stderr
     );
+}
+
+const FRESH_SEED: &str = "seed/initial_swe/agent/src";
+
+fn fresh() -> Ran {
+    in_root(
+        |_| {},
+        |c| {
+            c.args(flags(&[]));
+        },
+    )
+}
+
+#[test]
+fn a_fresh_run_writes_the_built_in_seed_agent() {
+    assert!(
+        fresh()
+            .root()
+            .join(FRESH_SEED)
+            .join("src/agent/main.rs")
+            .is_file()
+    );
+}
+
+#[test]
+fn a_fresh_run_gives_the_seed_its_dockerfile() {
+    assert!(fresh().root().join(FRESH_SEED).join("Dockerfile").is_file());
+}
+
+#[test]
+fn a_fresh_run_leaves_the_controller_out_of_the_seed() {
+    assert!(!fresh().root().join(FRESH_SEED).join("src/hgm").exists());
 }
 
 #[test]

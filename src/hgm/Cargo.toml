@@ -34,9 +34,11 @@ hgm-agent = { path = "../agent" }
 hgm-bench = { path = "../bench" }
 hgm-core = { path = "../core" }
 hgm-sandbox = { path = "../sandbox" }
+include_dir = "*"
 rand = "*"
 serde_json = { version = "*", features = ["preserve_order"] }
 statrs = "*"
+tempfile = "*"
 
 [dev-dependencies]
 serde_json = { version = "*", features = ["preserve_order"] }

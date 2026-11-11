@@ -114,7 +114,7 @@ pub fn child_performance() -> PyValue {
 
 pub struct SelfImprove {
     pub docker: Docker,
-    pub root_dir: PathBuf,
+    pub agent_source: PathBuf,
     pub output_dir: PathBuf,
     pub polyglot: bool,
     pub dataset: Result<Vec<Value>, String>,
@@ -236,7 +236,7 @@ impl SelfImprove {
             .remove_existing_container(&name, log)
             .and_then(|()| {
                 self.docker
-                    .ensure_image(&self.root_dir, &self.image_name, false, log)
+                    .ensure_image(&self.agent_source, &self.image_name, false, log)
             })
             .and_then(|()| {
                 let opts = RunOptions {
@@ -265,7 +265,7 @@ impl SelfImprove {
         let input = DiagnoseInput {
             entry_id: &entry,
             commit: attempt.parent_commit,
-            root_dir: &self.root_dir,
+            root_dir: &self.agent_source,
             out_dir: &self.output_dir,
             dataset,
             patch_files: &patch_files,

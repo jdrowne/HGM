@@ -11,7 +11,7 @@ use hgm::node::{Bench, Eval};
 use hgm_agent::llm::{Provider, Service};
 use serde_json::{Value, json};
 
-pub const SETTINGS: [(&str, &str); 30] = [
+pub const SETTINGS: [(&str, &str); 32] = [
     ("--self_improve_llm", "si"),
     ("--self_improve_provider", "openai"),
     ("--self_improve_base_url", "http://si/v1"),
@@ -27,6 +27,8 @@ pub const SETTINGS: [(&str, &str); 30] = [
     ("--dataset_endpoint", "http://127.0.0.1:9"),
     ("--dataset_dir", "cache"),
     ("--polyglot_repo", "no-such-repo"),
+    ("--polyglot_dir", "polyglot"),
+    ("--seed_dir", "seed"),
     ("--alpha", "0.6"),
     ("--beta", "1.0"),
     ("--cool_down", "false"),
