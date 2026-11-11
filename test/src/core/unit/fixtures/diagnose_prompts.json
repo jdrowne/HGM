@@ -9,7 +9,7 @@
         "root/src/coding-harness/sub/bash.rs": "pub const BASH: u8 = 2;\n",
         "root/src/coding-harness/README.md": "not rust\n",
         "root/src/coding-harness/common.rs": "  padded  \n\n",
-        "root/coding_agent.py": "def main():\n    pass\n",
+        "root/main.py": "def main():\n    pass\n",
         "out/c1/model_patch.diff": "diff --git a/x b/x\n+parent\n",
         "out/c1/predictions/run_a/inst-1.md": "chat for inst-1\\nError in get_response_withtools: boom\\nmore",
         "out/c1/predictions/run_a/inst-1.json": "{\"instance_id\": \"inst-1\", \"model_patch\": \"diff --git a/y b/y\\\\n+fix\\\\n\", \"eval_result\": \"resolved\"}",

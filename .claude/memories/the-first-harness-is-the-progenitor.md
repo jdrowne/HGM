@@ -14,4 +14,4 @@ The coding harness the tree starts from is the **progenitor** in code, flags, fo
 
 **Why:** the repo had drifted into several names for one thing (seed, initial version, root), and "seed" also means random-number seeds here.
 
-**How to apply:** don't write "seed harness", "initial harness" or "primogenitor" for it. Mention that the paper calls it the initial agent only where a reader needs the mapping. Random-number seeds keep the word "seed". See [[every-input-is-explicit]] and [[machine-and-coding-harness]].
+**How to apply:** don't write "seed harness", "initial harness" or "primogenitor" for it. Mention the paper's name for it only where a reader needs the mapping. Random-number seeds keep the word "seed". See [[every-input-is-explicit]] and [[machine-and-coding-harness]].
