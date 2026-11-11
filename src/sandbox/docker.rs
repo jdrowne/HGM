@@ -3,7 +3,6 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::thread;
 
 use hgm_core::log::Log;
 
@@ -101,21 +100,16 @@ impl Output {
     }
 }
 
-fn combined_output(mut cmd: Command) -> io::Result<(Option<i32>, Vec<u8>)> {
-    let (mut reader, writer) = io::pipe()?;
-    cmd.stdin(Stdio::null())
-        .stdout(writer.try_clone()?)
-        .stderr(writer);
-    let mut child = cmd.spawn()?;
-    drop(cmd);
-    let pump = thread::spawn(move || {
-        let mut buf = Vec::new();
-        reader.read_to_end(&mut buf).map(|_| buf)
-    });
-    let status = child.wait()?;
-    let output = pump
-        .join()
-        .map_err(|_| io::Error::other("output reader panicked"))??;
+fn combined_output(cmd: Command) -> io::Result<(Option<i32>, Vec<u8>)> {
+    let mut output = Vec::new();
+    let status = io::pipe()
+        .and_then(|(reader, writer)| writer.try_clone().map(|out| (reader, out, writer)))
+        .and_then(|(mut reader, out, err)| {
+            let mut cmd = cmd;
+            let child = cmd.stdin(Stdio::null()).stdout(out).stderr(err).spawn();
+            drop(cmd);
+            child.and_then(|mut child| reader.read_to_end(&mut output).and_then(|_| child.wait()))
+        })?;
     Ok((status.code(), output))
 }
 

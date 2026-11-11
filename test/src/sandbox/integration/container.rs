@@ -1,9 +1,9 @@
 use std::fs;
 
 use hgm_core::log::Log;
-use hgm_sandbox::{Error, ExecOptions};
+use hgm_sandbox::{Error, ExecOptions, RunOptions};
 
-use crate::{docker, start, unique};
+use crate::{BASE_IMAGE, Running, docker, start, unique};
 
 #[test]
 fn exec_interleaves_stdout_and_stderr_and_reports_the_exit_code() {
@@ -143,4 +143,65 @@ fn exec_in_a_missing_container_fails() {
     let gone = d.container(&unique("hgm-sandbox-gone"));
     let r = gone.exec(&["true"], &ExecOptions::default()).unwrap();
     assert!(!r.success());
+}
+
+#[test]
+fn run_detached_as_applies_the_user_platform_and_cpus() {
+    let docker = docker();
+    let out = std::process::Command::new("docker")
+        .args(["version", "--format", "{{.Server.Os}}/{{.Server.Arch}}"])
+        .output()
+        .unwrap();
+    let platform = String::from_utf8(out.stdout).unwrap().trim().to_owned();
+    let name = unique("hgm-sandbox-as");
+    let opts = RunOptions {
+        user: Some("1234".into()),
+        platform: Some(platform),
+        nano_cpus: Some(500_000_000),
+        command: vec!["tail".into(), "-f".into(), "/dev/null".into()],
+    };
+    let c = Running(
+        docker
+            .run_detached_as(BASE_IMAGE, &name, &opts, &Log::discard())
+            .unwrap(),
+    );
+    assert_eq!(
+        c.0.sh("id -u", &ExecOptions::default()).unwrap().text(),
+        "1234\n"
+    );
+    let bad = docker.run_detached_as(
+        "hgm-no-such-image:never",
+        &unique("hgm-bad"),
+        &RunOptions::default(),
+        &Log::discard(),
+    );
+    assert!(matches!(bad, Err(Error::Command { .. })), "{bad:?}");
+}
+
+#[test]
+fn files_copied_to_the_root_or_a_relative_path_land_beside_slash() {
+    let c = start();
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("f.txt");
+    fs::write(&src, "x").unwrap();
+    let log = Log::discard();
+    c.0.copy_in(&src, "/", &log).unwrap();
+    c.0.copy_in(&src, "/top.txt", &log).unwrap();
+    c.0.copy_in(&src, "rel.txt", &log).unwrap();
+    for path in ["/f.txt", "/top.txt", "/rel.txt"] {
+        assert_eq!(c.0.read_file(path).unwrap(), b"x", "{path}");
+    }
+}
+
+#[test]
+fn copying_out_under_a_file_is_an_io_error() {
+    let c = start();
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("file"), "").unwrap();
+    let r = c.0.copy_out(
+        "/etc/hostname",
+        &dir.path().join("file/sub/out"),
+        &Log::discard(),
+    );
+    assert!(matches!(r, Err(Error::Io(_))), "{r:?}");
 }

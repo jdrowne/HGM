@@ -967,6 +967,15 @@ def capture_dockerignore():
         matches = {path: spec.match_file(path) for path in files + ["logs/", "docs/", "a/b/", "src/logs/"]}
         cases.append({"name": "gitwildmatch_match_file", "input": {"patterns": pats}, "output": matches})
 
+    probes = ["a ", "a", "x", "ax", "bx", "]x", "a/x", "a/q/b", "a/q/r/b", "d/", "d/e", "e", "a]x", "z", "-"]
+    for pattern in ["a\\ ", "*/", "a/*/b", "[]a]x", "[!a]x", "[^a]x", "[z-a]", "[abc", "ab\\", "/", "!", "!a", "**/", "/**"]:
+        try:
+            spec = pathspec.PathSpec.from_lines("gitwildmatch", [pattern])
+            output = {path: spec.match_file(path) for path in probes}
+        except Exception:
+            output = "error"
+        cases.append({"name": "gitwildmatch_edge", "input": pattern, "output": output})
+
     write(
         "sandbox",
         "dockerignore",

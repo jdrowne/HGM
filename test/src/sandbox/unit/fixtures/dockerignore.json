@@ -147,6 +147,252 @@
         "a/b/": true,
         "src/logs/": true
       }
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "a\\ ",
+      "output": {
+        "a ": true,
+        "a": false,
+        "x": false,
+        "ax": false,
+        "bx": false,
+        "]x": false,
+        "a/x": false,
+        "a/q/b": false,
+        "a/q/r/b": false,
+        "d/": false,
+        "d/e": false,
+        "e": false,
+        "a]x": false,
+        "z": false,
+        "-": false
+      }
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "*/",
+      "output": {
+        "a ": false,
+        "a": false,
+        "x": false,
+        "ax": false,
+        "bx": false,
+        "]x": false,
+        "a/x": true,
+        "a/q/b": true,
+        "a/q/r/b": true,
+        "d/": true,
+        "d/e": true,
+        "e": false,
+        "a]x": false,
+        "z": false,
+        "-": false
+      }
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "a/*/b",
+      "output": {
+        "a ": false,
+        "a": false,
+        "x": false,
+        "ax": false,
+        "bx": false,
+        "]x": false,
+        "a/x": false,
+        "a/q/b": true,
+        "a/q/r/b": false,
+        "d/": false,
+        "d/e": false,
+        "e": false,
+        "a]x": false,
+        "z": false,
+        "-": false
+      }
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "[]a]x",
+      "output": {
+        "a ": false,
+        "a": false,
+        "x": false,
+        "ax": true,
+        "bx": false,
+        "]x": true,
+        "a/x": false,
+        "a/q/b": false,
+        "a/q/r/b": false,
+        "d/": false,
+        "d/e": false,
+        "e": false,
+        "a]x": false,
+        "z": false,
+        "-": false
+      }
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "[!a]x",
+      "output": {
+        "a ": false,
+        "a": false,
+        "x": false,
+        "ax": false,
+        "bx": true,
+        "]x": true,
+        "a/x": false,
+        "a/q/b": false,
+        "a/q/r/b": false,
+        "d/": false,
+        "d/e": false,
+        "e": false,
+        "a]x": false,
+        "z": false,
+        "-": false
+      }
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "[^a]x",
+      "output": {
+        "a ": false,
+        "a": false,
+        "x": false,
+        "ax": false,
+        "bx": true,
+        "]x": true,
+        "a/x": false,
+        "a/q/b": false,
+        "a/q/r/b": false,
+        "d/": false,
+        "d/e": false,
+        "e": false,
+        "a]x": false,
+        "z": false,
+        "-": false
+      }
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "[z-a]",
+      "output": "error"
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "[abc",
+      "output": {
+        "a ": false,
+        "a": false,
+        "x": false,
+        "ax": false,
+        "bx": false,
+        "]x": false,
+        "a/x": false,
+        "a/q/b": false,
+        "a/q/r/b": false,
+        "d/": false,
+        "d/e": false,
+        "e": false,
+        "a]x": false,
+        "z": false,
+        "-": false
+      }
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "ab\\",
+      "output": "error"
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "/",
+      "output": {
+        "a ": false,
+        "a": false,
+        "x": false,
+        "ax": false,
+        "bx": false,
+        "]x": false,
+        "a/x": false,
+        "a/q/b": false,
+        "a/q/r/b": false,
+        "d/": false,
+        "d/e": false,
+        "e": false,
+        "a]x": false,
+        "z": false,
+        "-": false
+      }
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "!",
+      "output": "error"
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "!a",
+      "output": {
+        "a ": false,
+        "a": false,
+        "x": false,
+        "ax": false,
+        "bx": false,
+        "]x": false,
+        "a/x": false,
+        "a/q/b": false,
+        "a/q/r/b": false,
+        "d/": false,
+        "d/e": false,
+        "e": false,
+        "a]x": false,
+        "z": false,
+        "-": false
+      }
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "**/",
+      "output": {
+        "a ": false,
+        "a": false,
+        "x": false,
+        "ax": false,
+        "bx": false,
+        "]x": false,
+        "a/x": true,
+        "a/q/b": true,
+        "a/q/r/b": true,
+        "d/": true,
+        "d/e": true,
+        "e": false,
+        "a]x": false,
+        "z": false,
+        "-": false
+      }
+    },
+    {
+      "name": "gitwildmatch_edge",
+      "input": "/**",
+      "output": {
+        "a ": true,
+        "a": true,
+        "x": true,
+        "ax": true,
+        "bx": true,
+        "]x": true,
+        "a/x": true,
+        "a/q/b": true,
+        "a/q/r/b": true,
+        "d/": true,
+        "d/e": true,
+        "e": true,
+        "a]x": true,
+        "z": true,
+        "-": true
+      }
     }
   ]
 }

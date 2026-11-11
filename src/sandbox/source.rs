@@ -39,7 +39,7 @@ pub fn initial_metadata() -> PyValue {
 pub fn copy_filtered(source: &Path, dest: &Path) -> Result<CopyReport, Error> {
     let patterns = read_dockerignore(&source.join(DOCKERIGNORE_FILE))?;
     let spec = Spec::new(&patterns)?;
-    let files = spec.walk(source)?;
+    let files = spec.walk(source);
     fs::create_dir_all(dest)?;
     let mut copied = Vec::new();
     for rel in files {
@@ -48,9 +48,7 @@ pub fn copy_filtered(source: &Path, dest: &Path) -> Result<CopyReport, Error> {
             continue;
         }
         let to = dest.join(&rel);
-        if let Some(parent) = to.parent() {
-            fs::create_dir_all(parent)?;
-        }
+        fs::create_dir_all(to.parent().unwrap_or(dest))?;
         fs::copy(&from, &to)?;
         copied.push(rel);
     }
@@ -73,6 +71,12 @@ pub fn prepare_initial_agent(
     docker: Option<&Docker>,
     log: &Log,
 ) -> Result<CopyReport, Error> {
+    let tag = docker
+        .map(|_| {
+            image_name_for(dest)
+                .ok_or_else(|| Error::NotFound(format!("parent folder of {}", dest.display())))
+        })
+        .transpose()?;
     let report = copy_filtered(source, dest)?;
     log.info(format!(
         "Copied {} files to {} ({} ignore patterns)",
@@ -84,12 +88,10 @@ pub fn prepare_initial_agent(
     if !metadata.exists() {
         fs::write(&metadata, pyjson::dumps(&initial_metadata(), None))?;
     }
-    if let Some(docker) = docker {
+    if let (Some(docker), Some(tag)) = (docker, tag) {
         for name in [DOCKERIGNORE_FILE, DOCKERFILE] {
             fs::copy(source.join(name), dest.join(name))?;
         }
-        let tag = image_name_for(dest)
-            .ok_or_else(|| Error::NotFound(format!("parent folder of {}", dest.display())))?;
         log.info(format!("Building Docker image '{tag}'..."));
         docker.build(dest, &tag, true, log)?;
     }

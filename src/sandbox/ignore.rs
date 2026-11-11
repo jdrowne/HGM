@@ -64,14 +64,14 @@ impl Spec {
         result
     }
 
-    pub fn walk(&self, root: &Path) -> io::Result<BTreeSet<String>> {
+    pub fn walk(&self, root: &Path) -> BTreeSet<String> {
         let mut files = BTreeSet::new();
-        self.walk_dir(root, "", &mut files)?;
-        Ok(files)
+        self.walk_dir(root, "", &mut files);
+        files
     }
 
-    fn walk_dir(&self, dir: &Path, prefix: &str, files: &mut BTreeSet<String>) -> io::Result<()> {
-        let mut entries: Vec<_> = fs::read_dir(dir)?.collect::<io::Result<_>>()?;
+    fn walk_dir(&self, dir: &Path, prefix: &str, files: &mut BTreeSet<String>) {
+        let mut entries: Vec<_> = fs::read_dir(dir).into_iter().flatten().flatten().collect();
         entries.sort_by_key(|e| e.file_name());
         for entry in entries {
             let name = entry.file_name().to_string_lossy().into_owned();
@@ -82,14 +82,13 @@ impl Spec {
                 if self.matches(&format!("{rel}/")) {
                     continue;
                 }
-                if !entry.file_type()?.is_symlink() {
-                    self.walk_dir(&path, &format!("{rel}/"), files)?;
+                if !entry.file_type().is_ok_and(|t| t.is_symlink()) {
+                    self.walk_dir(&path, &format!("{rel}/"), files);
                 }
             } else if !self.matches(&rel) {
                 files.insert(rel);
             }
         }
-        Ok(())
     }
 }
 

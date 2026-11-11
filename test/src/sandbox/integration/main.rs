@@ -1,4 +1,6 @@
 mod container;
+#[cfg(unix)]
+mod fake;
 mod image;
 
 use std::sync::atomic::{AtomicUsize, Ordering};

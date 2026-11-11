@@ -1,3 +1,5 @@
+mod docker;
+mod error;
 mod ignore;
 mod source;
 
