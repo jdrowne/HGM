@@ -1,0 +1,46 @@
+name: loop-integration-arm64
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/loop-integration-arm64.yml
+  workflow_dispatch: {}
+jobs:
+  loop:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache the build
+        uses: Swatinem/rust-cache@master
+        with:
+          key: linux-arm64
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@main
+        with:
+          tool: cargo-nextest
+      - name: Show the Docker engine
+        run: docker version && docker info
+      - name: Build the integration tier
+        run: cargo nextest archive --workspace --all-targets --archive-file build.tar.zst
+      - name: Run the integration tier repeatedly
+        run: |
+          failed=0
+          for i in $(seq 1 15); do
+            echo "::group::iteration $i"
+            if ! cargo-nextest nextest run \
+              --archive-file build.tar.zst \
+              --workspace-remap . \
+              --no-fail-fast \
+              --failure-output final \
+              -E 'binary(integration)' > "run-$i.log" 2>&1; then
+              failed=$((failed+1))
+            fi
+            tail -n 40 "run-$i.log"
+            echo "::endgroup::"
+          done
+          echo "iterations with a failure: $failed of 15"
+          grep -h -A60 '^ *FAIL \[' run-*.log || true
+    timeout-minutes: 180
