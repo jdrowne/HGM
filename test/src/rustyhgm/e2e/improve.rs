@@ -268,8 +268,47 @@ fn scenario(root: &Path) {
         "stdout": String::from_utf8_lossy(&out.stdout),
         "stderr": String::from_utf8_lossy(&out.stderr),
         "seen": *seen.lock().unwrap(),
+        "logs": logs_under(root, &root.join("output_rustyhgm/run")),
     });
     fs::write(root.join("outcome.json"), outcome.to_string()).unwrap();
+}
+
+fn is_child_log(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n == "self_improve.log" || n.ends_with("_docker.log"))
+}
+
+fn log_files(dir: &Path, found: &mut Vec<PathBuf>) {
+    for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            log_files(&path, found);
+        } else if is_child_log(&path) {
+            found.push(path);
+        }
+    }
+}
+
+fn logs_under(root: &Path, dir: &Path) -> String {
+    let mut found = Vec::new();
+    log_files(dir, &mut found);
+    found.sort();
+    found
+        .iter()
+        .map(|path| {
+            let name = path.strip_prefix(root).unwrap_or(path).display();
+            let text = fs::read_to_string(path).unwrap_or_default();
+            format!("==> {name} <==\n{text}\n")
+        })
+        .collect()
+}
+
+fn read_json_or_null(path: &Path) -> Value {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or(Value::Null)
 }
 
 struct Shared {
@@ -311,8 +350,12 @@ impl Shared {
         json!([{"commit_id": self.child(), "id": 1, "parent_id": 0, "mean_utility": utility, "num_evals": evals}])
     }
 
+    fn logs(&self) -> &str {
+        self.outcome["logs"].as_str().unwrap_or_default()
+    }
+
     fn prediction(&self) -> Value {
-        read_json(
+        read_json_or_null(
             &self
                 .child_dir()
                 .join(format!("predictions/{}_0/{TASK}.json", self.child())),
@@ -320,7 +363,11 @@ impl Shared {
     }
 
     fn metadata(&self) -> Value {
-        read_json(&self.child_dir().join("metadata.json"))
+        read_json_or_null(&self.child_dir().join("metadata.json"))
+    }
+
+    fn overall(&self, key: &str) -> Value {
+        self.metadata()["overall_performance"][key].clone()
     }
 }
 
@@ -392,21 +439,26 @@ fn the_second_record_holds_the_measured_child() {
 
 #[test]
 fn the_child_leaves_its_task_unresolved() {
-    assert_eq!(shared().prediction()["eval_result"], "unresolved");
+    let s = shared();
+    assert_eq!(s.prediction()["eval_result"], "unresolved", "{}", s.logs());
 }
 
 #[test]
 fn the_child_patches_its_task() {
+    let s = shared();
     assert!(
-        shared().prediction()["model_patch"]
+        s.prediction()["model_patch"]
             .as_str()
-            .is_some_and(|p| p.contains("+++ b/queen-attack.js"))
+            .is_some_and(|p| p.contains("+++ b/queen-attack.js")),
+        "{}",
+        s.logs()
     );
 }
 
 #[test]
 fn the_child_names_its_parent() {
-    assert_eq!(shared().metadata()["parent_commit"], "initial");
+    let s = shared();
+    assert_eq!(s.metadata()["parent_commit"], "initial", "{}", s.logs());
 }
 
 #[test]
@@ -414,41 +466,57 @@ fn the_child_works_on_an_unresolved_entry() {
     let s = shared();
     let unresolved = polyglot_tasks(&repo_root())[1..].to_vec();
     let entry = s.metadata()["entry"].clone();
-    assert!(unresolved.iter().any(|t| entry == t.as_str()), "{entry}");
+    assert!(
+        unresolved.iter().any(|t| entry == t.as_str()),
+        "{entry}\n{}",
+        s.logs()
+    );
 }
 
 #[test]
 fn the_child_records_the_diagnosis() {
+    let s = shared();
     assert!(
-        shared().metadata()["problem_statement"]
+        s.metadata()["problem_statement"]
             .as_str()
-            .unwrap()
-            .ends_with("# To Implement\n\ndo it\n\nbroken")
+            .is_some_and(|p| p.ends_with("# To Implement\n\ndo it\n\nbroken")),
+        "{}",
+        s.logs()
     );
-}
-
-fn overall(key: &str) -> Value {
-    shared().metadata()["overall_performance"][key].clone()
 }
 
 #[test]
 fn the_child_scores_zero() {
-    assert_eq!(overall("accuracy_score"), json!(0.0));
+    let s = shared();
+    assert_eq!(s.overall("accuracy_score"), json!(0.0), "{}", s.logs());
 }
 
 #[test]
 fn the_child_submits_its_task() {
-    assert_eq!(overall("total_submitted_ids"), json!([TASK]));
+    let s = shared();
+    assert_eq!(
+        s.overall("total_submitted_ids"),
+        json!([TASK]),
+        "{}",
+        s.logs()
+    );
 }
 
 #[test]
 fn the_child_counts_its_task_unresolved() {
-    assert_eq!(overall("total_unresolved_ids"), json!([TASK]));
+    let s = shared();
+    assert_eq!(
+        s.overall("total_unresolved_ids"),
+        json!([TASK]),
+        "{}",
+        s.logs()
+    );
 }
 
 #[test]
 fn the_child_resolves_nothing() {
-    assert_eq!(overall("total_resolved_ids"), json!([]));
+    let s = shared();
+    assert_eq!(s.overall("total_resolved_ids"), json!([]), "{}", s.logs());
 }
 
 #[test]
