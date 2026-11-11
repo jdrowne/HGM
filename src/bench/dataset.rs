@@ -1,4 +1,3 @@
-use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::io;
@@ -60,32 +59,6 @@ pub struct Hub {
 }
 
 impl Hub {
-    pub fn from_env() -> Self {
-        Self::from_vars(|key| std::env::var_os(key))
-    }
-
-    pub fn from_vars(var: impl Fn(&str) -> Option<OsString>) -> Self {
-        let endpoint = var("HGM_HF_ENDPOINT").map_or_else(
-            || "https://huggingface.co".to_owned(),
-            |e| e.to_string_lossy().into_owned(),
-        );
-        let cache_dir = var("HGM_DATA_DIR").map_or_else(
-            || {
-                var("HOME")
-                    .or_else(|| var("USERPROFILE"))
-                    .map_or_else(|| PathBuf::from("."), PathBuf::from)
-                    .join(".cache")
-                    .join("hgm")
-                    .join("datasets")
-            },
-            PathBuf::from,
-        );
-        Self {
-            endpoint,
-            cache_dir,
-        }
-    }
-
     fn split_files(&self, name: &str, split: &str) -> Result<Vec<String>, Error> {
         let url = format!("{}/api/datasets/{name}/tree/main/data", self.endpoint);
         let listing: Value = ureq::get(&url).call()?.body_mut().read_json()?;

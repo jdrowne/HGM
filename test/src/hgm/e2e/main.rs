@@ -13,7 +13,7 @@ fn binary(name: &str) -> PathBuf {
         })
 }
 
-const SETTINGS: [(&str, &str); 25] = [
+const SETTINGS: [(&str, &str); 30] = [
     ("--self_improve_llm", "m"),
     ("--self_improve_provider", "openrouter"),
     ("--self_improve_base_url", "http://127.0.0.1:9/v1"),
@@ -24,6 +24,11 @@ const SETTINGS: [(&str, &str); 25] = [
     ("--diagnose_provider", "openrouter"),
     ("--diagnose_base_url", "http://127.0.0.1:9/v1"),
     ("--api_key_file", "key"),
+    ("--docker", "hgm-no-such-docker-program"),
+    ("--swebench_python", "hgm-no-such-python"),
+    ("--dataset_endpoint", "http://127.0.0.1:9"),
+    ("--dataset_dir", "cache"),
+    ("--polyglot_repo", "no-such-repo"),
     ("--alpha", "0.6"),
     ("--beta", "1.0"),
     ("--cool_down", "false"),
@@ -148,10 +153,7 @@ fn key_file(dir: &std::path::Path) {
 fn hgm_in(dir: &std::path::Path) -> Command {
     key_file(dir);
     let mut cmd = Command::new(binary("hgm"));
-    cmd.current_dir(dir)
-        .env("HGM_DATA_DIR", dir.join("cache"))
-        .env("HGM_HF_ENDPOINT", "http://127.0.0.1:9")
-        .env("HGM_DOCKER", "hgm-no-such-docker-program");
+    cmd.current_dir(dir);
     cmd
 }
 
@@ -345,8 +347,10 @@ fn held_out() -> Ran {
         },
         |c| {
             let python = swe_cache(&PathBuf::from(c.get_current_dir().unwrap()));
-            c.env("HGM_SWEBENCH_PYTHON", python)
-                .args(flags(&FINISHED))
+            let python = python.to_string_lossy();
+            let mut changes = FINISHED.to_vec();
+            changes.push(("--swebench_python", &python));
+            c.args(flags(&changes))
                 .args(["--holdout_split", "Lite", "--holdout_tasks", "2"]);
         },
     )

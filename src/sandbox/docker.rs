@@ -13,14 +13,6 @@ pub struct Docker {
     program: String,
 }
 
-impl Default for Docker {
-    fn default() -> Self {
-        Docker {
-            program: std::env::var("HGM_DOCKER").unwrap_or_else(|_| "docker".to_owned()),
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExecResult {
     pub exit_code: i32,

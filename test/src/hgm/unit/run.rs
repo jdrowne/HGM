@@ -188,14 +188,7 @@ fn bench_error(polyglot: bool) -> String {
     config.evaluation.polyglot = polyglot;
     let out = tmp.path().join("out");
     fs::create_dir_all(out.join("c")).unwrap();
-    let docker = Docker::new("hgm-no-such-docker-program");
-    let bench = bench_for(
-        &config,
-        &service(),
-        tmp.path(),
-        &docker,
-        &offline(tmp.path()),
-    );
+    let bench = bench_for(&config, &service(), tmp.path(), &cli(&[]).tools(tmp.path()));
     Evaluator {
         bench: bench.as_ref(),
         output_dir: &out,
@@ -732,7 +725,14 @@ fn finished_run() -> (tempfile::TempDir, PathBuf) {
 #[test]
 fn finish_writes_the_best_agent_source_into_the_run() {
     let (_tmp, out) = finished_run();
-    finish(&cli(&[]), &cli(&[]).config(), &service(), &out).unwrap();
+    finish(
+        &cli(&[]),
+        &cli(&[]).config(),
+        &service(),
+        &cli(&[]).tools(&out),
+        &out,
+    )
+    .unwrap();
     assert_eq!(
         fs::read_to_string(out.join("best_agent/lib.rs")).unwrap(),
         "seed\nchild\n"
@@ -744,8 +744,14 @@ fn finish_needs_the_run_records() {
     let (_tmp, out) = finished_run();
     fs::remove_file(out.join("hgm_metadata.jsonl")).unwrap();
     assert!(
-        finish(&cli(&[]), &cli(&[]).config(), &service(), &out)
-            .unwrap_err()
-            .contains("hgm_metadata.jsonl")
+        finish(
+            &cli(&[]),
+            &cli(&[]).config(),
+            &service(),
+            &cli(&[]).tools(&out),
+            &out,
+        )
+        .unwrap_err()
+        .contains("hgm_metadata.jsonl")
     );
 }

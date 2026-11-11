@@ -128,7 +128,7 @@ fn root_with_tasks(root: &Path, modes: &[&str]) -> PathBuf {
 
 fn harness(root: &Path, dataset: PathBuf) -> Harness {
     Harness {
-        docker: Docker::default(),
+        docker: Docker::new("docker"),
         root: root.to_path_buf(),
         dataset,
         machine: std::env::consts::ARCH.to_owned(),

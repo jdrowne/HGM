@@ -6,7 +6,6 @@ use std::sync::{Arc, Mutex};
 
 use hgm_bench::dataset::{Error, Hub, instance_ids, read_parquet};
 use serde_json::Value;
-use std::ffi::OsString;
 
 use crate::common::cases;
 
@@ -191,55 +190,6 @@ fn a_corrupt_parquet_file_is_a_parquet_error() {
     let corrupt = tmp.path().join("corrupt.parquet");
     fs::write(&corrupt, bytes).unwrap();
     assert!(matches!(read_parquet(&corrupt), Err(Error::Parquet(_))));
-}
-
-fn from(pairs: &'static [(&'static str, &'static str)]) -> Hub {
-    Hub::from_vars(move |key: &str| {
-        pairs
-            .iter()
-            .find(|(k, _)| *k == key)
-            .map(|(_, v)| OsString::from(v))
-    })
-}
-
-#[test]
-fn the_hub_defaults_to_hugging_face_and_a_local_cache() {
-    assert_eq!(
-        from(&[]),
-        hub(
-            "https://huggingface.co",
-            &PathBuf::from("./.cache/hgm/datasets")
-        )
-    );
-}
-
-#[test]
-fn the_hub_comes_from_the_environment() {
-    assert_eq!(
-        from(&[("HGM_HF_ENDPOINT", "http://e"), ("HGM_DATA_DIR", "/d")]),
-        hub("http://e", &PathBuf::from("/d"))
-    );
-}
-
-#[test]
-fn the_cache_defaults_under_home() {
-    assert_eq!(
-        from(&[("HOME", "/h")]).cache_dir,
-        PathBuf::from("/h/.cache/hgm/datasets")
-    );
-}
-
-#[test]
-fn the_cache_defaults_under_the_user_profile() {
-    assert_eq!(
-        from(&[("USERPROFILE", "/u")]).cache_dir,
-        PathBuf::from("/u/.cache/hgm/datasets")
-    );
-}
-
-#[test]
-fn from_env_reads_the_process_environment() {
-    assert_eq!(Hub::from_env(), Hub::from_vars(|k| std::env::var_os(k)));
 }
 
 #[test]

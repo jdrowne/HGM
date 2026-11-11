@@ -11,7 +11,6 @@ use serde_json::{Map, Value, json};
 
 use crate::polyglot::DATASET;
 
-pub const REPO_URL: &str = "https://github.com/Aider-AI/polyglot-benchmark.git";
 pub const COMMITS: &str = "polyglot_benchmark_commits.json";
 const MARKER: &str = "get_filename_component(exercise ${CMAKE_CURRENT_SOURCE_DIR} NAME)";
 const WORKERS: usize = 50;

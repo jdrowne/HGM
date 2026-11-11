@@ -72,12 +72,6 @@ pub struct Swebench {
 }
 
 impl Swebench {
-    pub fn from_env() -> Self {
-        Self {
-            python: std::env::var("HGM_SWEBENCH_PYTHON").unwrap_or_else(|_| "python3".to_owned()),
-        }
-    }
-
     pub fn specs(&self, entries: &[Value]) -> Result<Vec<TestSpec>, Error> {
         let mut input = String::new();
         for entry in entries {

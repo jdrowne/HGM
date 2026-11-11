@@ -79,7 +79,7 @@ fn swebench(dir: &Path, prepare: &str, specs: &str) -> Swebench {
 
 fn harness(root: &Path, swebench: Swebench) -> Harness {
     Harness {
-        docker: Docker::default(),
+        docker: Docker::new("docker"),
         swebench,
         hub: Hub {
             endpoint: refused(),

@@ -8,10 +8,9 @@ use hgm_agent::llm::Service;
 use hgm_bench::dataset::{Hub, SWE_BENCH_VERIFIED, instance_ids};
 use hgm_bench::polyglot::{self, DATASET};
 use hgm_bench::polyglot_build::copy_tree;
-use hgm_bench::polyglot_prepare::{REPO_URL, prepare};
+use hgm_bench::polyglot_prepare::prepare;
 use hgm_bench::polyglot_spec::NAMESPACE;
 use hgm_bench::swe;
-use hgm_bench::swebench::Swebench;
 use hgm_bench::tasks::{dedup, polyglot_run_tasks, shuffled, swe_run_tasks};
 use hgm_core::config::HgmConfig;
 use hgm_core::log::Log;
@@ -28,7 +27,7 @@ use serde_json::Value;
 
 use crate::agent_build::Builder;
 use crate::best::{BEST_AGENT, check_epsilon, export, pick};
-use crate::cli::Cli;
+use crate::cli::{Cli, Tools};
 use crate::improve::SelfImprove;
 use crate::node::{Bench, Evaluator, at};
 use crate::search::{Search, Settings, State};
@@ -175,14 +174,13 @@ pub fn bench_for(
     config: &HgmConfig,
     service: &Service,
     root_dir: &Path,
-    docker: &Docker,
-    hub: &Hub,
+    tools: &Tools,
 ) -> Box<dyn Bench> {
     let llm = config.llm.downstream_llm.clone();
     let timeout = config.execution.evaluation_timeout;
     if config.evaluation.polyglot {
         Box::new(polyglot::Harness {
-            docker: docker.clone(),
+            docker: tools.docker.clone(),
             root: root_dir.to_path_buf(),
             dataset: root_dir.join(DATASET),
             machine: std::env::consts::ARCH.to_owned(),
@@ -193,9 +191,9 @@ pub fn bench_for(
         })
     } else {
         Box::new(swe::Harness {
-            docker: docker.clone(),
-            swebench: Swebench::from_env(),
-            hub: hub.clone(),
+            docker: tools.docker.clone(),
+            swebench: tools.swebench.clone(),
+            hub: tools.hub.clone(),
             llm,
             service: service.clone(),
             timeout,
@@ -230,7 +228,7 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
     }
     let services = args.services(root_dir)?;
     if config.evaluation.polyglot {
-        prepare_polyglot(root_dir)?;
+        prepare_polyglot(root_dir, &args.polyglot_repo)?;
     }
     let (output_dir, run_id) = resolve_output_dir(&config.paths.output_dir, root_dir);
     fs::create_dir_all(&output_dir).map_err(|e| at(&output_dir, e))?;
@@ -239,10 +237,9 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
     println!("Output directory exists: {}", output_dir.exists());
     let outer = output_dir.join("hgm_outer.log");
     let log = Log::to_file(&outer).map_err(|e| at(&outer, e))?;
-    let hub = Hub::from_env();
-    let tasks = dedup(&run_tasks(&config, &hub)?);
-    let docker = Docker::default();
-    let bench = bench_for(&config, &services.downstream, root_dir, &docker, &hub);
+    let tools = args.tools(root_dir);
+    let tasks = dedup(&run_tasks(&config, &tools.hub)?);
+    let bench = bench_for(&config, &services.downstream, root_dir, &tools);
     let polyglot = config.evaluation.polyglot;
     let max_workers = config.execution.max_workers;
     let continue_from = config
@@ -261,7 +258,7 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
             max_workers,
         },
         bench.as_ref(),
-        &docker,
+        &tools.docker,
         &log,
     )?;
     log.info(format!(
@@ -269,11 +266,11 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
         config.to_json()
     ));
     let improver = SelfImprove {
-        docker,
+        docker: tools.docker.clone(),
         root_dir: root_dir.to_path_buf(),
         output_dir: output_dir.clone(),
         polyglot,
-        dataset: improve_dataset(polyglot, root_dir, &hub),
+        dataset: improve_dataset(polyglot, root_dir, &tools.hub),
         image_name: format!("{}:latest", config.paths.initial_agent_name),
         diagnose: services
             .diagnose
@@ -311,13 +308,14 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
         log: &log,
     };
     search.run()?;
-    finish(args, &config, &services.downstream, &output_dir)
+    finish(args, &config, &services.downstream, &tools, &output_dir)
 }
 
 pub fn finish(
     args: &Cli,
     config: &HgmConfig,
     downstream: &Service,
+    tools: &Tools,
     output_dir: &Path,
 ) -> Result<(), String> {
     let best = pick(output_dir, args.epsilon)?;
@@ -336,6 +334,7 @@ pub fn finish(
             n_tasks,
             llm: &config.llm.downstream_llm,
             service: downstream,
+            tools,
             timeout: config.execution.evaluation_timeout,
             max_workers: config.execution.max_workers,
         }),
@@ -350,12 +349,13 @@ pub struct Holdout<'a> {
     pub n_tasks: usize,
     pub llm: &'a str,
     pub service: &'a Service,
+    pub tools: &'a Tools,
     pub timeout: u64,
     pub max_workers: usize,
 }
 
 pub fn holdout(h: &Holdout) -> Result<(), String> {
-    let hub = Hub::from_env();
+    let hub = &h.tools.hub;
     let dataset = format!("princeton-nlp/SWE-bench_{}", h.split);
     let mut ids = hub
         .load(&dataset, "test")
@@ -370,9 +370,9 @@ pub fn holdout(h: &Holdout) -> Result<(), String> {
     let node_dir = h.results_dir.join(&agent_name);
     fs::create_dir_all(&node_dir).map_err(|e| at(&node_dir, e))?;
     let bench = swe::Harness {
-        docker: Docker::default(),
-        swebench: Swebench::from_env(),
-        hub,
+        docker: h.tools.docker.clone(),
+        swebench: h.tools.swebench.clone(),
+        hub: hub.clone(),
         llm: h.llm.to_owned(),
         service: h.service.clone(),
         timeout: h.timeout,
@@ -399,7 +399,6 @@ pub fn holdout(h: &Holdout) -> Result<(), String> {
     Ok(())
 }
 
-pub fn prepare_polyglot(root_dir: &Path) -> Result<(), String> {
-    let url = std::env::var("HGM_POLYGLOT_REPO").ok();
-    prepare(root_dir, url.as_deref().unwrap_or(REPO_URL)).map(|_| ())
+pub fn prepare_polyglot(root_dir: &Path, repo_url: &str) -> Result<(), String> {
+    prepare(root_dir, repo_url).map(|_| ())
 }

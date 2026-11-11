@@ -1,6 +1,7 @@
 use clap::Parser;
 use hgm::cli::{Cli, Services};
 use hgm_agent::llm::{Provider, Service};
+use hgm_bench::dataset::Hub;
 use serde_json::json;
 
 use crate::common::{SETTINGS, argv, cli};
@@ -140,6 +141,42 @@ fn a_missing_key_file_is_an_error_naming_it() {
             .services(tmp.path())
             .unwrap_err()
             .starts_with(&format!("{}: ", tmp.path().join("key").display()))
+    );
+}
+
+#[test]
+fn the_dataset_hub_comes_from_its_flags() {
+    let root = std::path::Path::new("/r");
+    assert_eq!(
+        cli(&[("--dataset_endpoint", "http://e")]).tools(root).hub,
+        Hub {
+            endpoint: "http://e".into(),
+            cache_dir: root.join("cache"),
+        }
+    );
+}
+
+#[test]
+fn the_swebench_interpreter_comes_from_its_flag() {
+    assert_eq!(
+        cli(&[("--swebench_python", "py")])
+            .tools(std::path::Path::new("/r"))
+            .swebench
+            .python,
+        "py"
+    );
+}
+
+#[test]
+fn the_container_program_comes_from_its_flag() {
+    assert!(
+        format!(
+            "{:?}",
+            cli(&[("--docker", "podman")])
+                .tools(std::path::Path::new("/r"))
+                .docker
+        )
+        .contains("\"podman\"")
     );
 }
 

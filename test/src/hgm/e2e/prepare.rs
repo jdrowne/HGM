@@ -56,12 +56,9 @@ fn prepare_with(root: &Path, repo: Option<&str>, path: Option<&Path>) -> Output 
     cmd.args(flags(&[
         ("--polyglot", "true"),
         ("--continue_from", "output_hgm/none"),
+        ("--polyglot_repo", repo.unwrap_or("no-such-repo")),
     ]))
-    .current_dir(root)
-    .env("HGM_DOCKER", "hgm-no-such-docker-program");
-    if let Some(repo) = repo {
-        cmd.env("HGM_POLYGLOT_REPO", repo);
-    }
+    .current_dir(root);
     if let Some(path) = path {
         cmd.env("PATH", path);
     }

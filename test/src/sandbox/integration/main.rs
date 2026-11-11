@@ -10,7 +10,7 @@ use hgm_sandbox::{Container, Docker};
 pub const BASE_IMAGE: &str = "busybox:latest";
 
 pub fn docker() -> Docker {
-    let docker = Docker::default();
+    let docker = Docker::new("docker");
     docker
         .available()
         .then_some(docker)

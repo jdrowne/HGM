@@ -45,8 +45,3 @@ fn errors_say_what_failed() {
         "running swebench: x"
     );
 }
-
-#[test]
-fn the_environment_always_names_an_interpreter() {
-    assert!(!Swebench::from_env().python.is_empty());
-}

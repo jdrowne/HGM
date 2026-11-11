@@ -2,10 +2,13 @@ use std::path::{Path, PathBuf};
 
 use clap::{ArgAction, Parser};
 use hgm_agent::llm::{Provider, Service, read_api_key};
+use hgm_bench::dataset::Hub;
+use hgm_bench::swebench::Swebench;
 use hgm_core::config::{
     EvaluationConfig, ExecutionConfig, ExpansionStatistic, HgmConfig, LlmConfig,
     OptimizationConfig, PathConfig,
 };
+use hgm_sandbox::Docker;
 
 #[derive(Clone, Debug, Parser)]
 #[command(name = "hgm", version, about = "Huxley-Godel Machine")]
@@ -30,6 +33,16 @@ pub struct Cli {
     pub diagnose_base_url: String,
     #[arg(long = "api_key_file", value_name = "FILE")]
     pub api_key_file: PathBuf,
+    #[arg(long, value_name = "PROGRAM")]
+    pub docker: String,
+    #[arg(long = "swebench_python", value_name = "PROGRAM")]
+    pub swebench_python: String,
+    #[arg(long = "dataset_endpoint", value_name = "URL")]
+    pub dataset_endpoint: String,
+    #[arg(long = "dataset_dir", value_name = "DIR")]
+    pub dataset_dir: PathBuf,
+    #[arg(long = "polyglot_repo", value_name = "URL")]
+    pub polyglot_repo: String,
     #[arg(long, value_name = "X")]
     pub alpha: f64,
     #[arg(long, value_name = "X")]
@@ -80,7 +93,27 @@ pub struct Services {
     pub api_key: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct Tools {
+    pub docker: Docker,
+    pub swebench: Swebench,
+    pub hub: Hub,
+}
+
 impl Cli {
+    pub fn tools(&self, root_dir: &Path) -> Tools {
+        Tools {
+            docker: Docker::new(&self.docker),
+            swebench: Swebench {
+                python: self.swebench_python.clone(),
+            },
+            hub: Hub {
+                endpoint: self.dataset_endpoint.clone(),
+                cache_dir: root_dir.join(&self.dataset_dir),
+            },
+        }
+    }
+
     pub fn services(&self, root_dir: &Path) -> Result<Services, String> {
         let api_key_file = root_dir.join(&self.api_key_file);
         let api_key = read_api_key(&api_key_file)?;

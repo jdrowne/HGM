@@ -8,7 +8,7 @@ use crate::improve::{IMAGE, image, mode_patch};
 
 fn builder(root: &Path, image_name: &str) -> Builder {
     Builder {
-        docker: Docker::default(),
+        docker: Docker::new("docker"),
         context: root.join("context"),
         image_name: image_name.to_owned(),
         rebuild: false,

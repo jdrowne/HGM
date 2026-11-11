@@ -11,7 +11,7 @@ use hgm::node::{Bench, Eval};
 use hgm_agent::llm::{Provider, Service};
 use serde_json::{Value, json};
 
-pub const SETTINGS: [(&str, &str); 25] = [
+pub const SETTINGS: [(&str, &str); 30] = [
     ("--self_improve_llm", "si"),
     ("--self_improve_provider", "openai"),
     ("--self_improve_base_url", "http://si/v1"),
@@ -22,6 +22,11 @@ pub const SETTINGS: [(&str, &str); 25] = [
     ("--diagnose_provider", "openrouter"),
     ("--diagnose_base_url", "http://dg/v1"),
     ("--api_key_file", "key"),
+    ("--docker", "hgm-no-such-docker-program"),
+    ("--swebench_python", "hgm-no-such-python"),
+    ("--dataset_endpoint", "http://127.0.0.1:9"),
+    ("--dataset_dir", "cache"),
+    ("--polyglot_repo", "no-such-repo"),
     ("--alpha", "0.6"),
     ("--beta", "1.0"),
     ("--cool_down", "false"),

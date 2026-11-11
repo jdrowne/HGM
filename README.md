@@ -27,6 +27,9 @@ target/release/hgm \
   --downstream_llm gpt-5-mini --downstream_provider openai --downstream_base_url https://api.openai.com/v1 \
   --diagnose_llm gpt-5-mini --diagnose_provider openai --diagnose_base_url https://api.openai.com/v1 \
   --api_key_file ~/.config/hgm/api_key \
+  --docker docker --swebench_python python3 \
+  --dataset_endpoint https://huggingface.co --dataset_dir ~/.cache/hgm/datasets \
+  --polyglot_repo https://github.com/Aider-AI/polyglot-benchmark.git \
   --alpha 0.6 --beta 1.0 --cool_down false --eval_random_level 1.0 \
   --n_pseudo_descendant_evals 10000 --expansion_statistic clade --epsilon 0.01 \
   --max_workers 20 --max_task_evals 100 --self_improve_timeout 3600 --evaluation_timeout 3600 \
@@ -39,10 +42,11 @@ target/release/hgm \
 
 ### Before a run
 
-- **Docker.** Every build, self-edit and task runs in a container. `HGM_DOCKER` names a different Docker-compatible program.
+- **Docker.** Every build, self-edit and task runs in a container. `--docker` names the program, `docker` or any compatible one.
 - **A model API key in a file.** `--api_key_file` names a file that holds only the key. `hgm` checks it can read the file before any work starts, and mounts it read-only into each container that runs the agent. Keep it outside the repository, so it never ends up in an agent's source or image.
-- **Python 3 with the `swebench` package** for SWE-bench grading. `HGM_SWEBENCH_PYTHON` picks the interpreter.
-- **git**, for fetching the Polyglot benchmark and writing the best agent's source.
+- **Python 3 with the `swebench` package** for SWE-bench grading. `--swebench_python` names the interpreter.
+- **git**, for fetching the Polyglot benchmark from `--polyglot_repo` and writing the best agent's source.
+- **A dataset source and cache.** SWE-bench tasks come from the Hugging Face server at `--dataset_endpoint`, `https://huggingface.co` or a mirror, and are kept under `--dataset_dir`.
 
 ### Flags
 
@@ -60,6 +64,11 @@ Every setting is a required flag with no default, so the command line alone says
 | `--diagnose_provider <openai\|openrouter\|vllm>` | Service that serves `--diagnose_llm` |
 | `--diagnose_base_url <url>` | Address of that service, as `hgm` reaches it |
 | `--api_key_file <file>` | File holding the key sent to every service |
+| `--docker <program>` | Docker-compatible program that runs every container |
+| `--swebench_python <program>` | Python interpreter with `swebench` that grades SWE-bench tasks |
+| `--dataset_endpoint <url>` | Hugging Face server, or mirror, that SWE-bench tasks come from |
+| `--dataset_dir <dir>` | Where downloaded datasets are kept |
+| `--polyglot_repo <url>` | Clone URL for the Polyglot benchmark |
 | `--alpha <x>` | How bushy the tree grows: more children per evaluation as it rises |
 | `--beta <x>` | How fast `--cool_down` sharpens; ignored without it |
 | `--cool_down <true\|false>` | Sharpens every draw as the budget runs out |
@@ -87,16 +96,6 @@ These flags ask for an extra step, so they are given only when that step is want
 The first run with a given agent name copies the seed into `initial_swe/<name>/` or `initial_polyglot/<name>/` and measures it on every task in the pool. Later runs reuse that folder and its results, so delete it to measure a changed seed again.
 
 The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout` limit and `--max_workers`, and writes its results to `holdout/best_agent/` in the `--output_dir` folder.
-
-### Environment variables
-
-| Variable | What it sets |
-| --- | --- |
-| `HGM_SWEBENCH_PYTHON` | Python interpreter that runs `swebench` grading, `python3` by default |
-| `HGM_HF_ENDPOINT` | Hugging Face mirror for datasets, `https://huggingface.co` by default |
-| `HGM_DATA_DIR` | Dataset cache, `~/.cache/hgm/datasets` by default |
-| `HGM_DOCKER` | Container program, `docker` by default |
-| `HGM_POLYGLOT_REPO` | Clone URL for the Polyglot benchmark |
 
 ### The agent binary
 

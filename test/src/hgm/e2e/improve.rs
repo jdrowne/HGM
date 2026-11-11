@@ -214,6 +214,7 @@ fn run_args(host: &str, key: &str) -> Vec<String> {
     let agent_url = format!("http://{host}:8000/v1");
     flags(&[
         ("--api_key_file", key),
+        ("--docker", "docker"),
         ("--polyglot", "true"),
         ("--max_task_evals", "1"),
         ("--max_workers", "1"),
