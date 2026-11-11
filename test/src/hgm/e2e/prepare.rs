@@ -4,7 +4,7 @@ use std::process::{Command, Output};
 
 use serde_json::{Value, json};
 
-use super::binary;
+use super::{binary, flags};
 
 const BENCH: &str = "polyglot/polyglot-benchmark";
 const COMMITS: &str = "polyglot_benchmark_commits.json";
@@ -51,15 +51,11 @@ fn prepare(root: &Path, repo: &str) -> Output {
 
 fn prepare_with(root: &Path, repo: Option<&str>, path: Option<&Path>) -> Output {
     fs::create_dir_all(root).unwrap();
-    fs::write(root.join("empty.yaml"), "").unwrap();
     let mut cmd = Command::new(binary("hgm"));
-    cmd.args([
-        "--polyglot",
-        "--config",
-        "empty.yaml",
-        "--continue_from",
-        "output_hgm/none",
-    ])
+    cmd.args(flags(&[
+        ("--polyglot", "true"),
+        ("--continue_from", "output_hgm/none"),
+    ]))
     .current_dir(root)
     .env("HGM_DOCKER", "hgm-no-such-docker-program");
     if let Some(repo) = repo {

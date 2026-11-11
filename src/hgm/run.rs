@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use chrono::Local;
 use hgm_agent::llm::create_client;
 use hgm_bench::dataset::{Hub, SWE_BENCH_VERIFIED, instance_ids};
 use hgm_bench::polyglot::{self, DATASET};
@@ -14,7 +13,7 @@ use hgm_bench::polyglot_spec::NAMESPACE;
 use hgm_bench::swe;
 use hgm_bench::swebench::Swebench;
 use hgm_bench::tasks::{dedup, polyglot_run_tasks, shuffled, swe_run_tasks};
-use hgm_core::config::{HgmConfig, PathConfig};
+use hgm_core::config::HgmConfig;
 use hgm_core::log::Log;
 use hgm_core::metadata::{
     HGM_METADATA_FILE, INIT_EVALUATED_TASKS_FILE, load_init_evaluated_tasks,
@@ -57,14 +56,8 @@ pub fn initial_folder(polyglot: bool) -> &'static str {
     }
 }
 
-pub fn resolve_output_dir(paths: &PathConfig, cwd: &Path, now: &str) -> (PathBuf, String) {
-    let dir = match (&paths.output_dir, &paths.continue_from) {
-        (Some(dir), _) => cwd.join(dir),
-        (None, None) => cwd.join("output_hgm").join(now),
-        (None, Some(prev)) => cwd
-            .join("output_hgm")
-            .join(Path::new(prev).file_name().unwrap_or_default()),
-    };
+pub fn resolve_output_dir(output_dir: &str, cwd: &Path) -> (PathBuf, String) {
+    let dir = cwd.join(output_dir);
     let run_id = dir
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -222,9 +215,9 @@ pub fn settings(config: &HgmConfig, jitter: Duration) -> Settings {
 }
 
 pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> {
-    let config = HgmConfig::load(&args.config, &args.overrides());
+    let config = args.config();
     if config.paths.initial_agent_name.is_empty() {
-        return Err("Initial agent name must be provided either in config.yaml or via --initial_agent_name.".to_owned());
+        return Err("--initial_agent_name must not be empty".to_owned());
     }
     check_epsilon(args.epsilon)?;
     if config.evaluation.polyglot && args.holdout_split.is_some() {
@@ -235,11 +228,9 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
     if config.evaluation.polyglot {
         prepare_polyglot(root_dir)?;
     }
-    let now = Local::now().format("%Y%m%d%H%M%S_%6f").to_string();
-    let (output_dir, run_id) = resolve_output_dir(&config.paths, root_dir, &now);
+    let (output_dir, run_id) = resolve_output_dir(&config.paths.output_dir, root_dir);
     fs::create_dir_all(&output_dir).map_err(|e| at(&output_dir, e))?;
     println!("Working directory: {}", root_dir.display());
-    println!("Using config file: {}", args.config.display());
     println!("Output directory: {}", output_dir.display());
     println!("Output directory exists: {}", output_dir.exists());
     let outer = output_dir.join("hgm_outer.log");
@@ -325,17 +316,17 @@ pub fn finish(args: &Cli, config: &HgmConfig, output_dir: &Path) -> Result<(), S
         best.commit_id, best.successes, best.evals, best.quantile
     );
     println!("Best agent source: {}", agent_dir.display());
-    match &args.holdout_split {
-        None => Ok(()),
-        Some(split) => holdout(&Holdout {
+    match (&args.holdout_split, args.holdout_tasks) {
+        (Some(split), Some(n_tasks)) => holdout(&Holdout {
             agent_dir: &agent_dir,
             results_dir: &output_dir.join(HOLDOUT_DIR),
             split,
-            n_tasks: args.holdout_tasks,
+            n_tasks,
             llm: &config.llm.downstream_llm,
             timeout: config.execution.evaluation_timeout,
             max_workers: config.execution.max_workers,
         }),
+        _ => Ok(()),
     }
 }
 
@@ -343,7 +334,7 @@ pub struct Holdout<'a> {
     pub agent_dir: &'a Path,
     pub results_dir: &'a Path,
     pub split: &'a str,
-    pub n_tasks: Option<usize>,
+    pub n_tasks: usize,
     pub llm: &'a str,
     pub timeout: u64,
     pub max_workers: usize,
@@ -356,9 +347,7 @@ pub fn holdout(h: &Holdout) -> Result<(), String> {
         .load(&dataset, "test")
         .map(|rows| instance_ids(&rows))
         .map_err(|e| e.to_string())?;
-    if let Some(n) = h.n_tasks {
-        ids.truncate(n);
-    }
+    ids.truncate(h.n_tasks);
     let agent_name = h
         .agent_dir
         .file_name()

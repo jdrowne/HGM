@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use hgm_sandbox::source::copy_filtered;
 use serde_json::{Value, json};
 
-use super::binary;
+use super::{binary, flags};
 
 const TASK: &str = "javascript__queen-attack";
 const IMPROVE_COMMAND: &str =
@@ -212,25 +212,17 @@ fn records(path: &Path) -> Vec<Value> {
 
 fn run_args(host: &str) -> Vec<String> {
     let llm = format!("vllm-model-{host}");
-    [
-        "--polyglot",
-        "--max_task_evals",
-        "1",
-        "--max_workers",
-        "1",
-        "--eval_random_level",
-        "0",
-        "--self_improve_llm",
-        &llm,
-        "--downstream_llm",
-        &llm,
-        "--diagnose_llm",
-        "vllm-model-127.0.0.1",
-        "--output_dir",
-        "output_hgm/run",
-    ]
-    .map(str::to_owned)
-    .to_vec()
+    flags(&[
+        ("--polyglot", "true"),
+        ("--max_task_evals", "1"),
+        ("--max_workers", "1"),
+        ("--eval_random_level", "0"),
+        ("--self_improve_llm", &llm),
+        ("--downstream_llm", &llm),
+        ("--diagnose_llm", "vllm-model-127.0.0.1"),
+        ("--initial_agent_name", "default_agent"),
+        ("--output_dir", "output_hgm/run"),
+    ])
 }
 
 fn once(name: &str, build: impl FnOnce(&Path)) -> PathBuf {

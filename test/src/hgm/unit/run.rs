@@ -8,57 +8,31 @@ use hgm::run::{
     Init, bench_for, finish, improve_dataset, initial_folder, initialize_run, resolve_output_dir,
     run, run_tasks, settings,
 };
+use hgm::search::Settings;
 use hgm_bench::dataset::Hub;
 use hgm_bench::tasks::{polyglot_run_tasks, swe_run_tasks};
-use hgm_core::config::{HgmConfig, PathConfig};
+use hgm_core::config::{ExpansionStatistic, HgmConfig};
 use hgm_core::log::Log;
 use hgm_sandbox::Docker;
 use serde_json::json;
 
-use crate::common::{FakeBench, FakeBuild, node, performance, read_json};
+use crate::common::{FakeBench, FakeBuild, cli, node, performance, read_json};
 
-fn paths(output_dir: Option<&str>, continue_from: Option<&str>) -> PathConfig {
-    PathConfig {
-        output_dir: output_dir.map(str::to_owned),
-        continue_from: continue_from.map(str::to_owned),
-        initial_agent_name: "a".into(),
-    }
-}
-
-fn resolved(output_dir: Option<&str>, continue_from: Option<&str>) -> (PathBuf, String) {
-    resolve_output_dir(&paths(output_dir, continue_from), Path::new("/w"), "now")
+fn resolved(output_dir: &str) -> (PathBuf, String) {
+    resolve_output_dir(output_dir, Path::new("/w"))
 }
 
 #[test]
 fn an_output_directory_names_the_run() {
     assert_eq!(
-        resolved(Some("runs/x/"), Some("p")),
+        resolved("runs/x/"),
         (PathBuf::from("/w/runs/x/"), "x".to_owned())
     );
 }
 
 #[test]
-fn a_new_run_is_named_for_the_time() {
-    assert_eq!(
-        resolved(None, None),
-        (PathBuf::from("/w/output_hgm/now"), "now".to_owned())
-    );
-}
-
-#[test]
-fn a_continued_run_keeps_its_name() {
-    assert_eq!(
-        resolved(None, Some("old/run7")),
-        (PathBuf::from("/w/output_hgm/run7"), "run7".to_owned())
-    );
-}
-
-#[test]
 fn the_root_as_output_directory_has_no_name() {
-    assert_eq!(
-        resolved(Some("/"), None),
-        (PathBuf::from("/"), String::new())
-    );
+    assert_eq!(resolved("/"), (PathBuf::from("/"), String::new()));
 }
 
 #[test]
@@ -71,48 +45,33 @@ fn swe_runs_start_from_the_swe_folder() {
     assert_eq!(initial_folder(false), "initial_swe");
 }
 
-fn default_settings() -> hgm::search::Settings {
-    settings(&HgmConfig::default(), Duration::from_millis(3))
-}
-
 #[test]
-fn the_default_budget_is_800_evaluations() {
-    assert_eq!(default_settings().max_task_evals, 800);
-}
-
-#[test]
-fn the_default_worker_count_is_16() {
-    assert_eq!(default_settings().max_workers, 16);
-}
-
-#[test]
-fn the_default_alpha_is_0_6() {
-    assert_eq!(default_settings().alpha, 0.6);
-}
-
-#[test]
-fn the_default_beta_is_1() {
-    assert_eq!(default_settings().beta, 1.0);
-}
-
-#[test]
-fn cool_down_is_off_by_default() {
-    assert!(!default_settings().cool_down);
-}
-
-#[test]
-fn the_default_pseudo_descendant_count_is_10000() {
-    assert_eq!(default_settings().n_pseudo_descendant_evals, 10000);
-}
-
-#[test]
-fn the_default_eval_random_level_is_1() {
-    assert_eq!(default_settings().eval_random_level, 1.0);
-}
-
-#[test]
-fn the_jitter_is_passed_through() {
-    assert_eq!(default_settings().jitter, Duration::from_millis(3));
+fn the_search_settings_come_from_the_flags() {
+    let config = cli(&[
+        ("--max_task_evals", "7"),
+        ("--max_workers", "3"),
+        ("--alpha", "0.5"),
+        ("--beta", "2"),
+        ("--cool_down", "true"),
+        ("--n_pseudo_descendant_evals", "13"),
+        ("--expansion_statistic", "own"),
+        ("--eval_random_level", "0.25"),
+    ])
+    .config();
+    assert_eq!(
+        settings(&config, Duration::from_millis(3)),
+        Settings {
+            max_task_evals: 7,
+            max_workers: 3,
+            alpha: 0.5,
+            beta: 2.0,
+            cool_down: true,
+            n_pseudo_descendant_evals: 13,
+            expansion_statistic: ExpansionStatistic::Own,
+            eval_random_level: 0.25,
+            jitter: Duration::from_millis(3),
+        }
+    );
 }
 
 fn offline(root: &Path) -> Hub {
@@ -123,9 +82,7 @@ fn offline(root: &Path) -> Hub {
 }
 
 fn full_eval() -> HgmConfig {
-    let mut config = HgmConfig::default();
-    config.evaluation.full_eval = true;
-    config
+    cli(&[("--full_eval", "true")]).config()
 }
 
 fn verified_cache(root: &Path) {
@@ -141,7 +98,7 @@ fn verified_cache(root: &Path) {
 fn swe_runs_use_the_swe_task_order() {
     let tmp = tempfile::tempdir().unwrap();
     assert_eq!(
-        run_tasks(&HgmConfig::default(), &offline(tmp.path())).unwrap(),
+        run_tasks(&cli(&[]).config(), &offline(tmp.path())).unwrap(),
         swe_run_tasks()
     );
 }
@@ -227,7 +184,7 @@ fn a_junk_polyglot_dataset_is_an_error() {
 
 fn bench_error(polyglot: bool) -> String {
     let tmp = tempfile::tempdir().unwrap();
-    let mut config = HgmConfig::default();
+    let mut config = cli(&[]).config();
     config.evaluation.polyglot = polyglot;
     let out = tmp.path().join("out");
     fs::create_dir_all(out.join("c")).unwrap();
@@ -648,12 +605,8 @@ fn a_continued_run_needs_each_node_folder() {
     );
 }
 
-fn run_args(root: &Path, extra: impl FnOnce(&mut Cli)) -> Cli {
-    let mut args = Cli {
-        config: root.join("none.yaml"),
-        initial_agent_name: "agent".into(),
-        ..Cli::default()
-    };
+fn run_args(extra: impl FnOnce(&mut Cli)) -> Cli {
+    let mut args = cli(&[]);
     extra(&mut args);
     args
 }
@@ -662,14 +615,14 @@ fn run_error(prepare: impl FnOnce(&Path), extra: impl FnOnce(&mut Cli)) -> Strin
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     prepare(root);
-    run(&run_args(root, extra), root, Duration::ZERO).unwrap_err()
+    run(&run_args(extra), root, Duration::ZERO).unwrap_err()
 }
 
 #[test]
 fn a_run_without_an_agent_name_stops_early() {
     assert!(
         run_error(|_| {}, |a| a.initial_agent_name = String::new())
-            .starts_with("Initial agent name must be provided")
+            .starts_with("--initial_agent_name must not be empty")
     );
 }
 
@@ -678,7 +631,7 @@ fn a_run_with_an_output_directory_under_a_file_stops_early() {
     assert!(
         !run_error(
             |root| fs::write(root.join("file"), "").unwrap(),
-            |a| a.output_dir = Some("file/out".into())
+            |a| a.output_dir = "file/out".into()
         )
         .is_empty()
     );
@@ -689,7 +642,7 @@ fn a_run_that_cannot_open_its_log_says_so() {
     assert!(
         run_error(
             |root| fs::create_dir_all(root.join("out/hgm_outer.log")).unwrap(),
-            |a| a.output_dir = Some("out".into())
+            |a| a.output_dir = "out".into()
         )
         .contains("hgm_outer.log")
     );
@@ -703,6 +656,7 @@ fn a_run_with_a_bad_epsilon_stops_before_any_work() {
 fn polyglot_holdout(a: &mut Cli) {
     a.polyglot = true;
     a.holdout_split = Some("Lite".into());
+    a.holdout_tasks = Some(1);
 }
 
 #[test]
@@ -713,14 +667,14 @@ fn a_polyglot_run_with_a_holdout_stops_before_any_work() {
 fn refused_root() -> tempfile::TempDir {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    run(&run_args(root, |a| a.epsilon = 1.0), root, Duration::ZERO).unwrap_err();
-    run(&run_args(root, polyglot_holdout), root, Duration::ZERO).unwrap_err();
+    run(&run_args(|a| a.epsilon = 1.0), root, Duration::ZERO).unwrap_err();
+    run(&run_args(polyglot_holdout), root, Duration::ZERO).unwrap_err();
     tmp
 }
 
 #[test]
 fn a_refused_run_makes_no_output_folder() {
-    assert!(!refused_root().path().join("output_hgm").exists());
+    assert!(!refused_root().path().join("out").exists());
 }
 
 #[test]
@@ -751,8 +705,8 @@ fn finished_run() -> (tempfile::TempDir, PathBuf) {
 
 #[test]
 fn finish_writes_the_best_agent_source_into_the_run() {
-    let (tmp, out) = finished_run();
-    finish(&run_args(tmp.path(), |_| {}), &HgmConfig::default(), &out).unwrap();
+    let (_tmp, out) = finished_run();
+    finish(&cli(&[]), &cli(&[]).config(), &out).unwrap();
     assert_eq!(
         fs::read_to_string(out.join("best_agent/lib.rs")).unwrap(),
         "seed\nchild\n"
@@ -761,10 +715,10 @@ fn finish_writes_the_best_agent_source_into_the_run() {
 
 #[test]
 fn finish_needs_the_run_records() {
-    let (tmp, out) = finished_run();
+    let (_tmp, out) = finished_run();
     fs::remove_file(out.join("hgm_metadata.jsonl")).unwrap();
     assert!(
-        finish(&run_args(tmp.path(), |_| {}), &HgmConfig::default(), &out)
+        finish(&cli(&[]), &cli(&[]).config(), &out)
             .unwrap_err()
             .contains("hgm_metadata.jsonl")
     );

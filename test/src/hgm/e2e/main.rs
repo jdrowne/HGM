@@ -13,6 +13,41 @@ fn binary(name: &str) -> PathBuf {
         })
 }
 
+const SETTINGS: [(&str, &str); 18] = [
+    ("--self_improve_llm", "m"),
+    ("--downstream_llm", "m"),
+    ("--diagnose_llm", "m"),
+    ("--alpha", "0.6"),
+    ("--beta", "1.0"),
+    ("--cool_down", "false"),
+    ("--eval_random_level", "1.0"),
+    ("--n_pseudo_descendant_evals", "10000"),
+    ("--expansion_statistic", "clade"),
+    ("--epsilon", "0.01"),
+    ("--max_workers", "1"),
+    ("--max_task_evals", "800"),
+    ("--self_improve_timeout", "3600"),
+    ("--evaluation_timeout", "3600"),
+    ("--full_eval", "false"),
+    ("--polyglot", "false"),
+    ("--output_dir", "out"),
+    ("--initial_agent_name", "agent"),
+];
+
+fn flags(changes: &[(&str, &str)]) -> Vec<String> {
+    let set = SETTINGS.iter().map(|(flag, value)| {
+        let changed = changes.iter().find(|(f, _)| f == flag);
+        (*flag, changed.map_or(*value, |(_, v)| *v))
+    });
+    let extra = changes
+        .iter()
+        .filter(|(flag, _)| SETTINGS.iter().all(|(f, _)| f != flag))
+        .copied();
+    set.chain(extra)
+        .flat_map(|(flag, value)| [flag.to_owned(), value.to_owned()])
+        .collect()
+}
+
 struct Ran {
     tmp: tempfile::TempDir,
     code: Option<i32>,
@@ -73,14 +108,30 @@ fn hgm_with_an_unknown_flag_names_it() {
     );
 }
 
+fn stray() -> Ran {
+    let mut args = flags(&[]);
+    args.push("run".to_owned());
+    hgm_with(&args.iter().map(String::as_str).collect::<Vec<_>>())
+}
+
 #[test]
 fn hgm_with_a_stray_argument_exits_with_usage_status() {
-    assert_eq!(hgm_with(&["run"]).code, Some(2));
+    assert_eq!(stray().code, Some(2));
 }
 
 #[test]
 fn hgm_with_a_stray_argument_names_it() {
-    assert!(hgm_with(&["run"]).stderr.contains("run"));
+    assert!(stray().stderr.contains("'run'"));
+}
+
+#[test]
+fn hgm_without_its_flags_exits_with_usage_status() {
+    assert_eq!(hgm_with(&[]).code, Some(2));
+}
+
+#[test]
+fn hgm_without_its_flags_names_them() {
+    assert!(hgm_with(&[]).stderr.contains("--initial_agent_name <NAME>"));
 }
 
 fn hgm_in(dir: &std::path::Path) -> Command {
@@ -137,15 +188,10 @@ fn finished_run(root: &std::path::Path) {
     .unwrap();
 }
 
-const FINISHED: [&str; 8] = [
-    "--initial_agent_name",
-    "agent",
-    "--continue_from",
-    "output_hgm/prev",
-    "--max_task_evals",
-    "2",
-    "--max_workers",
-    "1",
+const FINISHED: [(&str, &str); 3] = [
+    ("--continue_from", "output_hgm/prev"),
+    ("--output_dir", "output_hgm/prev"),
+    ("--max_task_evals", "2"),
 ];
 
 fn in_root(prepare: impl FnOnce(&std::path::Path), cmd: impl FnOnce(&mut Command)) -> Ran {
@@ -159,7 +205,7 @@ fn in_root(prepare: impl FnOnce(&std::path::Path), cmd: impl FnOnce(&mut Command
 
 fn continued_finished() -> Ran {
     in_root(finished_run, |c| {
-        c.args(FINISHED);
+        c.args(flags(&FINISHED));
     })
 }
 
@@ -235,7 +281,7 @@ fn unnamed() -> Ran {
     in_root(
         |_| {},
         |c| {
-            c.args(["--initial_agent_name", ""]);
+            c.args(flags(&[("--initial_agent_name", "")]));
         },
     )
 }
@@ -250,7 +296,7 @@ fn a_run_without_an_agent_name_says_so() {
     assert!(
         unnamed()
             .stderr
-            .contains("\nhgm: Initial agent name must be provided")
+            .contains("hgm: --initial_agent_name must not be empty")
     );
 }
 
@@ -289,12 +335,9 @@ fn held_out() -> Ran {
         },
         |c| {
             let python = swe_cache(&PathBuf::from(c.get_current_dir().unwrap()));
-            c.env("HGM_SWEBENCH_PYTHON", python).args(FINISHED).args([
-                "--holdout_split",
-                "Lite",
-                "--holdout_tasks",
-                "2",
-            ]);
+            c.env("HGM_SWEBENCH_PYTHON", python)
+                .args(flags(&FINISHED))
+                .args(["--holdout_split", "Lite", "--holdout_tasks", "2"]);
         },
     )
 }
@@ -332,7 +375,8 @@ fn a_holdout_score_records_the_dataset_names() {
 
 fn holdout_without_dataset() -> Ran {
     in_root(finished_run, |c| {
-        c.args(FINISHED).args(["--holdout_split", "Lite"]);
+        c.args(flags(&FINISHED))
+            .args(["--holdout_split", "Lite", "--holdout_tasks", "1"]);
     })
 }
 
@@ -343,7 +387,8 @@ fn a_holdout_split_needs_its_dataset() {
 
 #[test]
 fn a_missing_holdout_dataset_is_reported() {
-    assert!(holdout_without_dataset().stderr.contains("\nhgm: "));
+    let ran = holdout_without_dataset();
+    assert!(ran.stderr.starts_with("hgm: "), "{}", ran.stderr);
 }
 
 #[test]
@@ -383,16 +428,11 @@ fn overspent() -> Ran {
     in_root(
         |root| continued(root, &["c1", "c2", "c3"], 1),
         |c| {
-            c.args([
-                "--initial_agent_name",
-                "agent",
-                "--continue_from",
-                "output_hgm/prev",
-                "--max_task_evals",
-                "7",
-                "--max_workers",
-                "1",
-            ]);
+            c.args(flags(&[
+                ("--continue_from", "output_hgm/prev"),
+                ("--output_dir", "output_hgm/prev"),
+                ("--max_task_evals", "7"),
+            ]));
         },
     )
 }
@@ -415,7 +455,7 @@ fn full_eval() -> Ran {
     in_root(
         |_| {},
         |c| {
-            c.args(["--full_eval", "--output_dir", "full"]);
+            c.args(flags(&[("--full_eval", "true"), ("--output_dir", "full")]));
         },
     )
 }
@@ -434,7 +474,7 @@ fn missing_records() -> Ran {
     in_root(
         |_| {},
         |c| {
-            c.args(["--continue_from", "output_hgm/none"]);
+            c.args(flags(&[("--continue_from", "output_hgm/none")]));
         },
     )
 }
@@ -459,10 +499,11 @@ fn homeless() -> Ran {
     std::fs::create_dir(&gone).unwrap();
     let out = Command::new("/bin/sh")
         .arg("-c")
-        .arg("cd \"$1\" && rmdir \"$1\" && exec \"$2\"")
+        .arg("cd \"$1\" && rmdir \"$1\" && shift && exec \"$@\"")
         .arg("sh")
         .arg(&gone)
         .arg(binary("hgm"))
+        .args(flags(&[]))
         .output()
         .unwrap();
     ran(tmp, out)

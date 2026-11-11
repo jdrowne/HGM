@@ -4,9 +4,56 @@ use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use clap::Parser;
 use hgm::agent_build::Build;
+use hgm::cli::Cli;
 use hgm::node::{Bench, Eval};
 use serde_json::{Value, json};
+
+pub const SETTINGS: [(&str, &str); 18] = [
+    ("--self_improve_llm", "si"),
+    ("--downstream_llm", "ds"),
+    ("--diagnose_llm", "dg"),
+    ("--alpha", "0.6"),
+    ("--beta", "1.0"),
+    ("--cool_down", "false"),
+    ("--eval_random_level", "1.0"),
+    ("--n_pseudo_descendant_evals", "10000"),
+    ("--expansion_statistic", "clade"),
+    ("--epsilon", "0.01"),
+    ("--max_workers", "16"),
+    ("--max_task_evals", "800"),
+    ("--self_improve_timeout", "3600"),
+    ("--evaluation_timeout", "3600"),
+    ("--full_eval", "false"),
+    ("--polyglot", "false"),
+    ("--output_dir", "out"),
+    ("--initial_agent_name", "agent"),
+];
+
+pub fn argv(changes: &[(&str, &str)], without: &[&str]) -> Vec<String> {
+    let mut argv = vec!["hgm".to_owned()];
+    let set = SETTINGS
+        .iter()
+        .filter(|(flag, _)| !without.contains(flag))
+        .map(|(flag, value)| {
+            let changed = changes.iter().find(|(f, _)| f == flag);
+            (*flag, changed.map_or(*value, |(_, v)| *v))
+        });
+    let extra = changes
+        .iter()
+        .filter(|(flag, _)| SETTINGS.iter().all(|(f, _)| f != flag))
+        .copied();
+    for (flag, value) in set.chain(extra) {
+        argv.push(flag.to_owned());
+        argv.push(value.to_owned());
+    }
+    argv
+}
+
+pub fn cli(changes: &[(&str, &str)]) -> Cli {
+    Cli::try_parse_from(argv(changes, &[])).unwrap()
+}
 
 pub fn write_json(path: &Path, value: &Value) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();

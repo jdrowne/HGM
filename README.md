@@ -6,7 +6,7 @@ HGM is based on the paper [*Huxley-Gödel Machine: Human-Level Coding Agent Deve
 
 ## Commands
 
-RustyHGM is one command, `hgm`, with no sub-commands. You run it and get back a better agent. Build it, then run it from the repository root, since it looks for `config.yaml`, `Dockerfile`, `polyglot/` and `output_hgm/` relative to the working directory.
+RustyHGM is one command, `hgm`, with no sub-commands. You run it and get back a better agent. Build it, then run it from the repository root, since it looks for `Dockerfile` and `polyglot/` relative to the working directory.
 
 ```sh
 cargo build --release -p hgm
@@ -18,14 +18,21 @@ One run does the whole job:
 1. **Fetches task data** it doesn't have yet. For `--polyglot` runs, that means cloning the [Aider Polyglot benchmark](https://github.com/Aider-AI/polyglot-benchmark) into `polyglot/polyglot-benchmark` and writing its task list to `polyglot/polyglot_benchmark_metadata.json`.
 2. **Improves the agent** until the task budget is spent. On the first run with a given agent name, it also copies the seed agent and measures it on every task in the pool.
 3. **Picks the best version**: the one with the highest success rate it can trust, given how many tasks it was tried on.
-4. **Writes that version's source** to `output_hgm/<run>/best_agent/` and prints where it went. This folder is the improved agent: the seed with every patch on its line applied.
+4. **Writes that version's source** to `best_agent/` in the `--output_dir` folder and prints where it went. This folder is the improved agent: the seed with every patch on its line applied.
 5. **Optionally scores it on held-out tasks** with `--holdout_split`. These are SWE-bench tasks it never practised on, so the score shows whether it really got better.
 
 ```sh
-target/release/hgm --max_task_evals 100 --holdout_split Lite --holdout_tasks 50
+target/release/hgm \
+  --self_improve_llm gpt-5-mini --downstream_llm gpt-5-mini --diagnose_llm gpt-5-mini \
+  --alpha 0.6 --beta 1.0 --cool_down false --eval_random_level 1.0 \
+  --n_pseudo_descendant_evals 10000 --expansion_statistic clade --epsilon 0.01 \
+  --max_workers 20 --max_task_evals 100 --self_improve_timeout 3600 --evaluation_timeout 3600 \
+  --full_eval false --polyglot false \
+  --output_dir runs/first --initial_agent_name default_agent \
+  --holdout_split Lite --holdout_tasks 50
 ```
 
-`hgm --help` lists the flags, and `hgm --version` prints the version. Flag names use underscores, as in `--max_task_evals 100`, and a value can also be joined with `=`, as in `--max_task_evals=100`. If a run stops early, `--continue_from output_hgm/<run>` resumes it.
+`hgm --help` lists the flags, and `hgm --version` prints the version. Flag names use underscores, as in `--max_task_evals 100`, and a value can also be joined with `=`, as in `--max_task_evals=100`. If a run stops early, `--continue_from runs/first --output_dir runs/first` resumes it in the same folder.
 
 ### Before a run
 
@@ -36,36 +43,40 @@ target/release/hgm --max_task_evals 100 --holdout_split Lite --holdout_tasks 50
 
 ### Flags
 
-Settings are read from `config.yaml` first, and each flag with a config key replaces that key. The defaults shown are the ones in the repository's `config.yaml`.
+Every setting is a required flag with no default, so the command line alone says what a run will do. Leaving one out stops `hgm` with an error that names it. Yes/no settings take `true` or `false`, as in `--cool_down false`.
 
-| Flag | Config key | Default | What it sets |
-| --- | --- | --- | --- |
-| `--config <file>` | | `config.yaml` | The settings file to read |
-| `--max_task_evals <n>` | `execution.max_task_evals` | `800` | Total task evaluations in the run's budget |
-| `--max_workers <n>` | `execution.max_workers` | `20` | Ticks and task evaluations run at the same time |
-| `--self_improve_timeout <secs>` | `execution.self_improve_timeout` | `3600` | Time limit for one self-edit |
-| `--evaluation_timeout <secs>` | `execution.evaluation_timeout` | `3600` | Time limit for one task attempt |
-| `--self_improve_llm <model>` | `llm.self_improve_llm` | `gpt-5-mini` | Model the agent uses while it edits itself |
-| `--downstream_llm <model>` | `llm.downstream_llm` | `gpt-5-mini` | Model the agent uses while it solves tasks |
-| `--diagnose_llm <model>` | `llm.diagnose_llm` | `gpt-5-mini` | Model that turns a failure into a change request |
-| `--alpha <x>` | `optimization.alpha` | `0.6` | How bushy the tree grows: more children per evaluation as it rises |
-| `--cool_down`, `--no_cool_down` | `optimization.cool_down` | off | Sharpens every draw as the budget runs out |
-| `--beta <x>` | `optimization.beta` | `1.0` | How fast `cool_down` sharpens; ignored without it |
-| `--expansion_statistic <clade\|own>` | `optimization.expansion_statistic` | `clade` | Whether a parent is judged on its whole clade or on its own results |
-| `--n_pseudo_descendant_evals <n>` | `optimization.n_pseudo_descendant_evals` | `10000` | Caps how many of a version's own results count in its clade pool |
-| `--eval_random_level <p>` | `optimization.eval_random_level` | `1.0` | Odds of picking an untried task at random, rather than the next one in pool order |
-| `--polyglot`, `--no_polyglot` | `evaluation.polyglot` | off | Uses the Polyglot benchmark instead of SWE-bench |
-| `--full_eval` | `evaluation.full_eval` | off | Uses all 500 SWE-bench Verified tasks instead of the 60-task pool |
-| `--output_dir <dir>` | `paths.output_dir` | `output_hgm/<timestamp>` | Where the run record goes |
-| `--continue_from <dir>` | `paths.continue_from` | none | An earlier run to resume; the record continues in `output_hgm/<its folder name>` unless `--output_dir` is given |
-| `--initial_agent_name <name>` | `paths.initial_agent_name` | `default_agent` | Name of the seed agent's folder and Docker image |
-| `--epsilon <p>` | | `0.01` | How cautious the final pick is: each version is scored by this percentile of its Beta posterior |
-| `--holdout_split <name>` | | none | After the run, scores the best agent on `princeton-nlp/SWE-bench_<name>`, such as `Lite`; not allowed with `--polyglot` |
-| `--holdout_tasks <n>` | | all | Scores only the first `n` held-out tasks |
+| Flag | What it sets |
+| --- | --- |
+| `--self_improve_llm <model>` | Model the agent uses while it edits itself |
+| `--downstream_llm <model>` | Model the agent uses while it solves tasks |
+| `--diagnose_llm <model>` | Model that turns a failure into a change request |
+| `--alpha <x>` | How bushy the tree grows: more children per evaluation as it rises |
+| `--beta <x>` | How fast `--cool_down` sharpens; ignored without it |
+| `--cool_down <true\|false>` | Sharpens every draw as the budget runs out |
+| `--eval_random_level <p>` | Odds of picking an untried task at random, rather than the next one in pool order |
+| `--n_pseudo_descendant_evals <n>` | Caps how many of a version's own results count in its clade pool |
+| `--expansion_statistic <clade\|own>` | Whether a parent is judged on its whole clade or on its own results |
+| `--epsilon <p>` | How cautious the final pick is: each version is scored by this percentile of its Beta posterior |
+| `--max_workers <n>` | Ticks and task evaluations run at the same time |
+| `--max_task_evals <n>` | Total task evaluations in the run's budget |
+| `--self_improve_timeout <secs>` | Time limit for one self-edit |
+| `--evaluation_timeout <secs>` | Time limit for one task attempt |
+| `--full_eval <true\|false>` | Uses all 500 SWE-bench Verified tasks instead of the 60-task pool |
+| `--polyglot <true\|false>` | Uses the Polyglot benchmark instead of SWE-bench |
+| `--output_dir <dir>` | Where the run record goes |
+| `--initial_agent_name <name>` | Name of the seed agent's folder and Docker image |
+
+These flags ask for an extra step, so they are given only when that step is wanted.
+
+| Flag | What it does |
+| --- | --- |
+| `--continue_from <dir>` | Resumes an earlier run from its record |
+| `--holdout_split <name>` | After the run, scores the best agent on `princeton-nlp/SWE-bench_<name>`, such as `Lite`; needs `--holdout_tasks` and is not allowed with `--polyglot true` |
+| `--holdout_tasks <n>` | Scores the first `n` held-out tasks; needs `--holdout_split` |
 
 The first run with a given agent name copies the seed into `initial_swe/<name>/` or `initial_polyglot/<name>/` and measures it on every task in the pool. Later runs reuse that folder and its results, so delete it to measure a changed seed again.
 
-The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout` limit and `--max_workers`, and writes its results to `output_hgm/<run>/holdout/best_agent/`.
+The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout` limit and `--max_workers`, and writes its results to `holdout/best_agent/` in the `--output_dir` folder.
 
 ### Environment variables
 
