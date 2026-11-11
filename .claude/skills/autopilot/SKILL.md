@@ -1,6 +1,6 @@
 ---
 name: autopilot
-description: Work through the open issues of jdrowne/RustyHGM on a recurring reminder, skipping issues with a skip label. `start [issue]`, `restart [issue]`, `stop`; `--skip-label <label>` repeats, default `question`.
+description: Work through the open issues of jdrowne/RustyHGM on a recurring reminder, skipping issues with a skip label. `start [issue]`, `restart [issue]`, `stop`; `--skip-label <label>` repeats, default `needs decision`.
 argument-hint: start [issue] [--skip-label <label>]... | restart [issue] [--skip-label <label>]... | stop
 allowed-tools: Bash, CronCreate, CronDelete, CronList
 ---
