@@ -252,6 +252,16 @@ fn broken_containers_fail_the_child(out: &Path) {
         log.contains("Model patch file is empty or does not exist"),
         "{log}"
     );
+    let (base, _) = serve(vec![reply(DIAGNOSIS)]);
+    parent(
+        out,
+        "nochat",
+        performance(&[], &["python__x"], &[]),
+        Some(&mode_patch("nochat")),
+    );
+    let log = failing_run(&improver_with(out, true, base), out, "nochat");
+    assert!(log.contains("Error copying from container: "), "{log}");
+    assert!(log.contains("Error while sampling a child: "), "{log}");
 }
 
 fn improver_with(out: &Path, polyglot: bool, base: String) -> SelfImprove {
