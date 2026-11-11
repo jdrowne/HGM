@@ -1,22 +1,14 @@
-# This file is adapted from https://github.com/jennyzzt/dgm.
+FROM rust:latest
 
-# Use an official Python runtime as the base image
-FROM python:3.10-slim
+RUN apt-get update && apt-get install -y musl-tools patch && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install system-level dependencies, including git
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    git \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Set the working directory inside the container
 WORKDIR /hgm
 
-# Copy the entire repository into the container
 COPY . .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN printf 'target/\nCargo.lock\n' > .gitignore \
+    && rustup target add "$(uname -m)-unknown-linux-musl" \
+    && cargo build --release --target "$(uname -m)-unknown-linux-musl" -p hgm-agent \
+    && cargo test -p hgm-agent --no-run
 
-# Keep the container running by default
 CMD ["tail", "-f", "/dev/null"]

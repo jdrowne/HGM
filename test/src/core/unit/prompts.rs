@@ -307,14 +307,14 @@ fn unreadable_logs_are_errors() {
 fn unreadable_code_and_patches_are_errors() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    unreadable(&root.join("pkg/a.py"));
+    unreadable(&root.join("pkg/a.rs"));
     let none: [&str; 0] = [];
-    assert!(prompts::get_current_code(root, &["pkg"], &[], &none, false).is_err());
-    assert!(prompts::get_current_code(root, &["pkg/a.py"], &[], &none, false).is_err());
+    assert!(prompts::get_current_code(root, &["pkg"], &[], &none).is_err());
+    assert!(prompts::get_current_code(root, &["pkg/a.rs"], &[], &none).is_err());
     let missing = [root.join("missing.diff")];
-    assert!(prompts::get_current_code(root, &none, &missing, &none, false).is_err());
+    assert!(prompts::get_current_code(root, &none, &missing, &none).is_err());
     assert_eq!(
-        prompts::get_current_code(root, &none, &missing, &["missing.diff"], false).unwrap(),
+        prompts::get_current_code(root, &none, &missing, &["missing.diff"]).unwrap(),
         ""
     );
     let pred = root.join("out/c/predictions/run");

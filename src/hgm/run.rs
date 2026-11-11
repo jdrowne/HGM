@@ -27,12 +27,24 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use serde_json::Value;
 
+use crate::agent_build::Builder;
 use crate::cli::{EvaluateArgs, RunArgs};
 use crate::improve::SelfImprove;
 use crate::node::{Bench, Evaluator, at};
 use crate::search::{Search, Settings, State};
 
 pub const JITTER: Duration = Duration::from_secs(1);
+
+pub const EVALUATE_IMAGE: &str = "hgm-evaluate-agent:latest";
+
+fn builder(docker: &Docker, context: &Path, agent_name: &str) -> Builder {
+    Builder {
+        docker: docker.clone(),
+        context: context.to_path_buf(),
+        image_name: format!("{agent_name}:latest"),
+        rebuild: false,
+    }
+}
 
 pub fn initial_folder(polyglot: bool) -> &'static str {
     if polyglot {
@@ -101,7 +113,7 @@ pub fn initialize_run(
             bench,
             output_dir: &folder,
             max_workers: init.max_workers,
-            init_agent_path: &src_path,
+            builder: &builder(docker, &src_path, init.agent_name),
         }
         .eval_agent(init.agent_name, init.total_tasks)?;
     }
@@ -259,11 +271,16 @@ pub fn run(args: &RunArgs, root_dir: &Path, jitter: Duration) -> Result<(), Stri
         self_improve_llm: config.llm.self_improve_llm.clone(),
         timeout: config.execution.self_improve_timeout,
     };
+    let builder = builder(
+        &improver.docker,
+        &start.src_path,
+        &config.paths.initial_agent_name,
+    );
     let evaluator = Evaluator {
         bench: bench.as_ref(),
         output_dir: &output_dir,
         max_workers,
-        init_agent_path: &start.src_path,
+        builder: &builder,
     };
     let evaluate = |commit: &str, tasks: &[String]| evaluator.eval_agent(commit, tasks);
     let search = Search {
@@ -310,11 +327,17 @@ pub fn evaluate(args: &EvaluateArgs, root_dir: &Path) -> Result<(), String> {
         llm: args.llm.clone(),
         timeout: args.hours_per_task * 3600,
     };
+    let builder = Builder {
+        docker: bench.docker.clone(),
+        context: root_dir.join(&args.agent_path),
+        image_name: EVALUATE_IMAGE.to_owned(),
+        rebuild: true,
+    };
     Evaluator {
         bench: &bench,
         output_dir: &results_dir,
         max_workers: args.num_workers,
-        init_agent_path: &root_dir.join(&args.agent_path),
+        builder: &builder,
     }
     .eval_agent(&agent_name, &ids)
     .map(drop)

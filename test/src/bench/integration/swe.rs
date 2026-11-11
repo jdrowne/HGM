@@ -13,10 +13,6 @@ const IMAGE: &str = "hgm-bench-fake-swe:latest";
 
 const AGENT: &str = r#"#!/bin/sh
 mode=$(cat /mode 2>/dev/null)
-if [ "$1" = -m ]; then
-  [ "$mode" = pipfail ] && exit 1
-  exit 0
-fi
 while [ $# -gt 0 ]; do
   case "$1" in
     --instance_id) id=$2; shift ;;
@@ -30,9 +26,7 @@ case "$mode" in
 esac
 [ "$mode" = nochat ] || echo "chat $id" > "$chat"
 echo "more $id" > "/hgm/${id}_1.md"
-if [ "$mode" != nopatch ]; then
-  cat /hgm/applied.txt > /hgm/model_patch.diff 2>/dev/null || echo base > /hgm/model_patch.diff
-fi
+[ "$mode" = nopatch ] || echo base > /hgm/model_patch.diff
 echo "proposal $id" > /hgm/model_patch_1.diff
 "#;
 
@@ -48,10 +42,9 @@ fn image() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(
         dir.path().join("Dockerfile"),
-        "FROM busybox:latest\nCOPY bash /bin/bash\nCOPY python /usr/local/bin/python\nRUN chmod 755 /bin/bash /usr/local/bin/python\n",
+        "FROM busybox:latest\nCOPY bash /bin/bash\nRUN chmod 755 /bin/bash\n",
     )
     .unwrap();
-    fs::write(dir.path().join("python"), AGENT).unwrap();
     fs::write(dir.path().join("bash"), "#!/bin/sh\nexec /bin/sh \"$@\"\n").unwrap();
     let status = Command::new("docker")
         .args(["build", "-q", "-t", IMAGE])
@@ -83,33 +76,6 @@ fn swebench(dir: &Path, prepare: &str, specs: &str) -> Swebench {
     }
 }
 
-fn agent_dir(root: &Path) -> PathBuf {
-    let dir = root.join("agent");
-    for d in ["tools", "utils", "tests", "prompts"] {
-        fs::create_dir_all(dir.join(d)).unwrap();
-        fs::write(dir.join(d).join("x.py"), "").unwrap();
-    }
-    for f in [
-        "coding_agent.py",
-        "requirements.txt",
-        "pytest.ini",
-        "llm.py",
-        "llm_withtools.py",
-        "LICENSE.txt",
-    ] {
-        fs::write(dir.join(f), "").unwrap();
-    }
-    dir
-}
-
-fn patch(root: &Path, text: &str) -> PathBuf {
-    let path = root.join("parent.diff");
-    fs::write(&path, text).unwrap();
-    path
-}
-
-const CREATES_APPLIED: &str = "--- /dev/null\n+++ b/applied.txt\n@@ -0,0 +1 @@\n+applied\n";
-
 fn harness(root: &Path, swebench: Swebench) -> Harness {
     Harness {
         docker: Docker::default(),
@@ -130,11 +96,16 @@ fn refused() -> String {
     url
 }
 
-fn agent_run(root: &Path, patches: Vec<PathBuf>) -> Run {
+fn agent_run(root: &Path) -> Run {
+    let dir = root.join("agent");
+    fs::create_dir_all(&dir).unwrap();
     Run {
         model_name_or_path: "agent".into(),
-        model_patch_paths: patches,
-        init_agent_path: agent_dir(root),
+        agent: PathBuf::from(script(
+            &dir,
+            "hgm-agent",
+            AGENT.trim_start_matches("#!/bin/sh\n"),
+        )),
         max_workers: 4,
     }
 }
@@ -159,7 +130,7 @@ fn a_full_run_writes_predictions_and_copies_logs_back() {
     let root = tmp.path();
     cache_rows(root);
     let h = harness(root, swebench(root, "exit 0", &spec_line(IMAGE)));
-    let run = agent_run(root, vec![patch(root, CREATES_APPLIED)]);
+    let run = agent_run(root);
     let pred = root.join("pred");
     let tasks = ["astropy__astropy-12907", "django__django-11099", "absent"];
     let dirs = h.harness(&tasks, &run, &pred).unwrap();
@@ -167,7 +138,7 @@ fn a_full_run_writes_predictions_and_copies_logs_back() {
     for id in &tasks[..2] {
         let p = read(&dirs[0].join(format!("{id}.json")));
         assert_eq!(p["model_name_or_path"], "agent_1");
-        assert_eq!(p["model_patch"], "applied\n");
+        assert_eq!(p["model_patch"], "base\n");
         assert_eq!(
             p["proposed_model_patches"],
             json!([format!("proposal {id}\n")])
@@ -182,9 +153,7 @@ fn a_full_run_writes_predictions_and_copies_logs_back() {
         );
     }
     assert!(!dirs[0].join("sympy__sympy-20590.json").exists());
-    let again = h
-        .harness(&tasks[..1], &agent_run(root, vec![]), &pred)
-        .unwrap();
+    let again = h.harness(&tasks[..1], &agent_run(root), &pred).unwrap();
     assert_eq!(again, [pred.join("agent_2")]);
     assert_eq!(
         read(&again[0].join("astropy__astropy-12907.json"))["model_patch"],
@@ -236,18 +205,16 @@ fn each_failing_step_leaves_an_empty_prediction() {
         spec("nohgm", &mode("nohgm"), IMAGE),
         spec("nochat", &mode("nochat"), IMAGE),
         spec("nopatch", &mode("nopatch"), IMAGE),
-        spec("pipfail", &mode("pipfail"), IMAGE),
         spec("noimage", "true", "hgm-no-such-image:never"),
     ];
     let out = root.join("out");
-    let results = evaluate(&h, &specs, &out, &agent_run(root, vec![]));
+    let results = evaluate(&h, &specs, &out, &agent_run(root));
     assert_eq!(results.len(), specs.len());
     let expected = [
         "Script failed with exit code 3",
         "Script failed with exit code 1",
         "Script failed with exit code 1",
         "Source path /hgm/nochat.md in container not found",
-        "Script failed with exit code 1",
         "Script failed with exit code 1",
         "`docker run -d --name sweb.eval.noimage.",
     ];
@@ -261,26 +228,17 @@ fn each_failing_step_leaves_an_empty_prediction() {
 }
 
 #[test]
-fn missing_agent_files_and_bad_patches_fail_setup() {
+fn a_missing_agent_fails_setup() {
     image();
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     let h = harness(root, swebench(root, "exit 0", "exit 0"));
     let out = root.join("out");
     let empty = Run {
-        init_agent_path: root.join("empty"),
-        ..agent_run(root, vec![])
+        agent: root.join("empty"),
+        ..agent_run(root)
     };
     let results = evaluate(&h, &[spec("noagent", "true", IMAGE)], &out, &empty);
-    assert_failed_with_an_empty_patch(&results, &out);
-    let bad = agent_run(
-        root,
-        vec![patch(
-            root,
-            "--- a/missing.txt\n+++ b/missing.txt\n@@ -1 +1 @@\n-x\n+y\n",
-        )],
-    );
-    let results = evaluate(&h, &[spec("badpatch", "true", IMAGE)], &out, &bad);
     assert_failed_with_an_empty_patch(&results, &out);
 }
 
@@ -302,7 +260,7 @@ fn existing_predictions_are_skipped_and_unwritable_outputs_are_reported() {
         spec("unwritable", "true", IMAGE),
         spec("noeval", "true", IMAGE),
     ];
-    let results = evaluate(&h, &specs, &out, &agent_run(root, vec![]));
+    let results = evaluate(&h, &specs, &out, &agent_run(root));
     assert_eq!(results[0].error, None);
     assert_eq!(fs::read_to_string(out.join("done.json")).unwrap(), "{}");
     assert!(
@@ -326,12 +284,7 @@ fn a_docker_that_cannot_start_fails_every_entry() {
         ..harness(root, swebench(root, "exit 0", "exit 0"))
     };
     let out = root.join("out");
-    let results = evaluate(
-        &h,
-        &[spec("a", "true", IMAGE)],
-        &out,
-        &agent_run(root, vec![]),
-    );
+    let results = evaluate(&h, &[spec("a", "true", IMAGE)], &out, &agent_run(root));
     assert_failed_with_an_empty_patch(&results, &out);
 }
 
@@ -340,7 +293,7 @@ fn the_harness_stops_at_the_first_failing_stage() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     let tasks = ["astropy__astropy-12907"];
-    let r = agent_run(root, vec![]);
+    let r = agent_run(root);
     let ok = swebench(root, "exit 0", &spec_line(IMAGE));
     assert!(
         harness(root, ok.clone())

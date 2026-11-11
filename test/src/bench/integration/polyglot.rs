@@ -1,5 +1,5 @@
 use std::fs;
-use std::os::unix::fs::symlink;
+use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -21,28 +21,27 @@ esac
 exit 0
 "#;
 
-const PYTHON: &str = r#"#!/bin/sh
+const PYTHON: &str = "#!/bin/sh\nexit 0\n";
+
+const AGENT: &str = r#"#!/bin/sh
 mode=$(cat /testbed/mode 2>/dev/null)
-if [ "$1" = -m ]; then
-  [ "$mode" = pipfail ] && exit 1
-  exit 0
-fi
 while [ $# -gt 0 ]; do
   case "$1" in
     --chat_history_file) chat=$2; shift ;;
     --language) lang=$2; shift ;;
+    --polyglot) kind=polyglot ;;
   esac
   shift
 done
 id=$(basename "$chat" .md)
 [ "$mode" = fail ] && { echo agent failed; exit 1; }
-[ "$mode" = nochat ] || echo "chat $id $lang $(pwd)" > "$chat"
+[ "$mode" = nochat ] || echo "chat $id $kind $lang $(pwd)" > "$chat"
 echo "more $id" > "/hgm/${id}_1.md"
 [ "$mode" = space ] && echo x > "/hgm/${id}_ x.md"
 case "$mode" in
   nopatch) ;;
   empty) : > /hgm/model_patch.diff ;;
-  *) cat /hgm/applied.txt > /hgm/model_patch.diff 2>/dev/null || echo "patch $id" > /hgm/model_patch.diff ;;
+  *) echo "patch $id" > /hgm/model_patch.diff ;;
 esac
 exit 0
 "#;
@@ -86,7 +85,7 @@ fn base_image() {
     assert!(status.success());
 }
 
-const MODES: [&str; 10] = [
+const MODES: [&str; 8] = [
     "resolved",
     "unresolved",
     "empty",
@@ -94,9 +93,7 @@ const MODES: [&str; 10] = [
     "gitfail",
     "nochat",
     "fail",
-    "pipfail",
     "space",
-    "patched",
 ];
 
 fn entry(mode: &str) -> Value {
@@ -139,26 +136,14 @@ fn harness(root: &Path, dataset: PathBuf) -> Harness {
     }
 }
 
-fn agent(root: &Path, patches: Vec<PathBuf>) -> Run {
-    let dir = root.join("agent");
-    for d in ["tools", "utils", "tests", "prompts"] {
-        fs::create_dir_all(dir.join(d)).unwrap();
-        fs::write(dir.join(d).join("x.py"), "").unwrap();
-    }
-    for f in [
-        "coding_agent_polyglot.py",
-        "requirements.txt",
-        "pytest.ini",
-        "llm.py",
-        "llm_withtools.py",
-        "LICENSE.txt",
-    ] {
-        fs::write(dir.join(f), "").unwrap();
-    }
+fn agent(root: &Path) -> Run {
+    let path = root.join("agent/hgm-agent");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, AGENT).unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
     Run {
         model_name_or_path: "agent".into(),
-        model_patch_paths: patches,
-        init_agent_path: dir,
+        agent: path,
         max_workers: 10,
     }
 }
@@ -175,11 +160,9 @@ fn outcome(id: &str, success: bool, eval_result: &str) -> Outcome {
     }
 }
 
-const APPLIED: &str = "diff --git a/applied.txt b/applied.txt\n--- /dev/null\n+++ b/applied.txt\n@@ -0,0 +1 @@\n+applied\ndiff --git a/polyglot/x.txt b/polyglot/x.txt\n--- /dev/null\n+++ b/polyglot/x.txt\n@@ -0,0 +1 @@\n+dropped\n";
-
 fn check_report(report: &Value) {
-    assert_eq!(report["total_instances"], 10);
-    assert_eq!(report["submitted_instances"], 9);
+    assert_eq!(report["total_instances"], 8);
+    assert_eq!(report["submitted_instances"], 8);
     assert_eq!(report["resolved_ids"], json!(["python__resolved"]));
     assert_eq!(report["unresolved_ids"], json!(["python__unresolved"]));
     assert_eq!(report["empty_patch_ids"], json!(["python__empty"]));
@@ -191,7 +174,6 @@ fn check_report(report: &Value) {
             "python__gitfail",
             "python__nochat",
             "python__nopatch",
-            "python__pipfail",
             "python__space"
         ])
     );
@@ -217,7 +199,7 @@ fn check_outputs(out: &Path) {
     let text = |name: &str| fs::read_to_string(out.join(name)).unwrap();
     assert_eq!(
         text("python__resolved.md"),
-        "chat python__resolved python /testbed\n"
+        "chat python__resolved polyglot python /testbed\n"
     );
     assert_eq!(text("python__resolved_1.md"), "more python__resolved\n");
     assert!(text("python__resolved_eval.md").contains("1 passed"));
@@ -236,16 +218,10 @@ fn check_outputs(out: &Path) {
 }
 
 fn run_every_mode(h: &Harness, root: &Path, commit: &Path) {
-    let mut tasks: Vec<String> = MODES
-        .iter()
-        .filter(|m| **m != "patched")
-        .map(|m| format!("python__{m}"))
-        .collect();
+    let mut tasks: Vec<String> = MODES.iter().map(|m| format!("python__{m}")).collect();
     tasks.push("python__absent".to_owned());
     let pred = root.join("pred");
-    let report_file = h
-        .harness(&tasks, &agent(root, vec![]), &pred, commit)
-        .unwrap();
+    let report_file = h.harness(&tasks, &agent(root), &pred, commit).unwrap();
     assert!(report_file.starts_with(commit));
     let name = report_file
         .file_name()
@@ -257,31 +233,18 @@ fn run_every_mode(h: &Harness, root: &Path, commit: &Path) {
     check_report(&report);
     check_results(&pred.join("agent_0"));
     check_outputs(&pred.join("agent_0"));
-    let again = h
-        .harness(&tasks, &agent(root, vec![]), &pred, commit)
-        .unwrap();
+    let again = h.harness(&tasks, &agent(root), &pred, commit).unwrap();
     assert_eq!(read(&again)["resolved_ids"], json!(["python__resolved"]));
     assert_eq!(read(&again)["incomplete_ids"], report["incomplete_ids"]);
 }
 
-fn run_with_a_parent_patch(h: &Harness, root: &Path, commit: &Path) {
-    let patch = root.join("parent.diff");
-    fs::write(&patch, APPLIED).unwrap();
-    let pred = root.join("patched");
-    let report = h
-        .harness(
-            &["python__patched"],
-            &agent(root, vec![patch.clone()]),
-            &pred,
-            commit,
-        )
-        .unwrap();
-    assert_eq!(read(&report)["resolved_ids"], json!(["python__patched"]));
-    assert_eq!(
-        read(&pred.join("agent_0/python__patched.json"))["model_patch"],
-        "applied\n"
-    );
-    assert!(!fs::read_to_string(&patch).unwrap().contains("polyglot"));
+fn run_without_an_agent(h: &Harness, root: &Path) {
+    let run = Run {
+        agent: root.join("no-agent"),
+        ..agent(root)
+    };
+    let outcomes = h.evaluate(&[entry("resolved")], &root.join("noagent"), &run);
+    assert_eq!(outcomes, [outcome("python__resolved", false, "incomplete")]);
 }
 
 fn run_with_unwritable_outputs(h: &Harness, root: &Path) {
@@ -296,7 +259,7 @@ fn run_with_unwritable_outputs(h: &Harness, root: &Path) {
         symlink(&nowhere, unwritable.join(name)).unwrap();
     }
     let entries = [entry("empty"), entry("resolved"), entry("unresolved")];
-    let mut outcomes = h.evaluate(&entries, &unwritable, &agent(root, vec![]));
+    let mut outcomes = h.evaluate(&entries, &unwritable, &agent(root));
     outcomes.sort_by(|a, b| a.instance_id.cmp(&b.instance_id));
     assert_eq!(
         outcomes,
@@ -310,7 +273,7 @@ fn run_with_unwritable_outputs(h: &Harness, root: &Path) {
         read(&unwritable.join("python__resolved.json"))["eval_result"],
         "error"
     );
-    let lost = h.evaluate(&[entry("ghost")], &root.join("lost"), &agent(root, vec![]));
+    let lost = h.evaluate(&[entry("ghost")], &root.join("lost"), &agent(root));
     assert_eq!(lost, [outcome("python__ghost", false, "incomplete")]);
 }
 
@@ -323,8 +286,7 @@ fn the_polyglot_harness_builds_images_runs_agents_and_reports() {
     let commit = root.join("commit");
     fs::create_dir_all(&commit).unwrap();
     run_every_mode(&h, root, &commit);
-    base_image();
-    run_with_a_parent_patch(&h, root, &commit);
+    run_without_an_agent(&h, root);
     run_with_unwritable_outputs(&h, root);
 }
 
@@ -333,7 +295,7 @@ fn harness_setup_failures_are_errors() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     let dataset = root_with_tasks(root, &["resolved"]);
-    let run = agent(root, vec![]);
+    let run = agent(root);
     let commit = root.join("commit");
     let tasks = ["python__resolved"];
     let gone = Harness {
@@ -342,11 +304,6 @@ fn harness_setup_failures_are_errors() {
     };
     assert!(
         gone.harness(&tasks, &run, &root.join("pred"), &commit)
-            .is_err()
-    );
-    let missing_patch = agent(root, vec![root.join("no.diff")]);
-    assert!(
-        gone.harness(&tasks, &missing_patch, &root.join("pred"), &commit)
             .is_err()
     );
     let no_dataset = harness(root, root.join("none.json"));

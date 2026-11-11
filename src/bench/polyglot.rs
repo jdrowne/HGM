@@ -3,7 +3,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use hgm_agent::patch::remove_patch_by_files;
 use hgm_agent::testrepo::{TestRepo, get_test_description};
 use hgm_core::log::Log;
 use hgm_core::pyjson::{PyValue, dumps};
@@ -12,7 +11,7 @@ use serde_json::Value;
 
 use crate::polyglot_build::Images;
 use crate::polyglot_spec::{TestSpec, get_eval_script, make_test_spec, test_cmd, test_commands};
-use crate::swe::{AGENT_ENV, AGENT_FILES, Run, Step, message, run_logged, run_step};
+use crate::swe::{AGENT_ENV, AGENT_PATH, Run, Step, message, run_logged, run_step};
 
 pub const DATASET: &str = "polyglot/polyglot_benchmark_metadata.json";
 
@@ -87,45 +86,10 @@ impl Harness {
     }
 
     fn setup(&self, job: &Job, container: &Container, log: &Log) -> Result<(), String> {
-        let mut steps: Vec<Step> = AGENT_FILES
-            .iter()
-            .map(|(source, dest)| {
-                let source = if *source == "coding_agent.py" {
-                    "coding_agent_polyglot.py"
-                } else {
-                    source
-                };
-                Step::CopyIn(job.run.init_agent_path.join(source), dest)
-            })
-            .collect();
-        steps.push(Step::Run(&["ls", "-R", "/testbed"], "/"));
-        if !job.run.model_patch_paths.is_empty() {
-            steps.push(Step::Info("Applying model patches"));
-        }
-        for patch in &job.run.model_patch_paths {
-            steps.extend([
-                Step::CopyIn(patch.clone(), "/hgm/parent_patch.txt"),
-                Step::Run(
-                    &["/bin/sh", "-c", "patch -p1 < /hgm/parent_patch.txt"],
-                    "/hgm",
-                ),
-                Step::Run(&["rm", "/hgm/parent_patch.txt"], "/hgm"),
-            ]);
-        }
-        steps.extend([
-            Step::Info("Installing more requirements"),
-            Step::Run(
-                &[
-                    "python",
-                    "-m",
-                    "pip",
-                    "install",
-                    "-r",
-                    "/hgm/requirements.txt",
-                ],
-                "/",
-            ),
-        ]);
+        let steps = [
+            Step::CopyIn(job.run.agent.clone(), AGENT_PATH),
+            Step::Run(&["ls", "-R", "/testbed"], "/"),
+        ];
         run_steps(container, &steps, log)
     }
 
@@ -141,8 +105,7 @@ impl Harness {
         let argv = [
             "timeout",
             &timeout,
-            "python",
-            "/hgm/coding_agent.py",
+            AGENT_PATH,
             "--problem_statement",
             &problem_statement,
             "--git_dir",
@@ -155,6 +118,7 @@ impl Harness {
             "/hgm/",
             "--test_description",
             &test_description,
+            "--polyglot",
             "--language",
             &language,
             "--model",
@@ -373,11 +337,6 @@ impl Harness {
         pred_dname: &Path,
         output_dir: &Path,
     ) -> Result<PathBuf, String> {
-        for path in &run.model_patch_paths {
-            fs::read_to_string(path)
-                .and_then(|patch| fs::write(path, remove_patch_by_files(&patch, "polyglot")))
-                .map_err(|e| format!("{}: {e}", path.display()))?;
-        }
         let dataset: Vec<Value> = fs::read_to_string(&self.dataset)
             .map_err(|_| format!("Dataset file not found: {}", self.dataset.display()))
             .and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string()))?;

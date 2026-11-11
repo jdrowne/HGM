@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::{MAIN_SEPARATOR, PathBuf};
 
 use hgm_agent::tools::{
     Tools, bash_info, editor, editor_info, expand_tabs, filter_error, format_output,
@@ -61,9 +62,17 @@ fn editor_calls_match_the_python() {
         if !name.starts_with("edit_tool_function_") || name.ends_with("_files_after") {
             continue;
         }
-        let input: Value =
-            serde_json::from_str(&c["input"].to_string().replace("<TMP>", root)).unwrap();
-        let expected = c["output"].as_str().unwrap().replace("<TMP>", root);
+        let native = |text: &str| {
+            text.replace("<TMP>/", &format!("{root}{MAIN_SEPARATOR}"))
+                .replace("<TMP>", root)
+        };
+        let mut input = c["input"].clone();
+        for value in input.as_object_mut().unwrap().values_mut() {
+            if let Some(text) = value.as_str() {
+                *value = json!(native(text));
+            }
+        }
+        let expected = native(c["output"].as_str().unwrap());
         assert_eq!(tools.call("editor", &input), expected, "{name}");
     }
     let mut after = serde_json::Map::new();
@@ -95,15 +104,25 @@ fn directories_list_two_levels_without_hidden_entries() {
         fs::write(root.join(file), "").unwrap();
     }
     let shown = root.display().to_string();
-    let listing = ["", "/a", "/b", "/b/c", "/b/one.txt", "/z.txt"]
-        .map(|p| format!("{shown}{p}"))
+    let listing = ["", "a", "b", "b/c", "b/one.txt", "z.txt"]
+        .map(|p| {
+            if p.is_empty() {
+                shown.clone()
+            } else {
+                root.join(p)
+                    .components()
+                    .collect::<PathBuf>()
+                    .display()
+                    .to_string()
+            }
+        })
         .join("\n");
     let want = format!(
         "Here's the files and directories up to 2 levels deep in {shown}, excluding hidden items:\n{listing}\n"
     );
     assert_eq!(editor(Some("view"), &shown, None), want);
     assert_eq!(editor(Some("view"), &format!("{shown}/"), None), want);
-    let hidden = format!("{shown}/.hidden");
+    let hidden = root.join(".hidden").display().to_string();
     assert_eq!(
         editor(Some("view"), &hidden, None),
         format!(

@@ -4,6 +4,7 @@ use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use hgm::agent_build::Build;
 use hgm::node::{Bench, Eval};
 use serde_json::{Value, json};
 
@@ -48,7 +49,26 @@ pub struct Seen {
     pub commit: String,
     pub tasks: Vec<String>,
     pub max_workers: usize,
-    pub patches: Vec<PathBuf>,
+    pub agent: PathBuf,
+}
+
+#[derive(Default)]
+pub struct FakeBuild {
+    pub fail: bool,
+    pub built: Mutex<Vec<(Vec<PathBuf>, PathBuf)>>,
+}
+
+impl Build for FakeBuild {
+    fn build(&self, patches: &[PathBuf], binary: &Path) -> Result<(), String> {
+        self.built
+            .lock()
+            .unwrap()
+            .push((patches.to_vec(), binary.to_path_buf()));
+        if self.fail {
+            return Err("build failed".to_owned());
+        }
+        fs::write(binary, "agent").map_err(|e| e.to_string())
+    }
 }
 
 pub struct FakeBench {
@@ -75,7 +95,7 @@ impl Bench for FakeBench {
             commit: eval.commit_id.to_owned(),
             tasks: eval.tasks.to_vec(),
             max_workers: eval.max_workers,
-            patches: eval.patches.clone(),
+            agent: eval.agent.clone(),
         });
         if self.fail {
             return Err("bench failed".to_owned());

@@ -1,3 +1,4 @@
+pub mod agent_build;
 pub mod cli;
 pub mod improve;
 pub mod node;

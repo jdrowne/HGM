@@ -38,22 +38,7 @@ pub const NO_EVAL_RESULT: &str = "No evaluation result available. Assume the age
 
 pub const FILTERED_LOG_PREFIX: &str = "Error in get_response_withtools";
 
-pub const CODE_FILES: [&str; 3] = ["coding_agent.py", "tools/", "utils/"];
-
-pub const EXCLUDE_FILES_SWE: [&str; 4] = [
-    "utils/evo_utils.py",
-    "utils/docker_utils.py",
-    "utils/swe_log_parsers.py",
-    "prompts/self_improvement_prompt.py",
-];
-
-pub const EXCLUDE_FILES_POLYGLOT: [&str; 5] = [
-    "utils/evo_utils.py",
-    "utils/docker_utils.py",
-    "utils/swe_log_parsers.py",
-    "utils/eval_utils.py",
-    "prompts/self_improvement_prompt.py",
-];
+pub const CODE_FILES: [&str; 1] = ["src/agent/"];
 
 pub const CONTEXT_LENGTH_ERRORS: [&str; 3] = [
     r"Error in get_response_withtools: Error code: 400 - {'message': 'Input is too long for requested model.'}",
@@ -315,7 +300,7 @@ pub fn relpath(path: &Path, start: &Path) -> String {
     }
 }
 
-fn walk_py(dir: &Path, out: &mut Vec<PathBuf>) {
+fn walk_rust(dir: &Path, out: &mut Vec<PathBuf>) {
     let mut files = Vec::new();
     let mut dirs = Vec::new();
     for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
@@ -331,34 +316,25 @@ fn walk_py(dir: &Path, out: &mut Vec<PathBuf>) {
     out.extend(
         files
             .into_iter()
-            .filter(|p| p.extension().is_some_and(|e| e == "py")),
+            .filter(|p| p.extension().is_some_and(|e| e == "rs")),
     );
     for d in dirs {
-        walk_py(&d, out);
+        walk_rust(&d, out);
     }
 }
 
 fn code_file_text(
     current_dir: &Path,
     file: &str,
-    polyglot: bool,
     excluded: &dyn Fn(&str) -> bool,
 ) -> io::Result<Vec<String>> {
     let full = current_dir.join(file);
     let mut files = Vec::new();
     if full.is_file() {
-        let read = if polyglot && file.contains("coding_agent.py") {
-            PathBuf::from(
-                full.to_string_lossy()
-                    .replace("coding_agent.py", "coding_agent_polyglot.py"),
-            )
-        } else {
-            full.clone()
-        };
-        files.push((relpath(&full, current_dir), read));
+        files.push((relpath(&full, current_dir), full.clone()));
     } else if full.is_dir() {
         let mut found = Vec::new();
-        walk_py(&full, &mut found);
+        walk_rust(&full, &mut found);
         files.extend(found.into_iter().map(|f| (relpath(&f, current_dir), f)));
     }
     let mut code = Vec::new();
@@ -374,7 +350,6 @@ pub fn get_current_code<S: AsRef<str>>(
     code_files: &[S],
     patch_files: &[PathBuf],
     exclude_files: &[S],
-    polyglot: bool,
 ) -> io::Result<String> {
     let excluded = |p: &str| exclude_files.iter().any(|e| e.as_ref() == p);
     let mut code = Vec::new();
@@ -383,7 +358,7 @@ pub fn get_current_code<S: AsRef<str>>(
         .map(AsRef::as_ref)
         .filter(|f| !excluded(f))
     {
-        code.extend(code_file_text(current_dir, file, polyglot, &excluded)?);
+        code.extend(code_file_text(current_dir, file, &excluded)?);
     }
     for (i, patch) in patch_files.iter().enumerate() {
         let rel = relpath(patch, current_dir);
@@ -450,14 +425,8 @@ pub fn get_diagnose_prompt_swe(input: &DiagnoseInput) -> Result<(String, String)
             )
         }
     };
-    let code = get_current_code(
-        input.root_dir,
-        &CODE_FILES,
-        input.patch_files,
-        &EXCLUDE_FILES_SWE,
-        false,
-    )
-    .map_err(|e| e.to_string())?;
+    let code = get_current_code(input.root_dir, &CODE_FILES, input.patch_files, &[])
+        .map_err(|e| e.to_string())?;
     let system = format!(
         "{CODING_AGENT_SUMMARY}{}",
         format_named(DIAGNOSE_SYSTEM_MESSAGE, &[("code", &code)])
@@ -488,14 +457,8 @@ pub fn get_diagnose_prompt_polyglot<R: Rng + ?Sized>(
         },
     )?;
     let github_issue = entry_field(entry, "problem_statement")?;
-    let code = get_current_code(
-        input.root_dir,
-        &CODE_FILES,
-        input.patch_files,
-        &EXCLUDE_FILES_POLYGLOT,
-        is_polyglot,
-    )
-    .map_err(|e| e.to_string())?;
+    let code = get_current_code(input.root_dir, &CODE_FILES, input.patch_files, &[])
+        .map_err(|e| e.to_string())?;
     let system = format!(
         "{CODING_AGENT_SUMMARY_POLYGLOT}{}",
         format_named(DIAGNOSE_SYSTEM_MESSAGE, &[("code", &code)])

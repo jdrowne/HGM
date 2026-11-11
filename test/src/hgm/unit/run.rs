@@ -15,7 +15,7 @@ use hgm_core::log::Log;
 use hgm_sandbox::Docker;
 use serde_json::json;
 
-use crate::common::{FakeBench, node, performance, read_json, write_json};
+use crate::common::{FakeBench, FakeBuild, node, performance, read_json, write_json};
 
 fn paths(output_dir: Option<&str>, continue_from: Option<&str>) -> PathConfig {
     PathConfig {
@@ -131,7 +131,7 @@ fn the_bench_follows_the_benchmark_flag() {
             bench: swe.as_ref(),
             output_dir: &out,
             max_workers: 1,
-            init_agent_path: tmp.path()
+            builder: &FakeBuild::default()
         }
         .eval_agent("c", &tasks)
         .is_err()
@@ -142,7 +142,7 @@ fn the_bench_follows_the_benchmark_flag() {
         bench: polyglot.as_ref(),
         output_dir: &out,
         max_workers: 1,
-        init_agent_path: tmp.path(),
+        builder: &FakeBuild::default(),
     }
     .eval_agent("c", &tasks)
     .unwrap_err();

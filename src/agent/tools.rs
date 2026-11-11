@@ -1,6 +1,6 @@
 use std::fs;
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -120,13 +120,19 @@ fn validate_path(path: &str, command: Option<&str>) -> Result<PathBuf, String> {
     }
 }
 
+fn hidden(path: &Path) -> bool {
+    path.components().any(|c| {
+        matches!(c, Component::Normal(_) | Component::ParentDir)
+            && c.as_os_str().to_string_lossy().starts_with('.')
+    })
+}
+
 fn walk(dir: &Path, depth: usize, out: &mut Vec<String>) -> std::io::Result<()> {
     let mut names: Vec<PathBuf> = fs::read_dir(dir)?.flatten().map(|e| e.path()).collect();
     names.sort();
     for path in names {
-        let shown = path.to_string_lossy().into_owned();
-        if !shown.contains("/.") {
-            out.push(shown);
+        if !hidden(&path) {
+            out.push(path.to_string_lossy().into_owned());
         }
         if depth < 2 && path.is_dir() {
             walk(&path, depth + 1, out)?;
@@ -141,7 +147,7 @@ fn view_path(path: &Path) -> Result<String, String> {
     let shown = shown.as_ref();
     if path.is_dir() {
         let mut lines = Vec::new();
-        if !shown.contains("/.") {
+        if !hidden(&normal) {
             lines.push(shown.to_owned());
         }
         if let Err(e) = walk(Path::new(shown), 1, &mut lines) {

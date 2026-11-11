@@ -1,23 +1,26 @@
 # Coding Agent Summary
 
-- **Main File**: `coding_agent.py`
-  - Primary Class: `AgenticSystem`
+- **Main File**: `src/agent/agent.rs`
+  - The command line is parsed into `Args`, and `run()` drives one run and writes `model_patch.diff`.
   - The `forward()` function is the central entry point.
-  - Prompts are located either within the `forward()` function or in the `prompts/` directory.
-- **Tools**: `tools/`
-  - The `tools/` directory contains various tools that LLMs can use to perform specific tasks.
-  - Each tool must have a `tool_info()` function that returns a JSON object containing 'name', 'description', and 'input_schema'. The 'input_schema' should be a JSON object containing 'type', 'properties', and 'required'.
-  - Each tool must have a `tool_function()` function that takes the arguments defined in input_schema, performs the tool's task, and returns a string.
+  - Prompts are located either within `Args::instruction()` and `forward()` or as constants in the module that uses them, such as `SYSTEM_MESSAGE` in `src/agent/withtools.rs`.
+- **Tools**: `src/agent/tools.rs`
+  - This module contains the tools that LLMs can use to perform specific tasks.
+  - Each tool must have an info function, such as `bash_info()`, that returns a JSON object containing 'name', 'description', and 'input_schema'. The 'input_schema' should be a JSON object containing 'type', 'properties', and 'required'. Every info function is listed in `tool_infos()`.
+  - Each tool must be dispatched from `Tools::call()`, which takes the arguments defined in input_schema, performs the tool's task, and returns a string.
   - See other tools for reference.
-- **Utilities**: `utils/`
-  - The `utils/` directory contains utility functions used across the codebase.
+- **Tool loop**: `src/agent/withtools.rs`
+  - This module holds the conversation with the LLM: it sends the tool definitions and runs the tools the LLM asks for.
+- **Utilities**: the other modules in `src/agent/`
+  - `llm.rs` calls the LLM, `git.rs` and `patch.rs` work with diffs, and the remaining modules contain utility functions used across the codebase.
 
 - **Additional Details**:
   - The agent is very good at automatically utilizing the right available tools at the right time. So do not have an agentic flow that explicitly forces a tool's usage.
   - Common tools, such as file editing and bash commands, are easy for the agent to recognize and use appropriately. However, more complex and niche tools may require explicit instructions in the prompt.
   - Tools should be designed to be as general as possible, ensuring they work across any GitHub repository. Avoid hardcoding repository-specific details or behaviors (e.g., paths).
-  - Do not use 'while True' loops in the agent's code. This can cause the agent to get stuck and not respond.
+  - Do not write `loop` blocks or other loops without a guaranteed exit in the agent's code. This can cause the agent to get stuck and not respond.
   - Verify the implementation details of helper functions prior to usage to ensure proper integration and expected behavior.
-  - Do not install additional packages or dependencies directly. Update `requirements.txt` if new dependencies are required and install them using `pip install -r requirements.txt`.
+  - The agent is a Rust crate. It must build with `cargo build --release -p hgm-agent`, and a change that does not compile makes the agent fail. Declare every new module in `src/agent/lib.rs`.
+  - Do not install additional packages or dependencies directly. Add new dependencies to `src/agent/Cargo.toml` instead.
 
 

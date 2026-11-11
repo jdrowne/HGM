@@ -11,7 +11,8 @@ use serde_json::{Value, json};
 use super::binary;
 
 const TASK: &str = "javascript__queen-attack";
-const IMPROVE_COMMAND: &str = "cd /hgm && printf '\\n' >> coding_agent.py && echo ok";
+const IMPROVE_COMMAND: &str =
+    "cd /hgm && printf 'pub const E2E: u8 = 1;\\n' >> src/agent/lib.rs && echo ok";
 const SOLVE_COMMAND: &str =
     "cd /testbed && printf 'export const e2e = 1;\\n' >> queen-attack.js && echo ok";
 const DIAGNOSIS: &str = "```json\n{\"log_summarization\": \"s\", \"potential_improvements\": [\"p\"], \"improvement_proposal\": \"i\", \"implementation_suggestion\": \"do it\", \"problem_description\": \"broken\"}\n```";
@@ -268,7 +269,8 @@ fn check_child(dir: &Path, unresolved: &[String]) {
     assert_eq!(overall["total_unresolved_ids"], json!([TASK]));
     assert_eq!(overall["total_resolved_ids"], json!([]));
     let patch = fs::read_to_string(dir.join("model_patch.diff")).unwrap();
-    assert!(patch.contains("+++ b/coding_agent.py"), "{patch}");
+    assert!(patch.contains("+++ b/src/agent/lib.rs"), "{patch}");
+    assert!(dir.join("hgm-agent").is_file());
 }
 
 fn run_args(host: &str) -> Vec<String> {

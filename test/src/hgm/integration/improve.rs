@@ -20,20 +20,28 @@ esac
 exit 0
 "#;
 
-const PYTHON: &str = r#"#!/bin/sh
+const CARGO: &str = r#"#!/bin/sh
 mode=$(cat /hgm/mode 2>/dev/null)
-if [ "$1" = -m ]; then
-  [ "$mode" = pipfail ] && exit 1
-  exit 0
-fi
+count=$(( $(cat /tmp/builds 2>/dev/null || echo 0) + 1 ))
+echo "$count" > /tmp/builds
+[ "$mode" = buildfail ] && { echo build failed; exit 1; }
+[ "$mode" = childfail ] && [ "$count" -ge 2 ] && { echo child build failed; exit 1; }
+out="target/$(uname -m)-unknown-linux-musl/release"
+mkdir -p "$out"
+cp /usr/local/lib/fake-agent "$out/hgm-agent"
+"#;
+
+const AGENT: &str = r#"#!/bin/sh
+mode=$(cat /hgm/mode 2>/dev/null)
 while [ $# -gt 0 ]; do
   case "$1" in
     --chat_history_file) chat=$2; shift ;;
     --base_commit) base=$2; shift ;;
+    --polyglot) kind=" polyglot" ;;
   esac
   shift
 done
-[ "$mode" = nochat ] || echo "improved from $base" > "$chat"
+[ "$mode" = nochat ] || echo "improved from $base$kind" > "$chat"
 if [ "$mode" = nopatch ]; then
   : > /hgm/model_patch.diff
 else
@@ -44,21 +52,14 @@ fi
 fn image() {
     let dir = tempfile::tempdir().unwrap();
     let ctx = dir.path();
-    for f in [
-        "hgm/coding_agent.py",
-        "hgm/coding_agent_polyglot.py",
-        "hgm/requirements.txt",
-        "hgm/utils/eval_utils.py",
-        "hgm/utils/swe_log_parsers.py",
-    ] {
-        fs::create_dir_all(ctx.join(f).parent().unwrap()).unwrap();
-        fs::write(ctx.join(f), "").unwrap();
-    }
+    fs::create_dir_all(ctx.join("hgm")).unwrap();
+    fs::write(ctx.join("hgm/Cargo.toml"), "").unwrap();
     fs::write(ctx.join("git"), GIT).unwrap();
-    fs::write(ctx.join("python"), PYTHON).unwrap();
+    fs::write(ctx.join("cargo"), CARGO).unwrap();
+    fs::write(ctx.join("agent"), AGENT).unwrap();
     fs::write(
         ctx.join("Dockerfile"),
-        "FROM busybox:latest\nCOPY hgm /hgm\nCOPY git python /usr/local/bin/\nRUN chmod 755 /usr/local/bin/git /usr/local/bin/python\nCMD [\"tail\", \"-f\", \"/dev/null\"]\n",
+        "FROM busybox:latest\nCOPY hgm /hgm\nCOPY git cargo /usr/local/bin/\nCOPY agent /usr/local/lib/fake-agent\nRUN chmod 755 /usr/local/bin/git /usr/local/bin/cargo /usr/local/lib/fake-agent\nCMD [\"tail\", \"-f\", \"/dev/null\"]\n",
     )
     .unwrap();
     let status = Command::new("docker")
@@ -168,8 +169,9 @@ fn a_polyglot_child_is_made_from_the_parent_patch(out: &Path) {
     );
     assert_eq!(
         fs::read_to_string(dir.join("self_evo.md")).unwrap(),
-        "improved from 0123abc\n"
+        "improved from 0123abc polyglot\n"
     );
+    assert!(dir.join("hgm-agent").is_file());
     let metadata = read_json(&dir.join("metadata.json"));
     let keys: Vec<&String> = metadata.as_object().unwrap().keys().collect();
     assert_eq!(
@@ -207,8 +209,8 @@ fn broken_containers_fail_the_child(out: &Path) {
     for (commit, patch, expected) in [
         ("nolog", mode_patch("nolog"), "git log printed no commit"),
         (
-            "pipfail",
-            mode_patch("pipfail"),
+            "buildfail",
+            mode_patch("buildfail"),
             "Error while sampling a child: ",
         ),
         (
@@ -261,6 +263,16 @@ fn broken_containers_fail_the_child(out: &Path) {
     );
     let log = failing_run(&improver_with(out, true, base), out, "nochat");
     assert!(log.contains("Error copying from container: "), "{log}");
+    assert!(log.contains("Error while sampling a child: "), "{log}");
+    let (base, _) = serve(vec![reply(DIAGNOSIS)]);
+    parent(
+        out,
+        "childfail",
+        performance(&[], &["python__x"], &[]),
+        Some(&mode_patch("childfail")),
+    );
+    let log = failing_run(&improver_with(out, true, base), out, "childfail");
+    assert!(log.contains("child build failed"), "{log}");
     assert!(log.contains("Error while sampling a child: "), "{log}");
 }
 

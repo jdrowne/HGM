@@ -19,6 +19,7 @@ use rand::{Rng, RngExt};
 use serde_json::Value;
 
 use crate::FAILED;
+use crate::agent_build::{AGENT_BINARY, INSTALLED_AGENT, compile, copy_binary, patch_steps};
 use crate::node::{Metadata, put, save_metadata};
 
 pub const DIAGNOSE_ATTEMPTS: usize = 3;
@@ -123,13 +124,6 @@ pub struct SelfImprove {
     pub timeout: u64,
 }
 
-const POLYGLOT_LAYOUT: [&str; 4] = [
-    "rm /hgm/coding_agent.py",
-    "mv /hgm/coding_agent_polyglot.py /hgm/coding_agent.py",
-    "rm /hgm/utils/eval_utils.py",
-    "rm /hgm/utils/swe_log_parsers.py",
-];
-
 struct Attempt<'a> {
     parent_commit: &'a str,
     run_id: &'a str,
@@ -144,24 +138,7 @@ impl SelfImprove {
         patches: &[PathBuf],
         log: &Log,
     ) -> Result<String, String> {
-        let mut steps: Vec<Step> = if self.polyglot {
-            POLYGLOT_LAYOUT
-                .iter()
-                .map(|cmd| Step::Command((*cmd).to_owned(), "/"))
-                .collect()
-        } else {
-            vec![Step::Quiet(&["rm", "/hgm/coding_agent_polyglot.py"], "/")]
-        };
-        for patch in patches {
-            steps.extend([
-                Step::CopyIn(patch.clone(), "/hgm/parent_patch.txt"),
-                Step::Run(
-                    &["/bin/sh", "-c", "patch -p1 < /hgm/parent_patch.txt"],
-                    "/hgm",
-                ),
-                Step::Run(&["rm", "/hgm/parent_patch.txt"], "/hgm"),
-            ]);
-        }
+        let mut steps = patch_steps(patches);
         steps.extend([
             Step::Quiet(&["git", "init"], "/hgm/"),
             Step::Run(&["git", "add", "--all"], "/hgm/"),
@@ -204,11 +181,10 @@ impl SelfImprove {
         log.info("Running self-improvement");
         let timeout = self.timeout.to_string();
         let test_description = get_test_description("", TestRepo::Hgm);
-        let argv = [
+        let mut argv = vec![
             "timeout",
             &timeout,
-            "python",
-            "/hgm/coding_agent.py",
+            INSTALLED_AGENT,
             "--problem_statement",
             statement,
             "--git_dir",
@@ -227,6 +203,9 @@ impl SelfImprove {
             "--timeout",
             &timeout,
         ];
+        if self.polyglot {
+            argv.push("--polyglot");
+        }
         let patch = attempt.run_dir.join(MODEL_PATCH_FILE);
         container
             .exec(
@@ -263,20 +242,7 @@ impl SelfImprove {
         let patch_files = model_patch_paths(&self.output_dir, "", attempt.parent_commit)
             .map_err(|e| e.to_string())?;
         let commit_hash = self.prepare(started, &patch_files, log)?;
-        run_logged(
-            started,
-            &[
-                "python",
-                "-m",
-                "pip",
-                "install",
-                "-r",
-                "/hgm/requirements.txt",
-            ],
-            &ExecOptions::workdir("/"),
-            log,
-        )
-        .map_err(message)?;
+        compile(started, log)?;
         log.info("Getting tasks to improve");
         let mut rng = rand::rng();
         let entry = choose_entry(
@@ -315,8 +281,10 @@ impl SelfImprove {
         fs::read_to_string(attempt.run_dir.join(MODEL_PATCH_FILE))
             .ok()
             .filter(|text| !text.trim().is_empty())
-            .map(|_| true)
-            .ok_or_else(|| "Model patch file is empty or does not exist".to_owned())
+            .ok_or_else(|| "Model patch file is empty or does not exist".to_owned())?;
+        compile(started, log)
+            .and_then(|()| copy_binary(started, &attempt.run_dir.join(AGENT_BINARY), log))
+            .map(|()| true)
     }
 }
 

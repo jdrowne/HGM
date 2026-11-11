@@ -8,6 +8,8 @@ use hgm_bench::swe::{self, Run};
 use hgm_core::metadata::{self, NODE_METADATA_FILE, OverallPerformance};
 use hgm_core::pyjson::{self, PyValue};
 
+use crate::agent_build::{AGENT_BINARY, Build};
+
 pub type Metadata = Vec<(String, PyValue)>;
 
 pub fn at(path: &Path, e: impl Display) -> String {
@@ -53,9 +55,8 @@ pub struct Eval<'a> {
     pub commit_id: &'a str,
     pub tasks: &'a [String],
     pub max_workers: usize,
-    pub patches: Vec<PathBuf>,
+    pub agent: PathBuf,
     pub node_dir: &'a Path,
-    pub init_agent_path: &'a Path,
 }
 
 pub trait Bench: Sync {
@@ -65,8 +66,7 @@ pub trait Bench: Sync {
 fn agent_run(eval: &Eval) -> Run {
     Run {
         model_name_or_path: eval.commit_id.to_owned(),
-        model_patch_paths: eval.patches.clone(),
-        init_agent_path: eval.init_agent_path.to_path_buf(),
+        agent: eval.agent.clone(),
         max_workers: eval.max_workers,
     }
 }
@@ -109,7 +109,7 @@ pub struct Evaluator<'a> {
     pub bench: &'a dyn Bench,
     pub output_dir: &'a Path,
     pub max_workers: usize,
-    pub init_agent_path: &'a Path,
+    pub builder: &'a dyn Build,
 }
 
 impl Evaluator<'_> {
@@ -120,15 +120,18 @@ impl Evaluator<'_> {
             save_metadata(&node_dir, &empty_metadata(commit_id))?;
         }
         let mut metadata = load_metadata(&node_dir)?;
-        let patches =
-            metadata::model_patch_paths(output_dir, "", commit_id).map_err(|e| e.to_string())?;
+        let agent = node_dir.join(AGENT_BINARY);
+        if !tasks.is_empty() && !agent.exists() {
+            let patches = metadata::model_patch_paths(output_dir, "", commit_id)
+                .map_err(|e| e.to_string())?;
+            self.builder.build(&patches, &agent)?;
+        }
         let dnames = self.bench.run(&Eval {
             commit_id,
             tasks,
             max_workers: self.max_workers.min(tasks.len()),
-            patches,
+            agent,
             node_dir: &node_dir,
-            init_agent_path: self.init_agent_path,
         })?;
         let (_, overall) =
             metadata::get_all_performance(&node_dir, commit_id).map_err(|e| at(&node_dir, e))?;

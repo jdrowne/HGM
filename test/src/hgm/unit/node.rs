@@ -10,7 +10,7 @@ use hgm_core::pyjson::PyValue;
 use hgm_sandbox::Docker;
 use serde_json::json;
 
-use crate::common::{FakeBench, node, performance, read_json, write_json};
+use crate::common::{FakeBench, FakeBuild, node, performance, read_json, write_json};
 
 fn strings(items: &[&str]) -> Vec<String> {
     items.iter().map(|s| (*s).to_owned()).collect()
@@ -61,25 +61,34 @@ fn eval_agent_records_performance_and_returns_per_task_results() {
     fs::write(out.join("child/model_patch.diff"), "c").unwrap();
     let bench = FakeBench::resolving(&["a"]);
     let tasks = strings(&["a", "b"]);
-    let accs = Evaluator {
+    let builder = FakeBuild::default();
+    let evaluator = Evaluator {
         bench: &bench,
         output_dir: out,
         max_workers: 8,
-        init_agent_path: &PathBuf::from("src"),
-    }
-    .eval_agent("child", &tasks)
-    .unwrap();
+        builder: &builder,
+    };
+    let accs = evaluator.eval_agent("child", &tasks).unwrap();
     assert_eq!(accs, [1.0, 0.0]);
+    fs::write(out.join("parent/hgm-agent"), "").unwrap();
+    evaluator.eval_agent("parent", &tasks).unwrap();
+    let agent = out.join("child/hgm-agent");
+    assert_eq!(
+        *builder.built.lock().unwrap(),
+        [(
+            vec![
+                out.join("parent/model_patch.diff"),
+                out.join("child/model_patch.diff")
+            ],
+            agent.clone()
+        )]
+    );
     let seen = bench.seen.lock().unwrap();
+    assert_eq!(seen.len(), 2);
     assert_eq!(seen[0].commit, "child");
     assert_eq!(seen[0].max_workers, 2);
-    assert_eq!(
-        seen[0].patches,
-        [
-            out.join("parent/model_patch.diff"),
-            out.join("child/model_patch.diff")
-        ]
-    );
+    assert_eq!(seen[0].agent, agent);
+    assert_eq!(seen[1].agent, out.join("parent/hgm-agent"));
     let metadata = read_json(&out.join("child/metadata.json"));
     assert_eq!(metadata["parent_commit"], "parent");
     assert_eq!(
@@ -102,7 +111,7 @@ fn eval_agent_creates_missing_metadata_and_records_swe_dnames() {
             bench: &bench,
             output_dir: out,
             max_workers: 1,
-            init_agent_path: &PathBuf::from("src")
+            builder: &FakeBuild::default()
         }
         .eval_agent("agent", &strings(&["a"]))
         .unwrap(),
@@ -122,7 +131,7 @@ fn eval_agent_creates_missing_metadata_and_records_swe_dnames() {
             bench: &bench,
             output_dir: out,
             max_workers: 4,
-            init_agent_path: &PathBuf::from("src")
+            builder: &FakeBuild::default()
         }
         .eval_agent("agent", &[])
         .unwrap(),
@@ -136,13 +145,12 @@ fn eval_agent_stops_at_the_first_failure() {
     let out = tmp.path();
     let bench = FakeBench::resolving(&[]);
     let tasks = strings(&["a"]);
-    let src = PathBuf::from("src");
     assert!(
         Evaluator {
             bench: &bench,
             output_dir: out,
             max_workers: 1,
-            init_agent_path: &src
+            builder: &FakeBuild::default()
         }
         .eval_agent("nodir", &tasks)
         .is_err()
@@ -154,7 +162,7 @@ fn eval_agent_stops_at_the_first_failure() {
             bench: &bench,
             output_dir: out,
             max_workers: 1,
-            init_agent_path: &src
+            builder: &FakeBuild::default()
         }
         .eval_agent("junk", &tasks)
         .is_err()
@@ -165,22 +173,38 @@ fn eval_agent_stops_at_the_first_failure() {
             bench: &bench,
             output_dir: out,
             max_workers: 1,
-            init_agent_path: &src
+            builder: &FakeBuild::default()
         }
         .eval_agent("orphan", &tasks)
         .is_err()
     );
     node(out, "ok", None, performance(&[], &[], &[]));
+    node(out, "orphan2", None, performance(&[], &[], &[]));
     let failing = FakeBench {
         fail: true,
         ..FakeBench::resolving(&[])
     };
+    let broken = FakeBuild {
+        fail: true,
+        ..FakeBuild::default()
+    };
+    assert_eq!(
+        Evaluator {
+            bench: &bench,
+            output_dir: out,
+            max_workers: 1,
+            builder: &broken,
+        }
+        .eval_agent("orphan2", &tasks)
+        .unwrap_err(),
+        "build failed"
+    );
     assert_eq!(
         Evaluator {
             bench: &failing,
             output_dir: out,
             max_workers: 1,
-            init_agent_path: &src
+            builder: &FakeBuild::default()
         }
         .eval_agent("ok", &tasks)
         .unwrap_err(),
@@ -198,7 +222,7 @@ fn eval_agent_stops_at_the_first_failure() {
             bench: &Vanish,
             output_dir: out,
             max_workers: 1,
-            init_agent_path: &src
+            builder: &FakeBuild::default()
         }
         .eval_agent("ok", &tasks)
         .is_err()
@@ -218,7 +242,7 @@ fn eval_agent_stops_at_the_first_failure() {
             bench: &Block,
             output_dir: out,
             max_workers: 1,
-            init_agent_path: &src
+            builder: &FakeBuild::default()
         }
         .eval_agent("blocked", &tasks)
         .is_err()
@@ -244,7 +268,7 @@ fn the_polyglot_bench_runs_the_polyglot_harness() {
         bench: &harness,
         output_dir: &root.join("out"),
         max_workers: 2,
-        init_agent_path: root,
+        builder: &FakeBuild::default(),
     }
     .eval_agent("c", &strings(&["a"]))
     .unwrap();
@@ -264,7 +288,7 @@ fn the_polyglot_bench_runs_the_polyglot_harness() {
             bench: &missing,
             output_dir: &root.join("out"),
             max_workers: 2,
-            init_agent_path: root
+            builder: &FakeBuild::default()
         }
         .eval_agent("c", &strings(&["a"]))
         .is_err()
@@ -293,7 +317,7 @@ fn the_swe_bench_fails_when_the_dataset_cannot_load() {
             bench: &harness,
             output_dir: &root.join("out"),
             max_workers: 2,
-            init_agent_path: root
+            builder: &FakeBuild::default()
         }
         .eval_agent("c", &strings(&["a"]))
         .is_err()
@@ -337,7 +361,7 @@ fn the_swe_bench_runs_the_harness_then_the_report() {
         bench: &harness,
         output_dir: &out,
         max_workers: 2,
-        init_agent_path: root,
+        builder: &FakeBuild::default(),
     }
     .eval_agent("c", &strings(&["absent"]))
     .unwrap();

@@ -1,47 +1,44 @@
-__pycache__/
-**/__pycache__/
-*.pyc
-*.pyo
-.vscode
-.env
-.ipynb
 .git
 .gitignore
 .gitattributes
-<!-- swe-bench -->
-logs/
-swe_bench/
-initial_swe/
-
-<!-- polyglot -->
-polyglot/
-initial_polyglot/
-
-<!-- outputs -->
-output_hgm/
-results/
-<!-- misc -->
-misc/
-<!-- README.md -->
+.github/
+.claude/
+.vscode
+.env
+**/__pycache__/
+target/
+venv/
+.venv/
+Cargo.lock
 Dockerfile
 .dockerignore
-
-<!-- code outside of coding agent -->
-self_improve_step.py
-prompts/self_improvement_prompt.py
-prompts/diagnose_improvement_prompt.py
-utils/evo_utils.py
-utils/docker_utils.py
-hgm_utils.py
-hgm.py
-evaluate_agent.py
+README.md
+config.yaml
+misc/
+etc/
+lib/
+logs/
+output_hgm/
+results/
+initial_swe/
+initial_polyglot/
+swe_bench/
+polyglot/
+best_agent/
+prompts/
+tools/
+utils/
+tests/
+*.py
+requirements.txt
+pytest.ini
 run.sh
-target/
 src/bench/
 src/core/
 src/hgm/
 src/sandbox/
 test/golden/
+test/agent-subtree.sh
 test/src/bench/
 test/src/core/
 test/src/hgm/

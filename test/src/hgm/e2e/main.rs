@@ -151,6 +151,11 @@ fn evaluate_scores_an_agent_on_a_split() {
     .unwrap();
     std::fs::set_permissions(&python, std::fs::Permissions::from_mode(0o755)).unwrap();
     std::fs::create_dir_all(root.join("agents/mine")).unwrap();
+    for agent in ["mine", "two"] {
+        let dir = root.join("results").join(agent);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("hgm-agent"), "").unwrap();
+    }
     let out = hgm_in(root)
         .env("HGM_SWEBENCH_PYTHON", &python)
         .args([

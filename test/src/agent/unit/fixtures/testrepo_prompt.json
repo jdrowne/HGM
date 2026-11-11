@@ -61,7 +61,7 @@
     {
       "name": "get_test_description_hgm",
       "input": "",
-      "output": "The tests in the repository can be run with the bash command `cd /hgm/ && pytest -rA <specific test files>`. If no specific test files are provided, all tests will be run. The given command-line options must be used EXACTLY as specified. Do not use any other command-line options. ONLY test tools and utils. NEVER try to test or run agentic_system.forward()."
+      "output": "The tests in the repository can be run with the bash command `cd /hgm/ && cargo test -p hgm-agent --test unit <test name filter>`. If no test name filter is provided, all tests will be run. The given command-line options must be used EXACTLY as specified. Do not use any other command-line options. ONLY test tools and utils. NEVER try to test or run the agent's forward()."
     }
   ]
 }

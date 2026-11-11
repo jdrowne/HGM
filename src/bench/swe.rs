@@ -12,18 +12,7 @@ use serde_json::Value;
 use crate::dataset::{self, Hub, SWE_BENCH};
 use crate::swebench::{Swebench, TestSpec};
 
-pub const AGENT_FILES: [(&str, &str); 10] = [
-    ("coding_agent.py", "/hgm/coding_agent.py"),
-    ("requirements.txt", "/hgm/requirements.txt"),
-    ("pytest.ini", "/hgm/pytest.ini"),
-    ("tools/", "/hgm/tools/"),
-    ("utils/", "/hgm/utils/"),
-    ("tests/", "/hgm/tests/"),
-    ("prompts/", "/hgm/prompts/"),
-    ("llm.py", "/hgm/llm.py"),
-    ("llm_withtools.py", "/hgm/llm_withtools.py"),
-    ("LICENSE.txt", "/hgm/LICENSE.txt"),
-];
+pub const AGENT_PATH: &str = "/hgm/hgm-agent";
 
 pub const AGENT_ENV: [&str; 7] = [
     "ANTHROPIC_API_KEY",
@@ -47,8 +36,7 @@ pub struct Harness {
 #[derive(Clone, Debug)]
 pub struct Run {
     pub model_name_or_path: String,
-    pub model_patch_paths: Vec<PathBuf>,
-    pub init_agent_path: PathBuf,
+    pub agent: PathBuf,
     pub max_workers: usize,
 }
 
@@ -151,43 +139,13 @@ impl Harness {
             .out_dname
             .join(format!("{}_eval.sh", job.spec.instance_id));
         fs::write(&eval_file, &job.spec.eval_script).map_err(|e| e.to_string())?;
-        let mut steps: Vec<Step> = AGENT_FILES
-            .iter()
-            .map(|(source, dest)| Step::CopyIn(job.run.init_agent_path.join(source), dest))
-            .collect();
-        steps.extend([
+        let steps = [
+            Step::CopyIn(job.run.agent.clone(), AGENT_PATH),
             Step::Info("Setting up environment"),
             Step::CopyIn(eval_file, "/eval.sh"),
             Step::Run(&["/bin/bash", "/eval.sh"], "/"),
             Step::Run(&["rm", "/eval.sh"], "/"),
-        ]);
-        if !job.run.model_patch_paths.is_empty() {
-            steps.push(Step::Info("Applying model patches"));
-        }
-        for patch in &job.run.model_patch_paths {
-            steps.extend([
-                Step::CopyIn(patch.clone(), "/hgm/parent_patch.txt"),
-                Step::Run(
-                    &["/bin/sh", "-c", "patch -p1 < /hgm/parent_patch.txt"],
-                    "/hgm",
-                ),
-                Step::Run(&["rm", "/hgm/parent_patch.txt"], "/hgm"),
-            ]);
-        }
-        steps.extend([
-            Step::Info("Installing more requirements"),
-            Step::Run(
-                &[
-                    "python",
-                    "-m",
-                    "pip",
-                    "install",
-                    "-r",
-                    "/hgm/requirements.txt",
-                ],
-                "/",
-            ),
-        ]);
+        ];
         steps
             .iter()
             .try_for_each(|step| run_step(container, step, log))
@@ -205,8 +163,7 @@ impl Harness {
         let argv = [
             "timeout",
             &timeout,
-            "python",
-            "/hgm/coding_agent.py",
+            AGENT_PATH,
             "--problem_statement",
             &problem_statement,
             "--git_dir",
