@@ -244,6 +244,10 @@ fn nothing_left_to_evaluate_spends_no_budget() {
     };
     let mut start = state_with_all_submitted();
     start.n_task_evals = 1;
+    start.tree.insert("y", Some(0), None);
+    start
+        .submitted_ids
+        .insert(2, HashSet::from(["t0".to_owned()]));
     let search = searching(&full, settings(2), start, &evaluate, &log);
     search.run().unwrap();
     assert_eq!(search.state.into_inner().unwrap().n_task_evals, 1);

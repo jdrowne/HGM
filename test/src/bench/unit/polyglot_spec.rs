@@ -1,5 +1,6 @@
 use hgm_bench::polyglot_spec::{
-    LANGUAGES, arch_for, get_eval_script, host_arch, make_test_spec, test_cmd, test_commands,
+    LANGUAGES, TestSpec, arch_for, get_eval_script, host_arch, make_test_spec, test_cmd,
+    test_commands,
 };
 use serde_json::json;
 
@@ -93,4 +94,25 @@ fn container_names_without_a_run_id_have_no_suffix() {
     let spec = make_test_spec(&json!({"instance_id": "rust__a"}), "arm64");
     assert_eq!(spec.container_name(""), "pb.eval.rust__a");
     assert_eq!(spec.platform(), "linux/arm64/v8");
+}
+
+#[test]
+fn a_namespace_renames_every_image_and_container() {
+    let spec = TestSpec {
+        namespace: "fake".to_owned(),
+        ..make_test_spec(&json!({"instance_id": "rust__a"}), "arm64")
+    };
+    assert_eq!(spec.base_image_key(), "fake.base.arm64:latest");
+    assert!(spec.env_image_key().starts_with("fake.env.arm64."));
+    assert_eq!(spec.instance_image_key(), "fake.eval.arm64.rust__a:latest");
+    assert_eq!(spec.container_name(""), "fake.eval.rust__a");
+    assert_eq!(spec.container_name("r"), "fake.eval.rust__a.r");
+    assert!(
+        spec.env_dockerfile()
+            .starts_with("FROM --platform=linux/arm64/v8 fake.base.arm64:latest\n")
+    );
+    assert!(
+        spec.instance_dockerfile()
+            .starts_with("FROM --platform=linux/arm64/v8 fake.env.arm64.")
+    );
 }

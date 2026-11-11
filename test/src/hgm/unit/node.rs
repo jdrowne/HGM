@@ -235,6 +235,7 @@ fn the_polyglot_bench_runs_the_polyglot_harness() {
         root: root.to_path_buf(),
         dataset: root.join("meta.json"),
         machine: "x86_64".into(),
+        namespace: "pb".into(),
         llm: "m".into(),
         timeout: 1,
     };

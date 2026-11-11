@@ -47,28 +47,15 @@ esac
 exit 0
 "#;
 
+const FAKE: &str = "hgm-fake";
+
 const PYTEST: &str = r#"#!/bin/sh
 [ "$(cat /testbed/mode 2>/dev/null)" = unresolved ] && { echo 1 failed; exit 1; }
 echo 1 passed
 "#;
 
 fn base_image() {
-    let tag = format!("pb.base.{}:latest", host_arch());
-    let label = Command::new("docker")
-        .args([
-            "image",
-            "inspect",
-            "--format",
-            "{{index .Config.Labels \"hgm.fake\"}}",
-            &tag,
-        ])
-        .output()
-        .unwrap();
-    let found = String::from_utf8_lossy(&label.stdout).trim().to_owned();
-    assert!(
-        !label.status.success() || found == "polyglot",
-        "{tag} is a real polyglot base image; remove or retag it before running these tests"
-    );
+    let tag = format!("{FAKE}.base.{}:latest", host_arch());
     let dir = tempfile::tempdir().unwrap();
     for (name, body) in [
         ("bash", BASH),
@@ -146,6 +133,7 @@ fn harness(root: &Path, dataset: PathBuf) -> Harness {
         root: root.to_path_buf(),
         dataset,
         machine: std::env::consts::ARCH.to_owned(),
+        namespace: FAKE.into(),
         llm: "m".into(),
         timeout: 60,
     }

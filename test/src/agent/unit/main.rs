@@ -1,8 +1,13 @@
+mod agent;
 mod common;
+mod eval;
 mod git;
 mod llm;
+mod parsers;
 mod patch;
 mod testrepo;
+mod tools;
+mod withtools;
 
 #[test]
 fn crate_is_linked() {

@@ -136,7 +136,7 @@ RUN conda config --append channels conda-forge
 RUN adduser --disabled-password --gecos 'dog' nonroot
 "#;
 
-const DOCKERFILE_ENV: &str = r#"FROM --platform={platform} pb.base.{arch}:latest
+const DOCKERFILE_ENV: &str = r#"FROM --platform={platform} {base_image}
 
 COPY ./setup_env.sh /root/
 RUN chmod +x /root/setup_env.sh
@@ -156,6 +156,8 @@ RUN /bin/bash /root/setup_repo.sh
 
 WORKDIR /testbed/
 ";
+
+pub const NAMESPACE: &str = "pb";
 
 pub fn host_arch() -> &'static str {
     arch_for(std::env::consts::ARCH)
@@ -182,6 +184,7 @@ pub struct TestSpec {
     pub eval_script_list: Vec<String>,
     pub env_script_list: Vec<String>,
     pub arch: String,
+    pub namespace: String,
 }
 
 impl TestSpec {
@@ -198,24 +201,27 @@ impl TestSpec {
     }
 
     pub fn base_image_key(&self) -> String {
-        format!("pb.base.{}:latest", self.arch)
+        format!("{}.base.{}:latest", self.namespace, self.arch)
     }
 
     pub fn env_image_key(&self) -> String {
         let digest = Sha256::digest(py_list_repr(&self.env_script_list).as_bytes());
         let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
-        format!("pb.env.{}.{}:latest", self.arch, &hex[..22])
+        format!("{}.env.{}.{}:latest", self.namespace, self.arch, &hex[..22])
     }
 
     pub fn instance_image_key(&self) -> String {
-        format!("pb.eval.{}.{}:latest", self.arch, self.instance_id)
+        format!(
+            "{}.eval.{}.{}:latest",
+            self.namespace, self.arch, self.instance_id
+        )
     }
 
     pub fn container_name(&self, run_id: &str) -> String {
         if run_id.is_empty() {
-            format!("pb.eval.{}", self.instance_id)
+            format!("{}.eval.{}", self.namespace, self.instance_id)
         } else {
-            format!("pb.eval.{}.{run_id}", self.instance_id)
+            format!("{}.eval.{}.{run_id}", self.namespace, self.instance_id)
         }
     }
 
@@ -239,7 +245,7 @@ impl TestSpec {
     pub fn env_dockerfile(&self) -> String {
         DOCKERFILE_ENV
             .replace("{platform}", self.platform())
-            .replace("{arch}", &self.arch)
+            .replace("{base_image}", &self.base_image_key())
     }
 
     pub fn instance_dockerfile(&self) -> String {
@@ -347,5 +353,6 @@ pub fn make_test_spec(instance: &serde_json::Value, machine: &str) -> TestSpec {
         eval_script_list: eval_script_list(language, base_commit, field("test_patch")),
         env_script_list: env_script_list(language),
         arch: arch_for(machine).to_owned(),
+        namespace: NAMESPACE.to_owned(),
     }
 }

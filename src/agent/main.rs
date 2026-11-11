@@ -1,17 +1,14 @@
 use std::process::ExitCode;
 
+use clap::Parser;
+use hgm_agent::agent::{Args, run};
+
 fn main() -> ExitCode {
-    match std::env::args().nth(1).as_deref() {
-        Some("--version") => {
-            println!("hgm-agent {}", env!("CARGO_PKG_VERSION"));
-            println!("crates: {}", hgm_agent::CRATE_NAME);
-            ExitCode::SUCCESS
-        }
-        _ => {
-            eprintln!(
-                "hgm-agent: not implemented yet; the Python coding_agent.py is still the agent"
-            );
-            ExitCode::from(2)
+    match run(&Args::parse()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("hgm-agent: {e}");
+            ExitCode::FAILURE
         }
     }
 }

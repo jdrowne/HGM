@@ -11,7 +11,7 @@ use hgm_sandbox::{Container, Docker, ExecOptions};
 use serde_json::Value;
 
 use crate::polyglot_build::Images;
-use crate::polyglot_spec::{get_eval_script, make_test_spec, test_cmd, test_commands};
+use crate::polyglot_spec::{TestSpec, get_eval_script, make_test_spec, test_cmd, test_commands};
 use crate::swe::{AGENT_ENV, AGENT_FILES, Run, Step, message, run_logged, run_step};
 
 pub const DATASET: &str = "polyglot/polyglot_benchmark_metadata.json";
@@ -22,6 +22,7 @@ pub struct Harness {
     pub root: PathBuf,
     pub dataset: PathBuf,
     pub machine: String,
+    pub namespace: String,
     pub llm: String,
     pub timeout: u64,
 }
@@ -78,6 +79,13 @@ fn write(path: &Path, contents: impl AsRef<[u8]>) -> Result<(), String> {
 }
 
 impl Harness {
+    fn spec(&self, entry: &Value) -> TestSpec {
+        TestSpec {
+            namespace: self.namespace.clone(),
+            ..make_test_spec(entry, &self.machine)
+        }
+    }
+
     fn setup(&self, job: &Job, container: &Container, log: &Log) -> Result<(), String> {
         let mut steps: Vec<Step> = AGENT_FILES
             .iter()
@@ -255,7 +263,7 @@ impl Harness {
         model_patch: &mut Option<String>,
         log: &Log,
     ) -> Result<String, String> {
-        let spec = make_test_spec(job.entry, &self.machine);
+        let spec = self.spec(job.entry);
         let run_id = Local::now().format("%Y%m%d_%H%M%S_%6f").to_string();
         self.docker
             .remove_existing_container(&spec.container_name(&run_id), log)
@@ -384,10 +392,7 @@ impl Harness {
             })
             .cloned()
             .collect();
-        let specs: Vec<_> = entries
-            .iter()
-            .map(|e| make_test_spec(e, &self.machine))
-            .collect();
+        let specs: Vec<_> = entries.iter().map(|e| self.spec(e)).collect();
         let images = Images {
             docker: &self.docker,
             root: &self.root,

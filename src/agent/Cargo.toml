@@ -24,10 +24,13 @@ name = "integration"
 path = "../../test/src/agent/integration/main.rs"
 
 [dependencies]
+clap = { version = "*", features = ["derive"] }
+rand = "*"
 regex = "*"
 serde_json = { version = "*", features = ["preserve_order"] }
 ureq = { version = "*", features = ["json"] }
 
 [dev-dependencies]
+clap = { version = "*", features = ["derive"] }
 tempfile = "*"
 serde_json = { version = "*", features = ["preserve_order"] }

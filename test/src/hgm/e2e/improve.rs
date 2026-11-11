@@ -11,7 +11,9 @@ use serde_json::{Value, json};
 use super::binary;
 
 const TASK: &str = "javascript__queen-attack";
-const TOOL_COMMAND: &str = "cd /hgm && printf '\\n' >> coding_agent.py && echo ok";
+const IMPROVE_COMMAND: &str = "cd /hgm && printf '\\n' >> coding_agent.py && echo ok";
+const SOLVE_COMMAND: &str =
+    "cd /testbed && printf 'export const e2e = 1;\\n' >> queen-attack.js && echo ok";
 const DIAGNOSIS: &str = "```json\n{\"log_summarization\": \"s\", \"potential_improvements\": [\"p\"], \"improvement_proposal\": \"i\", \"implementation_suggestion\": \"do it\", \"problem_description\": \"broken\"}\n```";
 
 type Seen = Arc<Mutex<Vec<String>>>;
@@ -33,12 +35,17 @@ fn completion(body: &Value) -> Value {
         .as_array()
         .and_then(|m| m.last())
         .is_some_and(|m| m["role"] == "tool");
+    let command = if body["messages"].to_string().contains("/testbed") {
+        SOLVE_COMMAND
+    } else {
+        IMPROVE_COMMAND
+    };
     let (message, reason) = match (tools, after_tool) {
         (true, false) => (
             json!({"role": "assistant", "content": null, "tool_calls": [{
                 "id": "call_1",
                 "type": "function",
-                "function": {"name": "bash", "arguments": json!({"command": TOOL_COMMAND}).to_string()},
+                "function": {"name": "bash", "arguments": json!({"command": command}).to_string()},
             }]}),
             "tool_calls",
         ),
@@ -146,7 +153,8 @@ fn hgm(root: &Path) -> Command {
     cmd.current_dir(root);
     for key in ["AUTHOR", "COMMITTER"] {
         cmd.env(format!("GIT_{key}_NAME"), "hgm")
-            .env(format!("GIT_{key}_EMAIL"), "hgm@example.com");
+            .env(format!("GIT_{key}_EMAIL"), "hgm@example.com")
+            .env(format!("GIT_{key}_DATE"), "2024-01-01T00:00:00Z");
     }
     cmd
 }
@@ -228,6 +236,19 @@ fn check_records(run: &Path) -> String {
 }
 
 fn check_child(dir: &Path, unresolved: &[String]) {
+    let commit = dir.file_name().unwrap().to_str().unwrap();
+    let predictions = dir.join(format!("predictions/{commit}_0"));
+    let prediction = read_json(&predictions.join(format!("{TASK}.json")));
+    let docker_log =
+        fs::read_to_string(predictions.join(format!("{TASK}_docker.log"))).unwrap_or_default();
+    let context = format!("{prediction}\n{docker_log}");
+    assert_eq!(prediction["eval_result"], "unresolved", "{context}");
+    assert!(
+        prediction["model_patch"]
+            .as_str()
+            .is_some_and(|p| p.contains("+++ b/queen-attack.js")),
+        "{context}"
+    );
     let metadata = read_json(&dir.join("metadata.json"));
     assert_eq!(metadata["parent_commit"], "initial");
     assert!(
@@ -248,12 +269,6 @@ fn check_child(dir: &Path, unresolved: &[String]) {
     assert_eq!(overall["total_resolved_ids"], json!([]));
     let patch = fs::read_to_string(dir.join("model_patch.diff")).unwrap();
     assert!(patch.contains("+++ b/coding_agent.py"), "{patch}");
-    let commit = dir.file_name().unwrap().to_str().unwrap();
-    let prediction = read_json(
-        &dir.join(format!("predictions/{commit}_0"))
-            .join(format!("{TASK}.json")),
-    );
-    assert_eq!(prediction["eval_result"], "unresolved");
 }
 
 fn run_args(host: &str) -> Vec<String> {

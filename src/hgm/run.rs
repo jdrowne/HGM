@@ -10,6 +10,7 @@ use hgm_bench::dataset::{Hub, SWE_BENCH_VERIFIED, instance_ids};
 use hgm_bench::polyglot::{self, DATASET};
 use hgm_bench::polyglot_build::copy_tree;
 use hgm_bench::polyglot_prepare::{REPO_URL, prepare};
+use hgm_bench::polyglot_spec::NAMESPACE;
 use hgm_bench::swe;
 use hgm_bench::swebench::Swebench;
 use hgm_bench::tasks::{dedup, polyglot_run_tasks, shuffled, swe_run_tasks};
@@ -176,6 +177,7 @@ pub fn bench_for(
             root: root_dir.to_path_buf(),
             dataset: root_dir.join(DATASET),
             machine: std::env::consts::ARCH.to_owned(),
+            namespace: NAMESPACE.to_owned(),
             llm,
             timeout,
         })
