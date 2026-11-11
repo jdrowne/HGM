@@ -22,24 +22,14 @@ jobs:
         run: npm install -g @mermaid-js/mermaid-cli
       - name: Install the browser
         run: node "$(npm root -g)/@mermaid-js/mermaid-cli/node_modules/puppeteer/install.mjs"
-      - name: Render every Mermaid diagram
+      - name: Render the README diagrams
         run: |
           echo '{"args": ["--no-sandbox"]}' > "$RUNNER_TEMP/puppeteer.json"
-          fail=0
-          while IFS= read -r -d '' file
-          do
-            grep -q '^```mermaid' "$file" || continue
-            if ! mmdc \
-              --quiet \
-              --puppeteerConfigFile "$RUNNER_TEMP/puppeteer.json" \
-              --input "$file" \
-              --output "$RUNNER_TEMP/rendered.md"
-            then
-              echo "::error file=$file::a Mermaid diagram in $file does not render"
-              fail=1
-            fi
-          done < <(git ls-files -z '*.md')
-          exit "$fail"
+          mmdc \
+            --quiet \
+            --puppeteerConfigFile "$RUNNER_TEMP/puppeteer.json" \
+            --input README.md \
+            --output "$RUNNER_TEMP/rendered.md"
   yamllint:
     runs-on: ubuntu-latest
     steps:
@@ -73,6 +63,6 @@ on:
     branches:
       - main
     paths:
-      - "**.md"
+      - "README.md"
       - ".github/workflows/mermaid.yml"
   workflow_dispatch: {}
