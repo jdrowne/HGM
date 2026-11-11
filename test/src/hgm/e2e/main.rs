@@ -231,9 +231,7 @@ fn a_continued_run_prints_the_best_agent() {
 
 #[test]
 fn a_continued_run_prints_where_the_best_agent_is() {
-    let best = std::path::Path::new("output_hgm")
-        .join("prev")
-        .join("best_agent");
+    let best = std::path::Path::new("output_hgm/prev").join("best_agent");
     assert!(
         continued_finished()
             .stdout
