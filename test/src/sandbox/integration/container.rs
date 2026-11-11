@@ -28,13 +28,6 @@ fn exec_honours_workdir_and_env() {
 }
 
 #[test]
-fn passthrough_env_skips_unset_variables() {
-    let opts = ExecOptions::default().passthrough_env(&["PATH", "HGM_SURELY_UNSET_VARIABLE"]);
-    assert_eq!(opts.env.len(), 1);
-    assert_eq!(opts.env[0].0, "PATH");
-}
-
-#[test]
 fn exec_str_splits_like_a_shell() {
     let c = start();
     let r =

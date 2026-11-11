@@ -50,3 +50,10 @@ fn unbalanced_quotes_are_a_quoting_error() {
         .exec_str("echo 'a", &ExecOptions::default());
     assert!(matches!(r, Err(Error::Quoting(_))), "{r:?}");
 }
+
+#[test]
+fn passthrough_env_skips_unset_variables() {
+    let opts = ExecOptions::default().passthrough_env(&["PATH", "HGM_SURELY_UNSET_VARIABLE"]);
+    assert_eq!(opts.env.len(), 1);
+    assert_eq!(opts.env[0].0, "PATH");
+}
