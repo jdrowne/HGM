@@ -6,12 +6,27 @@ HGM is based on the paper [*Huxley-Gödel Machine: Human-Level Coding Agent Deve
 
 ## Commands
 
-RustyHGM is one command, `rustyhgm`, with no sub-commands. You run it and get back a better agent. It is a single file that carries the seed agent and everything needed to build it, so it runs from any folder. It is released for Linux. Download it for your platform from the [latest release](https://github.com/jdrowne/RustyHGM/releases/latest):
+RustyHGM is one command, `rustyhgm`, with no sub-commands. You run it and get back a better agent. It is a single file that carries the seed agent and everything needed to build it, so it runs from any folder. It is released for Linux, as a package that also installs what it needs or as a bare file. Download it for your platform from the [latest release](https://github.com/jdrowne/RustyHGM/releases/latest):
 
-| Platform | File |
-| --- | --- |
-| Linux x86_64 | `rustyhgm-linux-x86-64` |
-| Linux arm64 | `rustyhgm-linux-arm64` |
+| Platform | Debian, Ubuntu | Fedora, RHEL | Bare file |
+| --- | --- | --- | --- |
+| Linux x86_64 | `rustyhgm-linux-x86-64.deb` | `rustyhgm-linux-x86-64.rpm` | `rustyhgm-linux-x86-64` |
+| Linux arm64 | `rustyhgm-linux-arm64.deb` | `rustyhgm-linux-arm64.rpm` | `rustyhgm-linux-arm64` |
+
+The packages put `rustyhgm` in `/usr/bin` and pull in Docker, git and Python 3. On Debian and Ubuntu, any of `docker.io`, `docker-ce-cli`, `docker-cli` or `podman-docker` counts as Docker; on Fedora and RHEL, any package that provides `/usr/bin/docker` does.
+
+```sh
+curl -LO https://github.com/jdrowne/RustyHGM/releases/latest/download/rustyhgm-linux-x86-64.deb
+sudo apt install ./rustyhgm-linux-x86-64.deb
+rustyhgm [flags]
+```
+
+```sh
+sudo dnf install https://github.com/jdrowne/RustyHGM/releases/latest/download/rustyhgm-linux-x86-64.rpm
+rustyhgm [flags]
+```
+
+The bare file needs nothing installed with it, so its dependencies are up to you:
 
 ```sh
 curl -L -o rustyhgm https://github.com/jdrowne/RustyHGM/releases/latest/download/rustyhgm-linux-x86-64
@@ -55,7 +70,7 @@ One run does the whole job:
 
 - **Docker.** Every build, self-edit and task runs in a container. `--docker` names the program, `docker` or any compatible one.
 - **A model API key in a file.** `--api_key_file` names a file that holds only the key. `rustyhgm` checks it can read the file before any work starts, and mounts it read-only into each container that runs the agent. Keep it outside the repository, so it never ends up in an agent's source or image.
-- **Python 3 with the `swebench` package** for SWE-bench grading. `--swebench_python` names the interpreter.
+- **Python 3 with the `swebench` package** for SWE-bench grading. `--swebench_python` names the interpreter. The packages install Python 3 but not `swebench`, which comes from `pip install swebench`.
 - **git**, for fetching the Polyglot benchmark from `--polyglot_repo` and writing the best agent's source.
 - **A dataset source and cache.** SWE-bench tasks come from the Hugging Face server at `--dataset_endpoint`, `https://huggingface.co` or a mirror, and are kept under `--dataset_dir`.
 

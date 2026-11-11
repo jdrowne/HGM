@@ -451,6 +451,99 @@ jobs:
           name: profraw-integration
           path: target/llvm-cov-target/*.profraw
           retention-days: 1
+  package:
+    needs: build
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Download the release binaries
+        uses: actions/download-artifact@main
+        with:
+          merge-multiple: true
+          path: dist/
+          pattern: release-*
+      - id: version
+        name: Generate version from UTC time
+        run: >-
+          echo "version=$(date -u +%Y%m%d%H%M%S)"
+          >> $GITHUB_OUTPUT
+      - env:
+          VERSION: ${{ steps.version.outputs.version }}
+        name: Build a .deb and an RPM for each platform
+        run: |
+          mkdir -p packages stage
+          for pair in linux-x86-64:amd64 linux-arm64:arm64; do
+            platform="${pair%%:*}"
+            arch="${pair##*:}"
+            cp "dist/rustyhgm-$platform" stage/rustyhgm
+            for packager in deb rpm; do
+              rm -rf out && mkdir out
+              docker run --rm -v "$PWD:/work" -w /work \
+                -e ARCH="$arch" -e VERSION="$VERSION" \
+                goreleaser/nfpm:latest package \
+                --config etc/nfpm/nfpm.yaml \
+                --packager "$packager" \
+                --target out/
+              mv out/*."$packager" "packages/rustyhgm-$platform.$packager"
+            done
+          done
+          ls -l packages
+      - name: Upload the packages
+        uses: actions/upload-artifact@main
+        with:
+          name: packages
+          path: packages/
+          retention-days: 1
+  package-test:
+    name: package-test-${{ matrix.platform }}-${{ matrix.format }}
+    needs: package
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Download the packages
+        uses: actions/download-artifact@main
+        with:
+          name: packages
+          path: packages/
+      - name: Install the package on a clean system and run it
+        run: >-
+          docker run --rm
+          -v "$PWD/packages:/packages:ro"
+          ${{ matrix.image }}
+          sh -euc '${{ matrix.install }}
+          /packages/rustyhgm-${{ matrix.platform }}.${{ matrix.format }}
+          && rustyhgm --version
+          && for c in docker git python3; do command -v "$c"; done'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - format: deb
+            image: ubuntu:latest
+            install: >-
+              apt-get update
+              && DEBIAN_FRONTEND=noninteractive apt-get install -y
+            platform: linux-x86-64
+            runner: ubuntu-latest
+          - format: rpm
+            image: fedora:latest
+            install: dnf install -y
+            platform: linux-x86-64
+            runner: ubuntu-latest
+          - format: deb
+            image: ubuntu:latest
+            install: >-
+              apt-get update
+              && DEBIAN_FRONTEND=noninteractive apt-get install -y
+            platform: linux-arm64
+            runner: ubuntu-24.04-arm
+          - format: rpm
+            image: fedora:latest
+            install: dnf install -y
+            platform: linux-arm64
+            runner: ubuntu-24.04-arm
   release:
     if: >-
       github.ref_name == 'main'
@@ -467,6 +560,8 @@ jobs:
       - clippy
       - e2e-test
       - integration-test
+      - package
+      - package-test
       - rustfmt
       - unit-test
       - yamllint
@@ -484,25 +579,25 @@ jobs:
           merge-multiple: true
           path: dist/
           pattern: release-*
-      - id: version
-        name: Generate version from UTC time
-        run: >-
-          echo "version=$(date -u +%Y%m%d%H%M%S)"
-          >> $GITHUB_OUTPUT
+      - name: Download the packages
+        uses: actions/download-artifact@main
+        with:
+          name: packages
+          path: dist/
       - name: Create tag
         run: >-
           git tag
-          "v${{ steps.version.outputs.version }}"
+          "v${{ needs.package.outputs.version }}"
       - name: Push tag
         run: >-
           git push origin
-          "v${{ steps.version.outputs.version }}"
+          "v${{ needs.package.outputs.version }}"
       - env:
           GH_TOKEN: ${{ github.token }}
         name: Create GitHub Release
         run: |
           gh release create \
-            "v${{ steps.version.outputs.version }}" \
+            "v${{ needs.package.outputs.version }}" \
             --generate-notes \
             dist/*
       - name: Update latest tag
@@ -627,6 +722,7 @@ on:
       - .github/workflows/release.yml
       - Cargo.toml
       - Dockerfile
+      - etc/**
       - lib/**
       - rust-toolchain.toml
       - src/**
