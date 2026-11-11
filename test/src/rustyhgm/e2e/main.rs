@@ -30,7 +30,7 @@ const SETTINGS: [(&str, &str); 32] = [
     ("--dataset_dir", "cache"),
     ("--polyglot_repo", "no-such-repo"),
     ("--polyglot_dir", "polyglot"),
-    ("--seed_dir", "seed"),
+    ("--progenitor_dir", "progenitors"),
     ("--alpha", "0.6"),
     ("--beta", "1.0"),
     ("--cool_down", "false"),
@@ -45,7 +45,7 @@ const SETTINGS: [(&str, &str); 32] = [
     ("--full_eval", "false"),
     ("--polyglot", "false"),
     ("--output_dir", "out"),
-    ("--initial_agent_name", "agent"),
+    ("--progenitor_name", "agent"),
 ];
 
 fn flags(changes: &[(&str, &str)]) -> Vec<String> {
@@ -148,7 +148,7 @@ fn rustyhgm_without_its_flags_names_them() {
     assert!(
         rustyhgm_with(&[])
             .stderr
-            .contains("--initial_agent_name <NAME>")
+            .contains("--progenitor_name <NAME>")
     );
 }
 
@@ -163,13 +163,13 @@ fn rustyhgm_in(dir: &std::path::Path) -> Command {
     cmd
 }
 
-fn seed_source(root: &std::path::Path) {
-    let src = root.join("seed/initial_swe/agent/src");
+fn progenitor_source(root: &std::path::Path) {
+    let src = root.join("progenitors/progenitor_swe/agent/src");
     std::fs::create_dir_all(&src).unwrap();
-    std::fs::write(src.join("lib.rs"), "seed\n").unwrap();
+    std::fs::write(src.join("lib.rs"), "progenitor\n").unwrap();
 }
 
-const CHILD_PATCH: &str = "--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1,2 @@\n seed\n+child\n";
+const CHILD_PATCH: &str = "--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1,2 @@\n progenitor\n+child\n";
 
 fn metadata(dir: &std::path::Path, commit: &str, extra: serde_json::Value) {
     let mut value = serde_json::json!({
@@ -196,13 +196,17 @@ fn metadata(dir: &std::path::Path, commit: &str, extra: serde_json::Value) {
 
 fn finished_run(root: &std::path::Path) {
     metadata(
-        &root.join("seed/initial_swe"),
+        &root.join("progenitors/progenitor_swe"),
         "agent",
         serde_json::json!({}),
     );
-    seed_source(root);
+    progenitor_source(root);
     let prev = root.join("output_rustyhgm/prev");
-    metadata(&prev, "c1", serde_json::json!({"parent_commit": "initial"}));
+    metadata(
+        &prev,
+        "c1",
+        serde_json::json!({"parent_commit": "progenitor"}),
+    );
     std::fs::write(prev.join("c1/model_patch.diff"), CHILD_PATCH).unwrap();
     std::fs::write(prev.join("init_evaluated_tasks.json"), "[]").unwrap();
     std::fs::write(
@@ -267,16 +271,16 @@ fn a_continued_run_prints_where_the_best_agent_is() {
 fn a_continued_run_writes_the_best_agent_source() {
     assert_eq!(
         continued_finished().file("output_rustyhgm/prev/best_agent/lib.rs"),
-        "seed\nchild\n"
+        "progenitor\nchild\n"
     );
 }
 
 #[test]
-fn a_continued_run_records_the_initial_node() {
+fn a_continued_run_records_the_progenitor() {
     assert!(
         continued_finished()
             .root()
-            .join("output_rustyhgm/prev/initial/metadata.json")
+            .join("output_rustyhgm/prev/progenitor/metadata.json")
             .is_file()
     );
 }
@@ -303,7 +307,7 @@ fn unnamed() -> Ran {
     in_root(
         |_| {},
         |c| {
-            c.args(flags(&[("--initial_agent_name", "")]));
+            c.args(flags(&[("--progenitor_name", "")]));
         },
     )
 }
@@ -318,7 +322,7 @@ fn a_run_without_an_agent_name_says_so() {
     assert!(
         unnamed()
             .stderr
-            .contains("rustyhgm: --initial_agent_name must not be empty")
+            .contains("rustyhgm: --progenitor_name must not be empty")
     );
 }
 
@@ -428,7 +432,7 @@ fn a_missing_holdout_dataset_still_writes_the_best_agent() {
 fn continued(root: &std::path::Path, nodes: &[&str], n_task_evals: usize) {
     let prev = root.join("output_rustyhgm/prev");
     metadata(
-        &root.join("seed/initial_swe"),
+        &root.join("progenitors/progenitor_swe"),
         "agent",
         serde_json::json!({}),
     );
@@ -437,7 +441,7 @@ fn continued(root: &std::path::Path, nodes: &[&str], n_task_evals: usize) {
         metadata(
             &prev,
             commit,
-            serde_json::json!({"parent_commit": "initial"}),
+            serde_json::json!({"parent_commit": "progenitor"}),
         );
         records.push(serde_json::json!({"commit_id": commit, "id": i + 1, "parent_id": 0}));
     }
@@ -538,7 +542,7 @@ fn a_run_without_its_key_file_names_it() {
     );
 }
 
-const FRESH_SEED: &str = "seed/initial_swe/agent/src";
+const FRESH_PROGENITOR: &str = "progenitors/progenitor_swe/agent/src";
 
 fn fresh() -> Ran {
     in_root(
@@ -550,27 +554,33 @@ fn fresh() -> Ran {
 }
 
 #[test]
-fn a_fresh_run_writes_the_built_in_seed_agent() {
+fn a_fresh_run_writes_the_built_in_progenitor() {
     assert!(
         fresh()
             .root()
-            .join(FRESH_SEED)
+            .join(FRESH_PROGENITOR)
             .join("src/coding-agent/main.rs")
             .is_file()
     );
 }
 
 #[test]
-fn a_fresh_run_gives_the_seed_its_dockerfile() {
-    assert!(fresh().root().join(FRESH_SEED).join("Dockerfile").is_file());
+fn a_fresh_run_gives_the_progenitor_its_dockerfile() {
+    assert!(
+        fresh()
+            .root()
+            .join(FRESH_PROGENITOR)
+            .join("Dockerfile")
+            .is_file()
+    );
 }
 
 #[test]
-fn a_fresh_run_leaves_the_controller_out_of_the_seed() {
+fn a_fresh_run_leaves_the_controller_out_of_the_progenitor() {
     assert!(
         !fresh()
             .root()
-            .join(FRESH_SEED)
+            .join(FRESH_PROGENITOR)
             .join("src/rustyhgm")
             .exists()
     );

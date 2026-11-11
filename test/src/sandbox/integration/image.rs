@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use rustyhgm_core::log::Log;
-use rustyhgm_sandbox::source::prepare_initial_agent;
+use rustyhgm_sandbox::source::prepare_progenitor;
 use rustyhgm_sandbox::{Error, ExecOptions};
 
 use tempfile::TempDir;
@@ -39,10 +39,10 @@ fn prepared() -> Prepared {
     fs::write(repo.join(".dockerignore"), "logs/\n").unwrap();
     fs::write(repo.join("agent.txt"), "v1").unwrap();
     fs::write(repo.join("logs/secret.log"), "no").unwrap();
-    let name = unique("rustyhgm-initial");
+    let name = unique("rustyhgm-progenitor");
     let dest = dir.path().join(&name).join("src");
     let image = Image(name);
-    let report = prepare_initial_agent(&repo, &dest, Some(&d), &Log::discard()).unwrap();
+    let report = prepare_progenitor(&repo, &dest, Some(&d), &Log::discard()).unwrap();
     Prepared {
         _dir: dir,
         image,
@@ -63,7 +63,7 @@ fn rerun(p: &Prepared, rebuild: bool) -> Running {
 }
 
 #[test]
-fn preparing_the_initial_agent_copies_the_unignored_files() {
+fn preparing_the_progenitor_copies_the_unignored_files() {
     assert_eq!(
         prepared().copied,
         [".dockerignore", "Dockerfile", "agent.txt"]
@@ -71,7 +71,7 @@ fn preparing_the_initial_agent_copies_the_unignored_files() {
 }
 
 #[test]
-fn preparing_the_initial_agent_builds_its_image() {
+fn preparing_the_progenitor_builds_its_image() {
     let p = prepared();
     assert!(docker().image_exists(&p.image.0).unwrap());
 }

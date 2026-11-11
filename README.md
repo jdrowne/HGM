@@ -6,7 +6,7 @@ HGM is based on the paper [*Huxley-Gödel Machine: Human-Level Coding Agent Deve
 
 ## Commands
 
-RustyHGM is one command, `rustyhgm`, with no sub-commands. You run it and get back a better agent. It is a single file that carries the seed agent and everything needed to build it, so it runs from any folder. It is released for Linux, as a package that also installs what it needs or as a bare file. Download it for your platform from the [latest release](https://github.com/jdrowne/RustyHGM/releases/latest):
+RustyHGM is one command, `rustyhgm`, with no sub-commands. You run it and get back a better agent. It is a single file that carries the progenitor, the agent every version descends from, and everything needed to build it, so it runs from any folder. It is released for Linux, as a package that also installs what it needs or as a bare file. Download it for your platform from the [latest release](https://github.com/jdrowne/RustyHGM/releases/latest):
 
 | Platform | Debian, Ubuntu | Fedora, RHEL | Bare file |
 | --- | --- | --- | --- |
@@ -41,9 +41,9 @@ Every folder and file `rustyhgm` uses comes from a flag. A relative path is take
 One run does the whole job:
 
 1. **Fetches task data** it doesn't have yet. For `--polyglot` runs, that means cloning the [Aider Polyglot benchmark](https://github.com/Aider-AI/polyglot-benchmark) into `polyglot-benchmark` in the `--polyglot_dir` folder and writing its task list next to it, to `polyglot_benchmark_metadata.json`.
-2. **Improves the agent** until the task budget is spent. On the first run with a given agent name, it also writes out its built-in seed agent, builds it and measures it on every task in the pool.
+2. **Improves the agent** until the task budget is spent. On the first run with a given agent name, it also writes out its built-in progenitor, builds it and measures it on every task in the pool.
 3. **Picks the best version**: the one with the highest success rate it can trust, given how many tasks it was tried on.
-4. **Writes that version's source** to `best_agent/` in the `--output_dir` folder and prints where it went. This folder is the improved agent: the seed with every patch on its line applied.
+4. **Writes that version's source** to `best_agent/` in the `--output_dir` folder and prints where it went. This folder is the improved agent: the progenitor with every patch on its line applied.
 5. **Optionally scores it on held-out tasks** with `--holdout_split`. These are SWE-bench tasks it never practised on, so the score shows whether it really got better.
 
 ```sh
@@ -55,12 +55,12 @@ One run does the whole job:
   --docker docker --swebench_python python3 \
   --dataset_endpoint https://huggingface.co --dataset_dir ~/.cache/rustyhgm/datasets \
   --polyglot_repo https://github.com/Aider-AI/polyglot-benchmark.git --polyglot_dir rustyhgm/polyglot \
-  --seed_dir rustyhgm/seeds \
+  --progenitor_dir rustyhgm/progenitors \
   --alpha 0.6 --beta 1.0 --cool_down false --eval_random_level 1.0 \
   --n_pseudo_descendant_evals 10000 --expansion_statistic clade --epsilon 0.01 \
   --max_workers 20 --max_task_evals 100 --self_improve_timeout 3600 --evaluation_timeout 3600 \
   --full_eval false --polyglot false \
-  --output_dir runs/first --initial_agent_name default_agent \
+  --output_dir runs/first --progenitor_name default_agent \
   --holdout_split Lite --holdout_tasks 50
 ```
 
@@ -96,7 +96,7 @@ Every setting is a required flag with no default, so the command line alone says
 | `--dataset_dir <dir>` | Where downloaded datasets are kept |
 | `--polyglot_repo <url>` | Clone URL for the Polyglot benchmark |
 | `--polyglot_dir <dir>` | Where the Polyglot benchmark is cloned and its task list written |
-| `--seed_dir <dir>` | Where the seed agent is built and measured, and found again by later runs |
+| `--progenitor_dir <dir>` | Where the progenitor is built and measured, and found again by later runs |
 | `--alpha <x>` | How bushy the tree grows: more children per evaluation as it rises |
 | `--beta <x>` | How fast `--cool_down` sharpens; ignored without it |
 | `--cool_down <true\|false>` | Sharpens every draw as the budget runs out |
@@ -111,7 +111,7 @@ Every setting is a required flag with no default, so the command line alone says
 | `--full_eval <true\|false>` | Uses all 500 SWE-bench Verified tasks instead of the 60-task pool |
 | `--polyglot <true\|false>` | Uses the Polyglot benchmark instead of SWE-bench |
 | `--output_dir <dir>` | Where the run record goes |
-| `--initial_agent_name <name>` | Name of the seed agent's folder and Docker image |
+| `--progenitor_name <name>` | Name of the progenitor's folder and Docker image |
 
 These flags ask for an extra step, so they are given only when that step is wanted.
 
@@ -121,7 +121,7 @@ These flags ask for an extra step, so they are given only when that step is want
 | `--holdout_split <name>` | After the run, scores the best agent on `princeton-nlp/SWE-bench_<name>`, such as `Lite`; needs `--holdout_tasks` and is not allowed with `--polyglot true` |
 | `--holdout_tasks <n>` | Scores the first `n` held-out tasks; needs `--holdout_split` |
 
-The first run with a given agent name writes the seed into `initial_swe/<name>/` or `initial_polyglot/<name>/` in the `--seed_dir` folder and measures it on every task in the pool. The seed is the `rustyhgm-coding-agent` source as it was when `rustyhgm` was built, with the builder `Dockerfile` beside it. Later runs with the same `--seed_dir` reuse that folder and its results, so delete it to measure a newer seed. A seed folder written by a release from before the program was named `rustyhgm` and the agent `rustyhgm-coding-agent` holds the old names and paths, which this `rustyhgm` cannot build or patch, so delete it too. A run made by such a release cannot be continued with `--continue_from` either.
+The first run with a given agent name writes the progenitor into `progenitor_swe/<name>/` or `progenitor_polyglot/<name>/` in the `--progenitor_dir` folder and measures it on every task in the pool. The progenitor is the `rustyhgm-coding-agent` source as it was when `rustyhgm` was built, with the builder `Dockerfile` beside it; it is the root of the tree, which the paper calls the initial agent, and a run records it under the commit id `progenitor`. Later runs with the same `--progenitor_dir` reuse that folder and its results, so delete it to measure a newer progenitor. Folders written by a release from before the progenitor got its name, such as `initial_swe/` and `initial_polyglot/`, are not found under the new names, and a run made by such a release, whose root is `initial`, cannot be continued with `--continue_from`.
 
 The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout` limit and `--max_workers`, and writes its results to `holdout/best_agent/` in the `--output_dir` folder.
 

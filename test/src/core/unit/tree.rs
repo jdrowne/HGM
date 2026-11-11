@@ -161,7 +161,7 @@ fn new_ids_count_up() {
 fn nodes_keep_insertion_order() {
     let (tree, _) = small_tree();
     let order: Vec<&str> = tree.nodes().map(|n| n.commit_id.as_str()).collect();
-    assert_eq!(order, ["initial", "a", "b", "a1"]);
+    assert_eq!(order, ["progenitor", "a", "b", "a1"]);
 }
 
 #[test]

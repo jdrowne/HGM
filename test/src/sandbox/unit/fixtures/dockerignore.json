@@ -3,7 +3,7 @@
   "cases": [
     {
       "name": "read_dockerignore_repo",
-      "input": "__pycache__/\n**/__pycache__/\n*.pyc\n*.pyo\n.vscode\n.env\n.ipynb\n.git\n.gitignore\n.gitattributes\n<!-- swe-bench -->\nlogs/\nswe_bench/\ninitial_swe/\n\n<!-- polyglot -->\npolyglot/\ninitial_polyglot/\n\n<!-- outputs -->\noutput_rustyhgm/\nresults/\n<!-- misc -->\nmisc/\n<!-- README.md -->\nDockerfile\n.dockerignore\n\n<!-- code outside of coding agent -->\nself_improve_step.py\nprompts/self_improvement_prompt.py\nprompts/diagnose_improvement_prompt.py\nutils/evo_utils.py\nutils/docker_utils.py\nhgm_utils.py\nhgm.py\nevaluate_agent.py\nrun.sh\ntarget/\nsrc/bench/\nsrc/core/\nsrc/rustyhgm/\nsrc/sandbox/\ntest/golden/\ntest/src/bench/\ntest/src/core/\ntest/src/rustyhgm/\ntest/src/sandbox/\n",
+      "input": "__pycache__/\n**/__pycache__/\n*.pyc\n*.pyo\n.vscode\n.env\n.ipynb\n.git\n.gitignore\n.gitattributes\n<!-- swe-bench -->\nlogs/\nswe_bench/\nprogenitor_swe/\n\n<!-- polyglot -->\npolyglot/\nprogenitor_polyglot/\n\n<!-- outputs -->\noutput_rustyhgm/\nresults/\n<!-- misc -->\nmisc/\n<!-- README.md -->\nDockerfile\n.dockerignore\n\n<!-- code outside of coding agent -->\nself_improve_step.py\nprompts/self_improvement_prompt.py\nprompts/diagnose_improvement_prompt.py\nutils/evo_utils.py\nutils/docker_utils.py\nhgm_utils.py\nhgm.py\nevaluate_agent.py\nrun.sh\ntarget/\nsrc/bench/\nsrc/core/\nsrc/rustyhgm/\nsrc/sandbox/\ntest/golden/\ntest/src/bench/\ntest/src/core/\ntest/src/rustyhgm/\ntest/src/sandbox/\n",
       "output": [
         "__pycache__/",
         "**/__pycache__/",
@@ -17,9 +17,9 @@
         ".gitattributes",
         "logs/",
         "swe_bench/",
-        "initial_swe/",
+        "progenitor_swe/",
         "polyglot/",
-        "initial_polyglot/",
+        "progenitor_polyglot/",
         "output_rustyhgm/",
         "results/",
         "misc/",

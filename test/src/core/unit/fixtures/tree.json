@@ -5,7 +5,7 @@
       "name": "root_only_no_evals",
       "input": [
         {
-          "commit_id": "initial",
+          "commit_id": "progenitor",
           "parent_id": null,
           "utility_measures": []
         }
@@ -18,7 +18,7 @@
             0
           ],
           "save_as_dict": {
-            "commit_id": "initial",
+            "commit_id": "progenitor",
             "id": 0,
             "parent_id": null,
             "mean_utility": "Infinity",
@@ -39,7 +39,7 @@
       "name": "root_only_with_evals",
       "input": [
         {
-          "commit_id": "initial",
+          "commit_id": "progenitor",
           "parent_id": null,
           "utility_measures": [
             1,
@@ -56,7 +56,7 @@
             0
           ],
           "save_as_dict": {
-            "commit_id": "initial",
+            "commit_id": "progenitor",
             "id": 0,
             "parent_id": null,
             "mean_utility": 0.6666666666666666,
@@ -94,7 +94,7 @@
       "name": "chain",
       "input": [
         {
-          "commit_id": "initial",
+          "commit_id": "progenitor",
           "parent_id": null,
           "utility_measures": [
             1,
@@ -128,7 +128,7 @@
             2
           ],
           "save_as_dict": {
-            "commit_id": "initial",
+            "commit_id": "progenitor",
             "id": 0,
             "parent_id": null,
             "mean_utility": 0.5,
@@ -267,7 +267,7 @@
       "name": "branching",
       "input": [
         {
-          "commit_id": "initial",
+          "commit_id": "progenitor",
           "parent_id": null,
           "utility_measures": [
             1,
@@ -330,7 +330,7 @@
             5
           ],
           "save_as_dict": {
-            "commit_id": "initial",
+            "commit_id": "progenitor",
             "id": 0,
             "parent_id": null,
             "mean_utility": 0.5,

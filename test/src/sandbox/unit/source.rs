@@ -4,15 +4,15 @@ use std::path::{Path, PathBuf};
 use rustyhgm_core::log::Log;
 use rustyhgm_core::pyjson;
 use rustyhgm_sandbox::source::{
-    CopyReport, copy_filtered, image_name_for, initial_metadata, prepare_initial_agent,
+    CopyReport, copy_filtered, image_name_for, prepare_progenitor, progenitor_metadata,
 };
 use rustyhgm_sandbox::{Docker, Error};
 
 #[test]
-fn initial_metadata_matches_json_dump() {
+fn progenitor_metadata_matches_json_dump() {
     assert_eq!(
-        pyjson::dumps(&initial_metadata(), None),
-        "{\"run_id\": \"initial\", \"overall_performance\": {\"accuracy_score\": 0, \
+        pyjson::dumps(&progenitor_metadata(), None),
+        "{\"run_id\": \"progenitor\", \"overall_performance\": {\"accuracy_score\": 0, \
          \"total_resolved_instances\": 0, \"total_submitted_instances\": 0, \"files\": [], \
          \"total_unresolved_ids\": [], \"total_emptypatch_ids\": [], \"total_resolved_ids\": [], \
          \"total_submitted_ids\": []}}"
@@ -22,8 +22,8 @@ fn initial_metadata_matches_json_dump() {
 #[test]
 fn image_is_named_after_the_parent_folder() {
     assert_eq!(
-        image_name_for(Path::new("/x/initial_swe/src")).as_deref(),
-        Some("initial_swe")
+        image_name_for(Path::new("/x/progenitor_swe/src")).as_deref(),
+        Some("progenitor_swe")
     );
 }
 
@@ -47,16 +47,16 @@ fn tree() -> tempfile::TempDir {
 
 fn copied() -> (tempfile::TempDir, PathBuf, CopyReport) {
     let dir = tree();
-    let dest = dir.path().join("out/initial/src");
+    let dest = dir.path().join("out/progenitor/src");
     let report = copy_filtered(&dir.path().join("repo"), &dest).unwrap();
     (dir, dest, report)
 }
 
 fn prepared() -> (tempfile::TempDir, PathBuf, PathBuf) {
     let dir = tree();
-    let dest = dir.path().join("out/initial/src");
-    let meta = dir.path().join("out/initial/metadata.json");
-    prepare_initial_agent(&dir.path().join("repo"), &dest, None, &Log::discard()).unwrap();
+    let dest = dir.path().join("out/progenitor/src");
+    let meta = dir.path().join("out/progenitor/metadata.json");
+    prepare_progenitor(&dir.path().join("repo"), &dest, None, &Log::discard()).unwrap();
     (dir, dest, meta)
 }
 
@@ -95,11 +95,11 @@ fn copy_leaves_ignored_directories_out() {
 }
 
 #[test]
-fn prepare_writes_the_initial_metadata() {
+fn prepare_writes_the_progenitor_metadata() {
     let (_dir, _dest, meta) = prepared();
     assert_eq!(
         fs::read_to_string(&meta).unwrap(),
-        pyjson::dumps(&initial_metadata(), None)
+        pyjson::dumps(&progenitor_metadata(), None)
     );
 }
 
@@ -107,7 +107,7 @@ fn prepare_writes_the_initial_metadata() {
 fn prepare_keeps_existing_metadata() {
     let (dir, dest, meta) = prepared();
     fs::write(&meta, "{}").unwrap();
-    prepare_initial_agent(&dir.path().join("repo"), &dest, None, &Log::discard()).unwrap();
+    prepare_progenitor(&dir.path().join("repo"), &dest, None, &Log::discard()).unwrap();
     assert_eq!(fs::read_to_string(&meta).unwrap(), "{}");
 }
 
@@ -145,7 +145,7 @@ fn copying_with_an_invalid_dockerignore_is_an_error() {
 #[test]
 fn preparing_with_an_invalid_dockerignore_is_an_error() {
     let (dir, src) = broken_dockerignore();
-    assert!(prepare_initial_agent(&src, &dir.path().join("d"), None, &Log::discard()).is_err());
+    assert!(prepare_progenitor(&src, &dir.path().join("d"), None, &Log::discard()).is_err());
 }
 
 #[test]
@@ -161,7 +161,7 @@ fn copying_with_an_unreadable_dockerignore_is_an_error() {
 fn building_needs_a_parent_folder() {
     let dir = tree();
     let docker = Docker::new("rustyhgm-no-such-docker-program");
-    let r = prepare_initial_agent(
+    let r = prepare_progenitor(
         &dir.path().join("repo"),
         Path::new(""),
         Some(&docker),
@@ -184,9 +184,9 @@ fn the_root_has_no_image_name() {
 fn building_needs_docker() {
     let dir = tree();
     let docker = Docker::new("rustyhgm-no-such-docker-program");
-    let r = prepare_initial_agent(
+    let r = prepare_progenitor(
         &dir.path().join("repo"),
-        &dir.path().join("out/initial/src"),
+        &dir.path().join("out/progenitor/src"),
         Some(&docker),
         &Log::discard(),
     );
@@ -200,9 +200,9 @@ fn building_needs_a_dockerfile() {
     fs::write(src.join(".dockerignore"), "").unwrap();
     fs::remove_file(src.join("Dockerfile")).unwrap();
     let docker = Docker::new("rustyhgm-no-such-docker-program");
-    let r = prepare_initial_agent(
+    let r = prepare_progenitor(
         &src,
-        &dir.path().join("out/initial/src"),
+        &dir.path().join("out/progenitor/src"),
         Some(&docker),
         &Log::discard(),
     );
@@ -214,7 +214,7 @@ fn dangling() -> (tempfile::TempDir, PathBuf, PathBuf, CopyReport) {
     let dir = tree();
     let src = dir.path().join("repo");
     std::os::unix::fs::symlink(dir.path().join("nowhere"), src.join("dangling")).unwrap();
-    let dest = dir.path().join("out/initial/src");
+    let dest = dir.path().join("out/progenitor/src");
     let report = copy_filtered(&src, &dest).unwrap();
     (dir, src, dest, report)
 }
@@ -232,8 +232,8 @@ fn an_unwritable_metadata_file_is_an_error() {
     let (dir, src, dest, _report) = dangling();
     std::os::unix::fs::symlink(
         dir.path().join("no/dir/m.json"),
-        dir.path().join("out/initial/metadata.json"),
+        dir.path().join("out/progenitor/metadata.json"),
     )
     .unwrap();
-    assert!(prepare_initial_agent(&src, &dest, None, &Log::discard()).is_err());
+    assert!(prepare_progenitor(&src, &dest, None, &Log::discard()).is_err());
 }

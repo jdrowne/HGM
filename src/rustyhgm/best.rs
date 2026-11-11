@@ -107,15 +107,18 @@ pub fn export(run_dir: &Path, commit_id: &str, dest: &Path) -> Result<(), String
 pub fn export_with(git: &str, run_dir: &Path, commit_id: &str, dest: &Path) -> Result<(), String> {
     let run_dir = std::path::absolute(run_dir).map_err(|e| at(run_dir, e))?;
     let dest = std::path::absolute(dest).map_err(|e| at(dest, e))?;
-    let seed = run_dir.join(ROOT_COMMIT).join("src");
-    if !seed.is_dir() {
-        return Err(format!("{}: the seed source is missing", seed.display()));
+    let progenitor = run_dir.join(ROOT_COMMIT).join("src");
+    if !progenitor.is_dir() {
+        return Err(format!(
+            "{}: the progenitor's source is missing",
+            progenitor.display()
+        ));
     }
     let patches = model_patch_paths(&run_dir, "", commit_id).map_err(|e| at(&run_dir, e))?;
     if dest.exists() {
         fs::remove_dir_all(&dest).map_err(|e| at(&dest, e))?;
     }
-    copy_tree(&seed, &dest).map_err(|e| at(&dest, e))?;
+    copy_tree(&progenitor, &dest).map_err(|e| at(&dest, e))?;
     patches
         .iter()
         .try_for_each(|patch| apply(git, &dest, patch).map_err(|e| at(patch, e)))

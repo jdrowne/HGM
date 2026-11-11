@@ -5,7 +5,7 @@ use std::time::Duration;
 use rustyhgm::cli::Cli;
 use rustyhgm::node::Evaluator;
 use rustyhgm::run::{
-    Holdout, Init, bench_for, finish, holdout, improve_dataset, initial_folder, initialize_run,
+    Holdout, Init, bench_for, finish, holdout, improve_dataset, initialize_run, progenitor_folder,
     resolve_output_dir, run, run_tasks, settings,
 };
 use rustyhgm::search::Settings;
@@ -37,12 +37,12 @@ fn the_root_as_output_directory_has_no_name() {
 
 #[test]
 fn polyglot_runs_start_from_the_polyglot_folder() {
-    assert_eq!(initial_folder(true), "initial_polyglot");
+    assert_eq!(progenitor_folder(true), "progenitor_polyglot");
 }
 
 #[test]
 fn swe_runs_start_from_the_swe_folder() {
-    assert_eq!(initial_folder(false), "initial_swe");
+    assert_eq!(progenitor_folder(false), "progenitor_swe");
 }
 
 #[test]
@@ -217,7 +217,7 @@ fn init<'a>(
     prev: Option<&'a Path>,
 ) -> Init<'a> {
     Init {
-        seed_dir: root,
+        progenitor_dir: root,
         output_dir: out,
         agent_name: "agent",
         polyglot: false,
@@ -278,7 +278,7 @@ fn started() -> Started {
 #[test]
 fn a_new_run_points_at_the_prepared_source() {
     let s = started();
-    assert_eq!(s.start.src_path, s.root().join("initial_swe/agent/src"));
+    assert_eq!(s.start.src_path, s.root().join("progenitor_swe/agent/src"));
 }
 
 #[cfg(unix)]
@@ -287,7 +287,7 @@ fn a_new_run_copies_the_agent_source() {
     assert!(
         started()
             .root()
-            .join("initial_swe/agent/src/src/coding-agent/main.rs")
+            .join("progenitor_swe/agent/src/src/coding-agent/main.rs")
             .is_file()
     );
 }
@@ -298,43 +298,43 @@ fn a_new_run_copies_the_dockerfile() {
     assert!(
         started()
             .root()
-            .join("initial_swe/agent/src/Dockerfile")
+            .join("progenitor_swe/agent/src/Dockerfile")
             .is_file()
     );
 }
 
 #[cfg(unix)]
 #[test]
-fn a_new_run_seeds_the_initial_node() {
+fn a_new_run_copies_the_progenitor_into_the_run() {
     assert!(
         started()
             .root()
-            .join("out/initial/src/src/coding-agent/main.rs")
+            .join("out/progenitor/src/src/coding-agent/main.rs")
             .is_file()
     );
 }
 
 #[cfg(unix)]
 #[test]
-fn a_new_run_evaluates_the_initial_agent_once() {
+fn a_new_run_evaluates_the_progenitor_once() {
     assert_eq!(started().seen().len(), 1);
 }
 
 #[cfg(unix)]
 #[test]
-fn the_initial_evaluation_names_the_agent() {
+fn the_progenitor_evaluation_names_the_agent() {
     assert_eq!(started().seen()[0].commit, "agent");
 }
 
 #[cfg(unix)]
 #[test]
-fn the_initial_evaluation_covers_every_task() {
+fn the_progenitor_evaluation_covers_every_task() {
     assert_eq!(started().seen()[0].tasks, two_tasks());
 }
 
 #[cfg(unix)]
 #[test]
-fn the_initial_evaluation_caps_its_workers() {
+fn the_progenitor_evaluation_caps_its_workers() {
     assert_eq!(started().seen()[0].max_workers, 2);
 }
 
@@ -346,7 +346,7 @@ fn a_new_run_starts_with_the_root_alone() {
 
 #[cfg(unix)]
 #[test]
-fn the_root_holds_the_initial_measures() {
+fn the_root_holds_the_progenitor_measures() {
     assert_eq!(
         started().start.tree.get(0).unwrap().utility_measures,
         [1.0, 0.0]
@@ -355,7 +355,7 @@ fn the_root_holds_the_initial_measures() {
 
 #[cfg(unix)]
 #[test]
-fn the_initial_tasks_count_as_submitted() {
+fn the_progenitor_tasks_count_as_submitted() {
     assert_eq!(started().start.submitted_ids[&0].len(), 2);
 }
 
@@ -373,7 +373,7 @@ fn a_new_run_has_no_initially_evaluated_tasks() {
 
 #[cfg(unix)]
 #[test]
-fn a_second_start_reads_the_initial_measures_back() {
+fn a_second_start_reads_the_progenitor_measures_back() {
     assert_eq!(
         started().again().tree.get(0).unwrap().utility_measures,
         [1.0, 0.0]
@@ -390,10 +390,10 @@ fn a_second_start_does_not_evaluate_again() {
 
 #[cfg(unix)]
 #[test]
-fn the_initial_node_is_named_initial() {
+fn the_progenitor_node_is_named_progenitor() {
     assert_eq!(
-        read_json(&started().root().join("out/initial/metadata.json"))["run_id"],
-        "initial"
+        read_json(&started().root().join("out/progenitor/metadata.json"))["run_id"],
+        "progenitor"
     );
 }
 
@@ -414,7 +414,7 @@ fn a_missing_docker_fails_the_setup() {
 
 #[cfg(unix)]
 #[test]
-fn a_failing_initial_evaluation_is_reported() {
+fn a_failing_progenitor_evaluation_is_reported() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     let failing = FakeBench {
@@ -434,10 +434,10 @@ fn a_failing_initial_evaluation_is_reported() {
 }
 
 #[test]
-fn an_initial_folder_without_source_is_an_error() {
+fn a_progenitor_folder_without_source_is_an_error() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
-    fs::create_dir_all(root.join("initial_swe/agent")).unwrap();
+    fs::create_dir_all(root.join("progenitor_swe/agent")).unwrap();
     let e = initialize_run(
         &init(root, &root.join("out"), &["a".to_owned()], None),
         &FakeBench::resolving(&[]),
@@ -445,7 +445,7 @@ fn an_initial_folder_without_source_is_an_error() {
         &Log::discard(),
     )
     .err();
-    assert!(e.unwrap().contains("initial"));
+    assert!(e.unwrap().contains("progenitor"));
 }
 
 fn previous(prev: &Path) {
@@ -474,12 +474,17 @@ fn continued() -> (FakeBench, rustyhgm::run::Start) {
     fs::create_dir_all(&out).unwrap();
     previous(&out);
     node(
-        &root.join("initial_swe"),
+        &root.join("progenitor_swe"),
         "agent",
         None,
         performance(&["a"], &["b"], &[]),
     );
-    node(&out, "c1", Some("initial"), performance(&["a"], &[], &[]));
+    node(
+        &out,
+        "c1",
+        Some("progenitor"),
+        performance(&["a"], &[], &[]),
+    );
     node(&out, "c2", Some("c1"), performance(&["a"], &["b"], &[]));
     let bench = FakeBench::resolving(&[]);
     let start = initialize_run(
@@ -588,7 +593,7 @@ fn a_continued_run_needs_each_node_folder() {
     assert!(
         continue_error(|out| {
             previous(out);
-            node(out, "initial", None, performance(&[], &[], &[]));
+            node(out, "progenitor", None, performance(&[], &[], &[]));
         })
         .unwrap()
         .contains("c1")
@@ -631,8 +636,8 @@ fn a_run_without_its_key_file_fetches_no_polyglot_dataset() {
 #[test]
 fn a_run_without_an_agent_name_stops_early() {
     assert!(
-        run_error(|_| {}, |a| a.initial_agent_name = String::new())
-            .starts_with("--initial_agent_name must not be empty")
+        run_error(|_| {}, |a| a.progenitor_name = String::new())
+            .starts_with("--progenitor_name must not be empty")
     );
 }
 
@@ -695,17 +700,17 @@ fn a_refused_run_fetches_no_polyglot_dataset() {
 fn finished_run() -> (tempfile::TempDir, PathBuf) {
     let tmp = tempfile::tempdir().unwrap();
     let out = tmp.path().join("run");
-    fs::create_dir_all(out.join("initial/src")).unwrap();
-    fs::write(out.join("initial/src/lib.rs"), "seed\n").unwrap();
+    fs::create_dir_all(out.join("progenitor/src")).unwrap();
+    fs::write(out.join("progenitor/src/lib.rs"), "progenitor\n").unwrap();
     fs::create_dir_all(out.join("c1")).unwrap();
     fs::write(
         out.join("c1/metadata.json"),
-        json!({"parent_commit": "initial"}).to_string(),
+        json!({"parent_commit": "progenitor"}).to_string(),
     )
     .unwrap();
     fs::write(
         out.join("c1/model_patch.diff"),
-        "--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1,2 @@\n seed\n+child\n",
+        "--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1,2 @@\n progenitor\n+child\n",
     )
     .unwrap();
     let record = json!({"n_task_evals": 2, "nodes": [{"commit_id": "c1", "id": 1, "parent_id": 0, "mean_utility": 0.5, "num_evals": 2}]});
@@ -726,7 +731,7 @@ fn finish_writes_the_best_agent_source_into_the_run() {
     .unwrap();
     assert_eq!(
         fs::read_to_string(out.join("best_agent/lib.rs")).unwrap(),
-        "seed\nchild\n"
+        "progenitor\nchild\n"
     );
 }
 
@@ -748,9 +753,9 @@ fn finish_needs_the_run_records() {
 }
 
 #[test]
-fn finish_needs_the_seed_source() {
+fn finish_needs_the_progenitor_source() {
     let (_tmp, out) = finished_run();
-    fs::remove_dir_all(out.join("initial")).unwrap();
+    fs::remove_dir_all(out.join("progenitor")).unwrap();
     assert!(
         finish(
             &cli(&[]),
@@ -760,7 +765,7 @@ fn finish_needs_the_seed_source() {
             &out,
         )
         .unwrap_err()
-        .contains("the seed source is missing")
+        .contains("the progenitor's source is missing")
     );
 }
 

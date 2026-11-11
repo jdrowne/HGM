@@ -157,14 +157,14 @@ fn polyglot_tasks(root: &Path) -> Vec<String> {
     tasks
 }
 
-fn seed_initial_agent(seed: &Path) {
-    let agent = seed.join("initial_polyglot/default_agent");
+fn write_progenitor(progenitors: &Path) {
+    let agent = progenitors.join("progenitor_polyglot/default_agent");
     let tasks = polyglot_tasks(&repo_root());
     if tasks[0] != TASK {
         panic!("the first polyglot task is {}, not {TASK}", tasks[0]);
     }
     fs::create_dir_all(agent.join("predictions")).unwrap();
-    let metadata = json!({"run_id": "initial", "overall_performance": {
+    let metadata = json!({"run_id": "progenitor", "overall_performance": {
         "accuracy_score": 1.0 / tasks.len() as f64,
         "total_resolved_instances": 1,
         "total_submitted_instances": tasks.len(),
@@ -175,7 +175,7 @@ fn seed_initial_agent(seed: &Path) {
         "total_submitted_ids": tasks,
     }});
     fs::write(agent.join("metadata.json"), metadata.to_string()).unwrap();
-    rustyhgm::seed::write(&agent.join("src")).unwrap();
+    rustyhgm::progenitor::write(&agent.join("src")).unwrap();
 }
 
 fn records(path: &Path) -> Vec<Value> {
@@ -188,11 +188,11 @@ fn records(path: &Path) -> Vec<Value> {
         .collect()
 }
 
-fn run_args(host: &str, key: &str, seed: &str) -> Vec<String> {
+fn run_args(host: &str, key: &str, progenitors: &str) -> Vec<String> {
     let agent_url = format!("http://{host}:8000/v1");
     flags(&[
         ("--api_key_file", key),
-        ("--seed_dir", seed),
+        ("--progenitor_dir", progenitors),
         ("--docker", "docker"),
         (
             "--polyglot_repo",
@@ -211,7 +211,7 @@ fn run_args(host: &str, key: &str, seed: &str) -> Vec<String> {
         ("--diagnose_llm", "vllm-model"),
         ("--diagnose_provider", "vllm"),
         ("--diagnose_base_url", "http://127.0.0.1:8000/v1"),
-        ("--initial_agent_name", "default_agent"),
+        ("--progenitor_name", "default_agent"),
         ("--output_dir", "output_rustyhgm/run"),
     ])
 }
@@ -248,8 +248,8 @@ fn names(dir: &Path) -> Vec<String> {
 
 fn scenario(root: &Path) {
     fs::copy(binary("rustyhgm"), root.join(HGM)).unwrap();
-    let seed = root.with_extension("seed");
-    seed_initial_agent(&seed);
+    let progenitors = root.with_extension("progenitors");
+    write_progenitor(&progenitors);
     let before = names(root);
     let seen = serve_llm();
     let key = root.with_extension("key");
@@ -258,7 +258,7 @@ fn scenario(root: &Path) {
         .args(run_args(
             &llm_host(),
             &key.to_string_lossy(),
-            &seed.to_string_lossy(),
+            &progenitors.to_string_lossy(),
         ))
         .output()
         .unwrap();
@@ -407,7 +407,7 @@ fn the_best_agent_carries_the_improvement() {
 }
 
 #[test]
-fn the_initial_agent_needs_no_evaluation() {
+fn the_progenitor_needs_no_evaluation() {
     assert_eq!(
         read_json(&shared().run().join("init_evaluated_tasks.json")),
         json!([])
@@ -458,7 +458,7 @@ fn the_child_patches_its_task() {
 #[test]
 fn the_child_names_its_parent() {
     let s = shared();
-    assert_eq!(s.metadata()["parent_commit"], "initial", "{}", s.logs());
+    assert_eq!(s.metadata()["parent_commit"], "progenitor", "{}", s.logs());
 }
 
 #[test]

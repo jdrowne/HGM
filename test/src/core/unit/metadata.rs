@@ -108,7 +108,7 @@ fn saved_tree() -> Tree {
 fn a_saved_record_rebuilds_the_commits_in_order() {
     let tree = saved_tree();
     let commits: Vec<&str> = tree.nodes().map(|n| n.commit_id.as_str()).collect();
-    assert_eq!(commits, ["initial", "a", "b", "a1", "a2", "b1"]);
+    assert_eq!(commits, ["progenitor", "a", "b", "a1", "a2", "b1"]);
 }
 
 #[test]

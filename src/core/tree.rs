@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::config::ExpansionStatistic;
 use crate::pyjson::PyValue;
 
-pub const ROOT_COMMIT: &str = "initial";
+pub const ROOT_COMMIT: &str = "progenitor";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node {

@@ -28,7 +28,7 @@ pub const SETTINGS: [(&str, &str); 32] = [
     ("--dataset_dir", "cache"),
     ("--polyglot_repo", "no-such-repo"),
     ("--polyglot_dir", "polyglot"),
-    ("--seed_dir", "seed"),
+    ("--progenitor_dir", "progenitors"),
     ("--alpha", "0.6"),
     ("--beta", "1.0"),
     ("--cool_down", "false"),
@@ -43,7 +43,7 @@ pub const SETTINGS: [(&str, &str); 32] = [
     ("--full_eval", "false"),
     ("--polyglot", "false"),
     ("--output_dir", "out"),
-    ("--initial_agent_name", "agent"),
+    ("--progenitor_name", "agent"),
 ];
 
 pub fn argv(changes: &[(&str, &str)], without: &[&str]) -> Vec<String> {

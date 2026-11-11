@@ -17,9 +17,9 @@ pub struct CopyReport {
     pub copied: Vec<String>,
 }
 
-pub fn initial_metadata() -> PyValue {
+pub fn progenitor_metadata() -> PyValue {
     PyValue::dict([
-        ("run_id", PyValue::str("initial")),
+        ("run_id", PyValue::str("progenitor")),
         (
             "overall_performance",
             PyValue::dict([
@@ -65,7 +65,7 @@ pub fn image_name_for(dest: &Path) -> Option<String> {
         .map(|n| n.to_string_lossy().into_owned())
 }
 
-pub fn prepare_initial_agent(
+pub fn prepare_progenitor(
     source: &Path,
     dest: &Path,
     docker: Option<&Docker>,
@@ -86,7 +86,7 @@ pub fn prepare_initial_agent(
     ));
     let metadata: PathBuf = dest.join("..").join(NODE_METADATA_FILE);
     if !metadata.exists() {
-        fs::write(&metadata, pyjson::dumps(&initial_metadata(), None))?;
+        fs::write(&metadata, pyjson::dumps(&progenitor_metadata(), None))?;
     }
     if let (Some(docker), Some(tag)) = (docker, tag) {
         for name in [DOCKERIGNORE_FILE, DOCKERFILE] {

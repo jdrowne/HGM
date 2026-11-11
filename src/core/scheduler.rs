@@ -19,8 +19,8 @@ impl fmt::Display for NoExpandableNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(
             "no node can be expanded: none has a finite mean utility above 0. \
-             The initial agent resolved no task, or was never evaluated; \
-             check the API key file and Docker, or delete its folder under --seed_dir to re-evaluate it",
+             The progenitor resolved no task, or was never evaluated; \
+             check the API key file and Docker, or delete its folder under --progenitor_dir to re-evaluate it",
         )
     }
 }

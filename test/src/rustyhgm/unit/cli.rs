@@ -54,7 +54,7 @@ fn every_flag_reaches_the_configuration() {
         ("--full_eval", "true"),
         ("--polyglot", "true"),
         ("--output_dir", "out"),
-        ("--initial_agent_name", "agent"),
+        ("--progenitor_name", "agent"),
         ("--continue_from", "prev"),
     ]);
     assert_eq!(
@@ -76,7 +76,7 @@ fn every_flag_reaches_the_configuration() {
                 "max_task_evals": 7,
             },
             "evaluation": {"full_eval": true, "polyglot": true},
-            "paths": {"output_dir": "out", "continue_from": "prev", "initial_agent_name": "agent"},
+            "paths": {"output_dir": "out", "continue_from": "prev", "progenitor_name": "agent"},
         })
     );
 }

@@ -45,8 +45,8 @@ pub struct Cli {
     pub polyglot_repo: String,
     #[arg(long = "polyglot_dir", value_name = "DIR")]
     pub polyglot_dir: PathBuf,
-    #[arg(long = "seed_dir", value_name = "DIR")]
-    pub seed_dir: PathBuf,
+    #[arg(long = "progenitor_dir", value_name = "DIR")]
+    pub progenitor_dir: PathBuf,
     #[arg(long, value_name = "X")]
     pub alpha: f64,
     #[arg(long, value_name = "X")]
@@ -75,8 +75,8 @@ pub struct Cli {
     pub polyglot: bool,
     #[arg(long = "output_dir", value_name = "DIR")]
     pub output_dir: String,
-    #[arg(long = "initial_agent_name", value_name = "NAME")]
-    pub initial_agent_name: String,
+    #[arg(long = "progenitor_name", value_name = "NAME")]
+    pub progenitor_name: String,
     #[arg(long = "continue_from", value_name = "DIR")]
     pub continue_from: Option<String>,
     #[arg(
@@ -162,7 +162,7 @@ impl Cli {
             paths: PathConfig {
                 output_dir: self.output_dir.clone(),
                 continue_from: self.continue_from.clone(),
-                initial_agent_name: self.initial_agent_name.clone(),
+                progenitor_name: self.progenitor_name.clone(),
             },
         }
     }

@@ -226,17 +226,17 @@ fn version(run: &Path, commit: &str, parent: &str, patch: Option<&str>) {
     }
 }
 
-const FIRST: &str = "--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1,2 @@\n seed\n+one\n";
-const SECOND: &str = "--- a/lib.rs\n+++ b/lib.rs\n@@ -1,2 +1,3 @@\n seed\n one\n+two\n";
+const FIRST: &str = "--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1,2 @@\n progenitor\n+one\n";
+const SECOND: &str = "--- a/lib.rs\n+++ b/lib.rs\n@@ -1,2 +1,3 @@\n progenitor\n one\n+two\n";
 
 fn exported_chain() -> (TempDir, PathBuf) {
     let tmp = tempfile::tempdir().unwrap();
     let run = tmp.path().join("run");
-    let seed = run.join("initial/src");
-    fs::create_dir_all(seed.join("sub")).unwrap();
-    fs::write(seed.join("lib.rs"), "seed\n").unwrap();
-    fs::write(seed.join("sub/keep.txt"), "k").unwrap();
-    version(&run, "c1", "initial", Some(FIRST));
+    let progenitor = run.join("progenitor/src");
+    fs::create_dir_all(progenitor.join("sub")).unwrap();
+    fs::write(progenitor.join("lib.rs"), "progenitor\n").unwrap();
+    fs::write(progenitor.join("sub/keep.txt"), "k").unwrap();
+    version(&run, "c1", "progenitor", Some(FIRST));
     version(&run, "c2", "c1", Some(SECOND));
     let dest = run.join("best_agent");
     fs::create_dir_all(&dest).unwrap();
@@ -246,16 +246,16 @@ fn exported_chain() -> (TempDir, PathBuf) {
 }
 
 #[test]
-fn export_replays_the_patch_chain_onto_the_seed() {
+fn export_replays_the_patch_chain_onto_the_progenitor() {
     let (_tmp, dest) = exported_chain();
     assert_eq!(
         fs::read_to_string(dest.join("lib.rs")).unwrap(),
-        "seed\none\ntwo\n"
+        "progenitor\none\ntwo\n"
     );
 }
 
 #[test]
-fn export_keeps_untouched_seed_files() {
+fn export_keeps_untouched_progenitor_files() {
     let (_tmp, dest) = exported_chain();
     assert_eq!(fs::read_to_string(dest.join("sub/keep.txt")).unwrap(), "k");
 }
@@ -273,35 +273,38 @@ fn export_leaves_no_git_directory() {
 }
 
 #[test]
-fn export_of_the_initial_agent_over_an_earlier_export_is_the_seed() {
+fn exporting_the_progenitor_over_an_earlier_export_gives_its_source() {
     let (tmp, dest) = exported_chain();
-    export(&tmp.path().join("run"), "initial", &dest).unwrap();
-    assert_eq!(fs::read_to_string(dest.join("lib.rs")).unwrap(), "seed\n");
-}
-
-#[test]
-fn export_fails_without_a_seed() {
-    let tmp = tempfile::tempdir().unwrap();
-    let run = tmp.path().join("run");
-    assert!(
-        export(&run, "initial", &run.join("best_agent"))
-            .unwrap_err()
-            .contains("the seed source is missing")
+    export(&tmp.path().join("run"), "progenitor", &dest).unwrap();
+    assert_eq!(
+        fs::read_to_string(dest.join("lib.rs")).unwrap(),
+        "progenitor\n"
     );
 }
 
-fn mismatched_seed_run() -> (TempDir, PathBuf) {
+#[test]
+fn export_fails_without_the_progenitor() {
     let tmp = tempfile::tempdir().unwrap();
     let run = tmp.path().join("run");
-    fs::create_dir_all(run.join("initial/src")).unwrap();
-    fs::write(run.join("initial/src/lib.rs"), "other\n").unwrap();
-    version(&run, "c1", "initial", Some(FIRST));
+    assert!(
+        export(&run, "progenitor", &run.join("best_agent"))
+            .unwrap_err()
+            .contains("the progenitor's source is missing")
+    );
+}
+
+fn mismatched_progenitor_run() -> (TempDir, PathBuf) {
+    let tmp = tempfile::tempdir().unwrap();
+    let run = tmp.path().join("run");
+    fs::create_dir_all(run.join("progenitor/src")).unwrap();
+    fs::write(run.join("progenitor/src/lib.rs"), "other\n").unwrap();
+    version(&run, "c1", "progenitor", Some(FIRST));
     (tmp, run)
 }
 
 #[test]
 fn export_fails_on_a_patch_that_does_not_apply() {
-    let (_tmp, run) = mismatched_seed_run();
+    let (_tmp, run) = mismatched_progenitor_run();
     assert!(
         export(&run, "c1", &run.join("best_agent"))
             .unwrap_err()
@@ -311,16 +314,16 @@ fn export_fails_on_a_patch_that_does_not_apply() {
 
 #[test]
 fn export_fails_for_an_unknown_commit() {
-    let (_tmp, run) = mismatched_seed_run();
+    let (_tmp, run) = mismatched_progenitor_run();
     assert!(export(&run, "missing", &run.join("best_agent")).is_err());
 }
 
 fn chain_run() -> (TempDir, PathBuf) {
     let tmp = tempfile::tempdir().unwrap();
     let run = tmp.path().join("run");
-    fs::create_dir_all(run.join("initial/src")).unwrap();
-    fs::write(run.join("initial/src/lib.rs"), "seed\n").unwrap();
-    version(&run, "c1", "initial", Some(FIRST));
+    fs::create_dir_all(run.join("progenitor/src")).unwrap();
+    fs::write(run.join("progenitor/src/lib.rs"), "progenitor\n").unwrap();
+    version(&run, "c1", "progenitor", Some(FIRST));
     (tmp, run)
 }
 
@@ -373,6 +376,6 @@ fn export_ignores_a_repository_around_the_destination() {
     export(&run, "c1", &dest).unwrap();
     assert_eq!(
         fs::read_to_string(dest.join("lib.rs")).unwrap(),
-        "seed\none\n"
+        "progenitor\none\n"
     );
 }

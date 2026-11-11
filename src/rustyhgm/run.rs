@@ -22,7 +22,7 @@ use rustyhgm_core::metadata::{
 };
 use rustyhgm_core::tree::{ROOT_COMMIT, Tree};
 use rustyhgm_sandbox::Docker;
-use rustyhgm_sandbox::source::prepare_initial_agent;
+use rustyhgm_sandbox::source::prepare_progenitor;
 use serde_json::Value;
 
 use crate::agent_build::Builder;
@@ -30,8 +30,8 @@ use crate::best::{BEST_AGENT, check_epsilon, export, pick};
 use crate::cli::{Cli, Tools};
 use crate::improve::SelfImprove;
 use crate::node::{Bench, Evaluator, at};
+use crate::progenitor;
 use crate::search::{Search, Settings, State};
-use crate::seed;
 
 pub const JITTER: Duration = Duration::from_secs(1);
 
@@ -48,11 +48,11 @@ fn builder(docker: &Docker, context: &Path, agent_name: &str) -> Builder {
     }
 }
 
-pub fn initial_folder(polyglot: bool) -> &'static str {
+pub fn progenitor_folder(polyglot: bool) -> &'static str {
     if polyglot {
-        "initial_polyglot"
+        "progenitor_polyglot"
     } else {
-        "initial_swe"
+        "progenitor_swe"
     }
 }
 
@@ -66,7 +66,7 @@ pub fn resolve_output_dir(output_dir: &str, cwd: &Path) -> (PathBuf, String) {
 }
 
 pub struct Init<'a> {
-    pub seed_dir: &'a Path,
+    pub progenitor_dir: &'a Path,
     pub output_dir: &'a Path,
     pub agent_name: &'a str,
     pub polyglot: bool,
@@ -93,11 +93,15 @@ fn previous_run(prev: &Path) -> Result<(Vec<String>, Tree), String> {
         .map_err(|e| at(&record, e))
 }
 
-fn build_seed(src_path: &Path, docker: &Docker, log: &Log) -> Result<(), rustyhgm_sandbox::Error> {
+fn build_progenitor(
+    src_path: &Path,
+    docker: &Docker,
+    log: &Log,
+) -> Result<(), rustyhgm_sandbox::Error> {
     tempfile::tempdir()
-        .and_then(|build| seed::write(build.path()).map(|()| build))
+        .and_then(|build| progenitor::write(build.path()).map(|()| build))
         .map_err(rustyhgm_sandbox::Error::from)
-        .and_then(|build| prepare_initial_agent(build.path(), src_path, Some(docker), log))
+        .and_then(|build| prepare_progenitor(build.path(), src_path, Some(docker), log))
         .map(|_| ())
 }
 
@@ -107,11 +111,11 @@ pub fn initialize_run(
     docker: &Docker,
     log: &Log,
 ) -> Result<Start, String> {
-    let folder = init.seed_dir.join(initial_folder(init.polyglot));
+    let folder = init.progenitor_dir.join(progenitor_folder(init.polyglot));
     let agent_dir = folder.join(init.agent_name);
     let src_path = agent_dir.join("src");
     if init.continue_from.is_none() && !agent_dir.exists() {
-        build_seed(&src_path, docker, log).map_err(|e| e.to_string())?;
+        build_progenitor(&src_path, docker, log).map_err(|e| e.to_string())?;
         Evaluator {
             bench,
             output_dir: &folder,
@@ -229,8 +233,8 @@ pub fn settings(config: &HgmConfig, jitter: Duration) -> Settings {
 
 pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> {
     let config = args.config();
-    if config.paths.initial_agent_name.is_empty() {
-        return Err("--initial_agent_name must not be empty".to_owned());
+    if config.paths.progenitor_name.is_empty() {
+        return Err("--progenitor_name must not be empty".to_owned());
     }
     check_epsilon(args.epsilon)?;
     if config.evaluation.polyglot && args.holdout_split.is_some() {
@@ -262,9 +266,9 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
         .map(|p| root_dir.join(p));
     let start = initialize_run(
         &Init {
-            seed_dir: &root_dir.join(&args.seed_dir),
+            progenitor_dir: &root_dir.join(&args.progenitor_dir),
             output_dir: &output_dir,
-            agent_name: &config.paths.initial_agent_name,
+            agent_name: &config.paths.progenitor_name,
             polyglot,
             continue_from: continue_from.as_deref(),
             total_tasks: &tasks,
@@ -284,7 +288,7 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
         output_dir: output_dir.clone(),
         polyglot,
         dataset: improve_dataset(polyglot, &polyglot_dir, &tools.hub),
-        image_name: format!("{}:latest", config.paths.initial_agent_name),
+        image_name: format!("{}:latest", config.paths.progenitor_name),
         diagnose: services
             .diagnose
             .client(&config.llm.diagnose_llm, &services.api_key),
@@ -295,7 +299,7 @@ pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> 
     let builder = builder(
         &improver.docker,
         &start.src_path,
-        &config.paths.initial_agent_name,
+        &config.paths.progenitor_name,
     );
     let evaluator = Evaluator {
         bench: bench.as_ref(),

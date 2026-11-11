@@ -15,8 +15,8 @@ lib/
 logs/
 output_rustyhgm/
 results/
-initial_swe/
-initial_polyglot/
+progenitor_swe/
+progenitor_polyglot/
 polyglot/
 src/bench/
 src/core/

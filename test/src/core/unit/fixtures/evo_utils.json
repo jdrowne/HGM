@@ -232,10 +232,10 @@
       }
     },
     {
-      "name": "get_model_patch_paths_initial",
+      "name": "get_model_patch_paths_progenitor",
       "input": {
         "parent_links": {
-          "c1": "initial",
+          "c1": "progenitor",
           "c2": "c1",
           "c3": "c2",
           "nopatch": "c1"
@@ -243,7 +243,7 @@
         "no_patch_file": [
           "nopatch"
         ],
-        "parent_commit": "initial"
+        "parent_commit": "progenitor"
       },
       "output": []
     },
@@ -251,7 +251,7 @@
       "name": "get_model_patch_paths_c1",
       "input": {
         "parent_links": {
-          "c1": "initial",
+          "c1": "progenitor",
           "c2": "c1",
           "c3": "c2",
           "nopatch": "c1"
@@ -269,7 +269,7 @@
       "name": "get_model_patch_paths_c3",
       "input": {
         "parent_links": {
-          "c1": "initial",
+          "c1": "progenitor",
           "c2": "c1",
           "c3": "c2",
           "nopatch": "c1"
@@ -289,7 +289,7 @@
       "name": "get_model_patch_paths_nopatch",
       "input": {
         "parent_links": {
-          "c1": "initial",
+          "c1": "progenitor",
           "c2": "c1",
           "c3": "c2",
           "nopatch": "c1"

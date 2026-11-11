@@ -52,7 +52,7 @@ pub struct EvaluationConfig {
 pub struct PathConfig {
     pub output_dir: String,
     pub continue_from: Option<String>,
-    pub initial_agent_name: String,
+    pub progenitor_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
