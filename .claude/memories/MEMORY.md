@@ -16,3 +16,4 @@
 - [README diagrams are Mermaid](readme-diagrams-are-mermaid.md) — fenced mermaid GitHub renders; stable kinds only (flowchart with subgraph boxes); nothing newer than GitHub's Mermaid; no %% comments
 - [Working without subagents](working-without-subagents.md) — no Agent or Workflow call for any part of the work unless the user's own message asks for one; settings.json denies both
 - [Every input is explicit](every-input-is-explicit.md) — every hgm/hgm-agent setting is a required flag; no config file, defaults, environment variables or working-directory lookups
+- [Clippy runs with the CI thresholds](clippy-runs-with-ci-thresholds.md) — set CLIPPY_CONF_DIR to etc/clippy/src or test; uvx assert-one-assert-per-test src test; && counts as two asserts
