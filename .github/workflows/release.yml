@@ -241,11 +241,9 @@ jobs:
         run: cargo build --workspace --bins --release
       - name: Stage the release binaries
         run: |
-          ext=""
-          if [ "$RUNNER_OS" = Windows ]; then ext=.exe; fi
           mkdir dist
           for bin in hgm hgm-agent; do
-            cp "target/release/$bin$ext" "dist/$bin-${{ matrix.platform }}$ext"
+            cp "target/release/$bin" "dist/$bin-${{ matrix.platform }}"
           done
       - name: Upload the release binaries
         uses: actions/upload-artifact@main
@@ -261,12 +259,6 @@ jobs:
             runner: ubuntu-latest
           - platform: linux-arm64
             runner: ubuntu-24.04-arm
-          - platform: macos-arm64
-            runner: macos-latest
-          - platform: windows-x86-64
-            runner: windows-latest
-          - platform: windows-arm64
-            runner: windows-11-arm
   clippy:
     runs-on: ubuntu-latest
     steps:
@@ -309,34 +301,15 @@ jobs:
           --archive-file build.tar.zst
           --workspace-remap .
           --no-fail-fast
-          -E "binary(e2e) ${{ matrix.gate }}"
+          -E 'binary(e2e)'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - gate: ''
-            platform: linux-x86-64
+          - platform: linux-x86-64
             runner: ubuntu-latest
-          - gate: ''
-            platform: linux-arm64
+          - platform: linux-arm64
             runner: ubuntu-24.04-arm
-          - gate: '- test(/^improve::/)'
-            platform: macos-arm64
-            runner: macos-latest
-          - gate: >-
-              - test(/^improve::/)
-              - test(=evaluate_scores_an_agent_on_a_split)
-              - test(=hgm_needs_a_working_directory)
-              - test(=a_missing_working_directory_is_reported)
-            platform: windows-x86-64
-            runner: windows-latest
-          - gate: >-
-              - test(/^improve::/)
-              - test(=evaluate_scores_an_agent_on_a_split)
-              - test(=hgm_needs_a_working_directory)
-              - test(=a_missing_working_directory_is_reported)
-            platform: windows-arm64
-            runner: windows-11-arm
   integration-test:
     name: integration-test-${{ matrix.platform }}
     needs: build
@@ -357,40 +330,15 @@ jobs:
           cargo-nextest nextest run
           --archive-file build.tar.zst
           --workspace-remap .
-          -E "binary(integration) ${{ matrix.gate }}"
+          -E 'binary(integration)'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - gate: ''
-            platform: linux-x86-64
+          - platform: linux-x86-64
             runner: ubuntu-latest
-          - gate: ''
-            platform: linux-arm64
+          - platform: linux-arm64
             runner: ubuntu-24.04-arm
-          - gate: >-
-              - (package(hgm-sandbox) & test(/^(container|image)::/))
-              - (package(hgm-bench) & test(/^swe::(a_full_run|predictions|chat_logs|extra_chat_logs|tasks_not_asked_for|a_second_run|every_entry|each_failing_step|a_missing_agent|an_existing_prediction|an_unwritable_prediction_is|an_unwritable_eval_script)_/))
-              - (package(hgm-bench) & test(/^polyglot::/) - test(/^polyglot::(a_missing_docker|a_missing_dataset|a_junk_dataset|a_prediction_folder_under_a_file|a_blocked_run_folder|a_missing_commit_folder|an_unknown_task|an_entry_without_docker)_/))
-              - (package(hgm) & test(/^improve::|^agent_build::(the_agent_is_built_|the_build_is_logged$|a_failing_compile_|a_patch_that_does_not_apply_)/))
-            platform: macos-arm64
-            runner: macos-latest
-          - gate: >-
-              - (package(hgm-sandbox) & test(/^(container|image)::/))
-              - (package(hgm-bench) & test(/^swe::(a_full_run|predictions|chat_logs|extra_chat_logs|tasks_not_asked_for|a_second_run|every_entry|each_failing_step|a_missing_agent|an_existing_prediction|an_unwritable_prediction_is|an_unwritable_eval_script)_/))
-              - (package(hgm-bench) & test(/^polyglot::/) - test(/^polyglot::(a_missing_docker|a_missing_dataset|a_junk_dataset|a_prediction_folder_under_a_file|a_blocked_run_folder|a_missing_commit_folder|an_unknown_task|an_entry_without_docker)_/))
-              - (package(hgm) & test(/^improve::|^agent_build::(the_agent_is_built_|the_build_is_logged$|a_failing_compile_|a_patch_that_does_not_apply_)/))
-              - (package(hgm-bench) & test(/^swe::(a_dataset_that_cannot_load|an_unwritable_prediction_folder|a_failing_image_preparation|garbled_specs|a_blocked_run_folder)_/))
-            platform: windows-x86-64
-            runner: windows-latest
-          - gate: >-
-              - (package(hgm-sandbox) & test(/^(container|image)::/))
-              - (package(hgm-bench) & test(/^swe::(a_full_run|predictions|chat_logs|extra_chat_logs|tasks_not_asked_for|a_second_run|every_entry|each_failing_step|a_missing_agent|an_existing_prediction|an_unwritable_prediction_is|an_unwritable_eval_script)_/))
-              - (package(hgm-bench) & test(/^polyglot::/) - test(/^polyglot::(a_missing_docker|a_missing_dataset|a_junk_dataset|a_prediction_folder_under_a_file|a_blocked_run_folder|a_missing_commit_folder|an_unknown_task|an_entry_without_docker)_/))
-              - (package(hgm) & test(/^improve::|^agent_build::(the_agent_is_built_|the_build_is_logged$|a_failing_compile_|a_patch_that_does_not_apply_)/))
-              - (package(hgm-bench) & test(/^swe::(a_dataset_that_cannot_load|an_unwritable_prediction_folder|a_failing_image_preparation|garbled_specs|a_blocked_run_folder)_/))
-            platform: windows-arm64
-            runner: windows-11-arm
   release:
     if: >-
       github.ref_name == 'main'
@@ -497,12 +445,6 @@ jobs:
             runner: ubuntu-latest
           - platform: linux-arm64
             runner: ubuntu-24.04-arm
-          - platform: macos-arm64
-            runner: macos-latest
-          - platform: windows-x86-64
-            runner: windows-latest
-          - platform: windows-arm64
-            runner: windows-11-arm
   yamllint:
     runs-on: ubuntu-latest
     steps:

@@ -6,15 +6,12 @@ HGM is based on the paper [*Huxley-Gödel Machine: Human-Level Coding Agent Deve
 
 ## Commands
 
-RustyHGM is one command, `hgm`, with no sub-commands. You run it and get back a better agent. It is a single file that carries the seed agent and everything needed to build it, so it runs from any folder. Download it for your platform from the [latest release](https://github.com/jdrowne/RustyHGM/releases/latest):
+RustyHGM is one command, `hgm`, with no sub-commands. You run it and get back a better agent. It is a single file that carries the seed agent and everything needed to build it, so it runs from any folder. It is released for Linux. Download it for your platform from the [latest release](https://github.com/jdrowne/RustyHGM/releases/latest):
 
 | Platform | File |
 | --- | --- |
 | Linux x86_64 | `hgm-linux-x86-64` |
 | Linux arm64 | `hgm-linux-arm64` |
-| macOS arm64 | `hgm-macos-arm64` |
-| Windows x86_64 | `hgm-windows-x86-64.exe` |
-| Windows arm64 | `hgm-windows-arm64.exe` |
 
 ```sh
 curl -L -o hgm https://github.com/jdrowne/RustyHGM/releases/latest/download/hgm-linux-x86-64
