@@ -1,51 +1,37 @@
 ---
 name: autopilot
-description: Work through every open issue of jdrowne/RustyHGM on a recurring reminder, skipping issues with any given skip label. `start`, `restart`, `stop`; `--skip-label <label>` repeats.
+description: Work through every open issue of jdrowne/RustyHGM on a reminder every 10 minutes, skipping issues with any given skip label. `start`, `restart`, `stop`; `--skip-label <label>` repeats.
 argument-hint: start [--skip-label <label>]... | restart [--skip-label <label>]... | stop
 allowed-tools: Bash, CronCreate, CronDelete, CronList
 ---
 
 # Autopilot
 
-Arguments: `$ARGUMENTS`
-
-Load the Cron tools with `ToolSearch`.
-
-## Work list
-
-```text
-gh issue list -R jdrowne/RustyHGM --state open --limit 10000 --json number,labels --jq '<filters> map(.number) | sort'
-```
-
-`<filters>` is `map(select(all(.labels[]; .name != "<label>"))) |` per skip
-label, and empty without skip labels.
-
-## Reminder
-
-Cron `*/10 * * * *`, recurring. The prompt carries everything it needs, with
-the work list command written out:
-
-```text
-REMINDER (autopilot) Skip labels: <labels>.
-1. Run: <work list command>
-2. Empty: load the Cron tools with ToolSearch, delete every job whose prompt starts with "REMINDER (autopilot)", tell the user.
-3. Otherwise work each listed issue from the lowest number until it closes, passing over any whose last comment says it needs a person.
-4. If one needs a person: comment why, add the label "<first>" to it, move on to the next.
-```
-
-`<first>` is the first skip label. Without skip labels, write `Skip labels:
-none.` and leave the label clause out of step 4. Keep at most one such job.
+Load `CronCreate`, `CronDelete` and `CronList` with `ToolSearch`.
 
 ## `start`
 
-If a job exists, suggest `restart`. If the work list is empty, say so. Otherwise
-create the reminder, report its ID, next run and seven-day expiry, and start
-working.
+If an autopilot reminder exists, suggest `restart`. Otherwise create a recurring
+`*/10 * * * *` reminder with exactly this prompt, then start working on it:
+
+```text
+REMINDER (autopilot)
+1. List the open issues: gh issue list -R jdrowne/RustyHGM --state open --limit 10000 --json number,labels --jq 'map(select(all(.labels[]; .name != "needs decision"))) | map(.number) | sort'
+2. If the list is empty, delete this reminder with CronList and CronDelete, and tell me.
+3. Otherwise work each issue, lowest number first, until it closes. Pass over any whose last comment says it needs a person. If one needs a person, comment why and move on.
+```
+
+That example was started with `--skip-label "needs decision"`. Each skip label
+adds `.name != "<label>"`, joined with `and`. With no skip labels, the `--jq` is
+just `map(.number) | sort`.
+
+Report the reminder's ID, next run and seven-day expiry.
 
 ## `restart`
 
-Keep the skip labels from the old prompt unless given. Delete it, then `start`.
+Delete the old reminder, then `start`, reusing its skip labels unless new ones
+are given.
 
 ## `stop`
 
-Delete every autopilot job, check `CronList`, report.
+Delete every autopilot reminder, check `CronList`, report.
