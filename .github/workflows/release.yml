@@ -298,15 +298,33 @@ jobs:
           cargo-nextest nextest run
           --archive-file build.tar.zst
           --workspace-remap .
-          -E 'binary(e2e)'
+          --no-fail-fast
+          -E "binary(e2e) ${{ matrix.gate }}"
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: linux-x86-64
+          - gate: ''
+            platform: linux-x86-64
             runner: ubuntu-latest
-          - platform: linux-arm64
+          - gate: ''
+            platform: linux-arm64
             runner: ubuntu-24.04-arm
+          - gate: '- test(/^improve::/)'
+            platform: macos-arm64
+            runner: macos-latest
+          - gate: >-
+              - test(/^improve::/)
+              - test(=evaluate_scores_an_agent_on_a_split)
+              - test(=hgm_needs_a_working_directory)
+            platform: windows-x86-64
+            runner: windows-latest
+          - gate: >-
+              - test(/^improve::/)
+              - test(=evaluate_scores_an_agent_on_a_split)
+              - test(=hgm_needs_a_working_directory)
+            platform: windows-arm64
+            runner: windows-11-arm
   integration-test:
     name: integration-test-${{ matrix.platform }}
     needs: build

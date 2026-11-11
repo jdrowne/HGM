@@ -1,9 +1,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-#[cfg(unix)]
 mod improve;
-#[cfg(unix)]
 mod prepare;
 
 fn binary(name: &str) -> PathBuf {
@@ -126,10 +124,8 @@ fn a_run_without_an_agent_name_fails() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn evaluate_scores_an_agent_on_a_split() {
-    use std::os::unix::fs::PermissionsExt;
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     for split in ["SWE-bench_Lite", "SWE-bench"] {
@@ -149,7 +145,11 @@ fn evaluate_scores_an_agent_on_a_split() {
         "#!/bin/sh\n[ \"$1\" = -m ] && exit 0\ncat > /dev/null\n",
     )
     .unwrap();
-    std::fs::set_permissions(&python, std::fs::Permissions::from_mode(0o755)).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&python, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
     std::fs::create_dir_all(root.join("agents/mine")).unwrap();
     for agent in ["mine", "two"] {
         let dir = root.join("results").join(agent);
@@ -275,7 +275,6 @@ fn runs_fail_when_their_tasks_or_records_are_missing() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("init_evaluated_tasks.json"));
 }
 
-#[cfg(unix)]
 #[test]
 fn best_prints_the_best_belief_agent_of_a_run() {
     let tmp = tempfile::tempdir().unwrap();
