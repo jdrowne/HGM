@@ -8,6 +8,8 @@ metadata:
   modified: 2026-11-11T21:15:33.426Z
 ---
 
+# Machine and coding harness
+
 `rustyhgm` is the **machine**. The program it builds and evolves is the **coding harness** (`rustyhgm-coding-harness`, `src/coding-harness/`), in code, flags, folders, messages, tests, README, issues and the prompts sent to the model. "Harness" means only the coding harness; benchmark runners get another name (`Evaluator`). The model is a fixed input, not the thing that improves.
 
 **Why:** "agent" made readers think the language model itself evolves, and "harness" had drifted onto `rustyhgm` and the bench runners too.

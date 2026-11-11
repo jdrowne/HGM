@@ -8,6 +8,8 @@ metadata:
   modified: 2026-11-11T20:27:18.178Z
 ---
 
+# The first agent is the progenitor
+
 The coding harness the tree starts from is the **progenitor** in code, flags, folders, messages, tests, README and issues: `--progenitor_dir`, `--progenitor_name`, `progenitor_swe/`, commit id `progenitor`, `src/rustyhgm/progenitor.rs`. "Root" is kept only for tree-structure code (`Tree::with_root`, `ROOT_COMMIT`, clade roots).
 
 **Why:** the repo had drifted into several names for one thing (seed, initial agent, root), and "seed" also means random-number seeds here.
