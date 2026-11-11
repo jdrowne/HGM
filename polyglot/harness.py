@@ -116,9 +116,6 @@ def process_entry(
         copy_to_container(
             container, os.path.join(init_agent_path, "LICENSE"), "/hgm/LICENSE"
         )
-        copy_to_container(
-            container, os.path.join(init_agent_path, "README.md"), "/hgm/README.md"
-        )
         chat_history_file_container = f"/hgm/{chat_history_file.name}"
 
         # See the checked repo
