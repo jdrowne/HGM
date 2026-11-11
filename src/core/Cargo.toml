@@ -9,6 +9,7 @@ publish.workspace = true
 path = "lib.rs"
 
 [dependencies]
+chrono = "*"
 rand = "*"
 rand_distr = "*"
 serde = { version = "*", features = ["derive"] }

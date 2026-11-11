@@ -1,4 +1,5 @@
 pub mod config;
+pub mod log;
 pub mod metadata;
 pub mod pyjson;
 pub mod sampling;

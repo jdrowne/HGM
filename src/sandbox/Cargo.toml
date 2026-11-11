@@ -8,6 +8,15 @@ publish.workspace = true
 [lib]
 path = "lib.rs"
 
+[dependencies]
+hgm-core = { path = "../core" }
+regex = "*"
+shlex = "*"
+
+[dev-dependencies]
+serde_json = "*"
+tempfile = "*"
+
 [[test]]
 name = "unit"
 path = "../../test/src/sandbox/unit/main.rs"
@@ -15,6 +24,3 @@ path = "../../test/src/sandbox/unit/main.rs"
 [[test]]
 name = "integration"
 path = "../../test/src/sandbox/integration/main.rs"
-
-[dev-dependencies]
-serde_json = "*"
