@@ -479,15 +479,8 @@ on:
   push:
     branches: [main]
     paths:
-      - .claude/statusline.sh
-      - .dockerignore
       - .github/workflows/release.yml
-      - Cargo.toml
-      - Dockerfile
-      - config.yaml
-      - etc/**
       - lib/**
-      - rust-toolchain.toml
       - src/**
       - test/**
   workflow_dispatch: {}

@@ -71,8 +71,9 @@ jobs:
 name: markdownlint
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - '**/*.md'
-      - .github/workflows/markdownlint.yml
+      - "**.md"
+      - ".github/workflows/markdownlint.yml"
   workflow_dispatch: {}

@@ -5,6 +5,8 @@ metadata:
   type: feedback
 ---
 
+# gh run list --commit takes a full SHA
+
 Find a push's CI run with `gh run list -R jdrowne/RustyHGM --commit "$(git rev-parse HEAD)"`. Never use the short SHA that `git log`, a commit message or the screen shows.
 
 **Why:** `--commit` matches only the full 40-character SHA. A short one lists no runs and raises no error, so a watcher waiting for the list to fill polls forever while its run has long finished. On 2026-11-11 two watchers here looped for about an hour this way. The same rule is in the user's deltahdl repo.
