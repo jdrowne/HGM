@@ -17,6 +17,54 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Build and test the agent subtree on its own
         run: test/agent-subtree.sh
+  assert-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the nightly toolchain for branch coverage
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools
+      - name: Install cargo-llvm-cov and cargo-nextest
+        uses: taiki-e/install-action@main
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
+      - name: Cache the build
+        uses: Swatinem/rust-cache@master
+      - name: Run every tier under coverage
+        run: cargo +nightly llvm-cov nextest --workspace --branch --no-report
+      - if: ${{ !cancelled() }}
+        name: Generate the coverage report
+        run: >-
+          cargo +nightly llvm-cov report
+          --branch
+          --ignore-filename-regex '(^|/)test/'
+          --html
+          --output-dir coverage-html
+      - if: ${{ !cancelled() }}
+        name: Upload the coverage report
+        uses: actions/upload-artifact@main
+        with:
+          name: coverage-html
+          path: coverage-html/
+      - name: Enforce 100% coverage
+        run: |
+          cargo +nightly llvm-cov report \
+            --branch \
+            --ignore-filename-regex '(^|/)test/' \
+            --show-missing-lines
+          cargo +nightly llvm-cov report \
+            --branch \
+            --ignore-filename-regex '(^|/)test/' \
+            --json \
+            --summary-only \
+            | jq -e '.data[0].totals |
+              .lines.covered == .lines.count and
+              .functions.covered == .functions.count and
+              .regions.covered == .regions.count and
+              .branches.covered == .branches.count' \
+            || { echo "FAIL: line, function, region and branch coverage must be 100%"; exit 1; }
   assert-file-and-registration-sets-agree:
     runs-on: ubuntu-latest
     steps:
@@ -298,6 +346,7 @@ jobs:
       && github.event_name == 'push'
     needs:
       - agent-subtree
+      - assert-coverage
       - assert-file-and-registration-sets-agree
       - assert-no-comments
       - assert-no-empty-test-files
