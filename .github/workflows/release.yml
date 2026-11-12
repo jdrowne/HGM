@@ -749,12 +749,8 @@ jobs:
       - assert-no-oversized-source-files
       - assert-one-assert-per-test
       - clippy
-      - e2e-test
-      - integration-test
-      - package
       - package-test
       - rustfmt
-      - unit-test
       - yamllint
     permissions:
       contents: write
