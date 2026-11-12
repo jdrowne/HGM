@@ -1,6 +1,7 @@
 # Memories
 
 - [Work only on this repo](work-only-on-this-repo.md) — never touch upstream metauto-ai/HGM or other repos; gh writes must target jdrowne/RustyHGM
+- [Compatibility with upstream is not required](upstream-compatibility-is-not-required.md) — flags, formats, prompts, images and results may differ from metauto-ai/HGM; matching upstream is no reason to keep or reject a change
 - [Commit directly to main](commit-directly-to-main.md) — no branches or PRs; push straight to origin main; commits need not be small
 - [Always use latest versions](always-use-latest-versions.md) — never pin toolchains, crates, actions or images; stable / "*" / @main / :latest; no committed Cargo.lock; only the polyglot benchmark's tool versions stay fixed
 - [No comments in any file](no-comments-in-any-file.md) — no comments, doc comments, docstrings or fixture notes anywhere in the port; reasons go in commits and issues
