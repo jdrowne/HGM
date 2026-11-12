@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use rustyhgm_core::log::Log;
-use rustyhgm_sandbox::{Container, Docker, Error, ExecOptions, RunOptions};
+use rustyhgm_sandbox::{BuildOptions, Container, Docker, Error, ExecOptions, RunOptions};
 
 fn missing() -> Docker {
     Docker::new("rustyhgm-no-such-docker-program")
@@ -29,6 +29,55 @@ fn image_exists_without_docker_is_an_io_error() {
 #[test]
 fn container_exists_without_docker_is_an_io_error() {
     assert!(is_io(missing().container_exists("c")));
+}
+
+fn build_args(docker: &Docker, platform: Option<&str>, no_cache: bool) -> Vec<String> {
+    docker
+        .build_args(
+            Path::new("ctx"),
+            "t:latest",
+            &BuildOptions { platform, no_cache },
+        )
+        .iter()
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect()
+}
+
+#[test]
+fn a_build_tags_its_image_without_zstd_layers() {
+    assert_eq!(
+        build_args(&missing(), None, false),
+        ["build", "-t", "t:latest", "ctx"]
+    );
+}
+
+#[test]
+fn a_build_asks_for_zstd_layers_with_the_switch() {
+    assert_eq!(
+        build_args(&missing().zstd_layers(true), None, false),
+        [
+            "build",
+            "--output",
+            "type=image,name=t:latest,compression=zstd,unpack=true",
+            "ctx"
+        ]
+    );
+}
+
+#[test]
+fn a_build_with_zstd_layers_keeps_the_platform_and_no_cache() {
+    assert_eq!(
+        build_args(&missing().zstd_layers(true), Some("linux/arm64"), true)[3..],
+        ["--platform", "linux/arm64", "--no-cache", "ctx"]
+    );
+}
+
+#[test]
+fn a_build_without_zstd_layers_keeps_the_platform_and_no_cache() {
+    assert_eq!(
+        build_args(&missing(), Some("linux/arm64"), true)[3..],
+        ["--platform", "linux/arm64", "--no-cache", "ctx"]
+    );
 }
 
 #[test]

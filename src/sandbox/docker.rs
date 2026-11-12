@@ -1,4 +1,4 @@
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -11,6 +11,7 @@ use crate::error::Error;
 #[derive(Clone, Debug)]
 pub struct Docker {
     program: String,
+    zstd_layers: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -106,7 +107,14 @@ impl Docker {
     pub fn new(program: impl Into<String>) -> Self {
         Docker {
             program: program.into(),
+            zstd_layers: false,
         }
+    }
+
+    #[must_use]
+    pub fn zstd_layers(mut self, on: bool) -> Self {
+        self.zstd_layers = on;
+        self
     }
 
     fn command<I, S>(&self, args: I) -> (Command, Vec<String>)
@@ -198,6 +206,24 @@ impl Docker {
         self.build_for(context, tag, &opts, log)
     }
 
+    pub fn build_args(&self, context: &Path, tag: &str, opts: &BuildOptions) -> Vec<OsString> {
+        let mut args: Vec<OsString> = vec!["build".into()];
+        if self.zstd_layers {
+            args.push("--output".into());
+            args.push(format!("type=image,name={tag},compression=zstd,unpack=true").into());
+        } else {
+            args.extend(["-t".into(), tag.into()]);
+        }
+        if let Some(platform) = opts.platform {
+            args.extend(["--platform".into(), platform.into()]);
+        }
+        if opts.no_cache {
+            args.push("--no-cache".into());
+        }
+        args.push(context.as_os_str().to_owned());
+        args
+    }
+
     pub fn build_for(
         &self,
         context: &Path,
@@ -205,16 +231,8 @@ impl Docker {
         opts: &BuildOptions,
         log: &Log,
     ) -> Result<(), Error> {
-        let mut args: Vec<&OsStr> = vec!["build".as_ref(), "-t".as_ref(), tag.as_ref()];
-        if let Some(platform) = opts.platform {
-            args.extend([OsStr::new("--platform"), OsStr::new(platform)]);
-        }
-        if opts.no_cache {
-            args.push("--no-cache".as_ref());
-        }
-        args.push(context.as_os_str());
         log.info("Building the Docker image...");
-        let out = self.output(args)?;
+        let out = self.output(self.build_args(context, tag, opts))?;
         for line in String::from_utf8_lossy(&out.bytes).lines() {
             log.info(line.trim());
         }

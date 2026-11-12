@@ -89,6 +89,7 @@ Every setting that takes a value is a required flag with no default, so the comm
 | `--diagnose_base_url <url>` | Address of that service, as `rustyhgm` reaches it |
 | `--api_key_file <file>` | File holding the key sent to every service |
 | `--docker <program>` | Docker-compatible program that runs every container |
+| `--zstd_layers` | Builds images with zstd layers, which a Docker that keeps its images in containerd's store exports in seconds rather than compressing them with gzip; for Docker only, leave it out with Podman |
 | `--swebench_python <program>` | Python interpreter with `swebench` that grades SWE-bench tasks |
 | `--dataset_endpoint <url>` | Hugging Face server, or mirror, that SWE-bench tasks come from |
 | `--dataset_dir <dir>` | Where downloaded datasets are kept |

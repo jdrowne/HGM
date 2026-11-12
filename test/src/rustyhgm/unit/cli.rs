@@ -180,6 +180,27 @@ fn the_container_program_comes_from_its_flag() {
 }
 
 #[test]
+fn image_builds_use_zstd_layers_with_the_switch() {
+    assert!(
+        format!(
+            "{:?}",
+            cli(&[("--zstd_layers", "")])
+                .tools(std::path::Path::new("/r"))
+                .docker
+        )
+        .contains("zstd_layers: true")
+    );
+}
+
+#[test]
+fn image_builds_keep_gzip_layers_without_the_switch() {
+    assert!(
+        format!("{:?}", cli(&[]).tools(std::path::Path::new("/r")).docker)
+            .contains("zstd_layers: false")
+    );
+}
+
+#[test]
 fn an_unknown_provider_is_refused() {
     assert!(
         parse_error(&[("--diagnose_provider", "anthropic")], &[]).contains("--diagnose_provider")

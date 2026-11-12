@@ -35,6 +35,8 @@ pub struct Cli {
     pub api_key_file: PathBuf,
     #[arg(long, value_name = "PROGRAM")]
     pub docker: String,
+    #[arg(long = "zstd_layers")]
+    pub zstd_layers: bool,
     #[arg(long = "swebench_python", value_name = "PROGRAM")]
     pub swebench_python: String,
     #[arg(long = "dataset_endpoint", value_name = "URL")]
@@ -103,7 +105,7 @@ pub struct Tools {
 impl Cli {
     pub fn tools(&self, root_dir: &Path) -> Tools {
         Tools {
-            docker: Docker::new(&self.docker),
+            docker: Docker::new(&self.docker).zstd_layers(self.zstd_layers),
             swebench: Swebench {
                 python: self.swebench_python.clone(),
             },
