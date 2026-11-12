@@ -19,13 +19,14 @@ fn invalid(e: impl std::fmt::Display) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, e.to_string())
 }
 
-pub fn record(tree: &Tree, n_task_evals: usize) -> PyValue {
+pub fn record(run_id: &str, tree: &Tree, n_task_evals: usize) -> PyValue {
     let nodes = tree
         .nodes()
         .filter(|n| n.commit_id != ROOT_COMMIT)
         .map(|n| n.save_as_dict())
         .collect();
     PyValue::dict([
+        ("run_id", PyValue::str(run_id)),
         ("n_task_evals", PyValue::Int(n_task_evals as i64)),
         ("nodes", PyValue::List(nodes)),
     ])
@@ -33,11 +34,12 @@ pub fn record(tree: &Tree, n_task_evals: usize) -> PyValue {
 
 pub fn update_metadata(
     output_dir: &Path,
+    run_id: &str,
     tree: &Tree,
     n_task_evals: usize,
     init_evaluated_tasks: &[String],
 ) -> io::Result<()> {
-    let mut line = pyjson::dumps(&record(tree, n_task_evals), Some(2));
+    let mut line = pyjson::dumps(&record(run_id, tree, n_task_evals), Some(2));
     line.push('\n');
     OpenOptions::new()
         .create(true)
@@ -74,6 +76,14 @@ pub fn load_last_rustyhgm_metadata(path: &Path) -> io::Result<Value> {
 
 pub fn load_init_evaluated_tasks(path: &Path) -> io::Result<Vec<String>> {
     serde_json::from_str(&fs::read_to_string(path)?).map_err(invalid)
+}
+
+pub fn run_id_from_record(record: &Value) -> io::Result<String> {
+    record
+        .get("run_id")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| invalid("record has no run_id"))
 }
 
 pub fn tree_from_record(record: &Value) -> io::Result<Tree> {

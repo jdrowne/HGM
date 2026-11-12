@@ -7,10 +7,11 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
 
-use super::{binary, flags};
+use super::{RUN_ID, binary, flags};
 
 const TASK: &str = "javascript__queen-attack";
 const HGM: &str = "rustyhgm";
+const RUN: &str = "output_rustyhgm/run";
 const IMPROVE_COMMAND: &str =
     "cd /rustyhgm && printf 'pub const E2E: u8 = 1;\\n' >> src/coding-harness/lib.rs && echo ok";
 const SOLVE_COMMAND: &str =
@@ -157,8 +158,8 @@ fn polyglot_tasks(root: &Path) -> Vec<String> {
     tasks
 }
 
-fn write_progenitor(progenitors: &Path) {
-    let harness = progenitors.join("progenitor_polyglot/default_harness");
+fn plant_run(run: &Path) {
+    let harness = run.join("progenitor");
     let tasks = polyglot_tasks(&repo_root());
     if tasks[0] != TASK {
         panic!("the first polyglot task is {}, not {TASK}", tasks[0]);
@@ -176,6 +177,15 @@ fn write_progenitor(progenitors: &Path) {
     }});
     fs::write(harness.join("metadata.json"), metadata.to_string()).unwrap();
     rustyhgm::progenitor::write(&harness.join("src")).unwrap();
+    fs::write(run.join("init_evaluated_tasks.json"), "[]").unwrap();
+    fs::write(
+        run.join("rustyhgm_metadata.jsonl"),
+        format!(
+            "{}\n",
+            json!({"run_id": RUN_ID, "n_task_evals": 0, "nodes": []})
+        ),
+    )
+    .unwrap();
 }
 
 fn records(path: &Path) -> Vec<Value> {
@@ -188,11 +198,10 @@ fn records(path: &Path) -> Vec<Value> {
         .collect()
 }
 
-fn run_args(host: &str, key: &str, progenitors: &str) -> Vec<String> {
+fn run_args(host: &str, key: &str) -> Vec<String> {
     let harness_url = format!("http://{host}:8000/v1");
     flags(&[
         ("--api_key_file", key),
-        ("--progenitor_dir", progenitors),
         ("--docker", "docker"),
         (
             "--polyglot_repo",
@@ -211,8 +220,8 @@ fn run_args(host: &str, key: &str, progenitors: &str) -> Vec<String> {
         ("--diagnose_llm", "vllm-model"),
         ("--diagnose_provider", "vllm"),
         ("--diagnose_base_url", "http://127.0.0.1:8000/v1"),
-        ("--progenitor_name", "default_harness"),
-        ("--output_dir", "output_rustyhgm/run"),
+        ("--continue_from", RUN),
+        ("--output_dir", RUN),
     ])
 }
 
@@ -248,18 +257,13 @@ fn names(dir: &Path) -> Vec<String> {
 
 fn scenario(root: &Path) {
     fs::copy(binary("rustyhgm"), root.join(HGM)).unwrap();
-    let progenitors = root.with_extension("progenitors");
-    write_progenitor(&progenitors);
+    plant_run(&root.join(RUN));
     let before = names(root);
     let seen = serve_llm();
     let key = root.with_extension("key");
     fs::write(&key, "k\n").unwrap();
     let out: Output = rustyhgm(root)
-        .args(run_args(
-            &llm_host(),
-            &key.to_string_lossy(),
-            &progenitors.to_string_lossy(),
-        ))
+        .args(run_args(&llm_host(), &key.to_string_lossy()))
         .output()
         .unwrap();
     let outcome = json!({
@@ -268,9 +272,21 @@ fn scenario(root: &Path) {
         "stdout": String::from_utf8_lossy(&out.stdout),
         "stderr": String::from_utf8_lossy(&out.stderr),
         "seen": *seen.lock().unwrap(),
-        "logs": logs_under(root, &root.join("output_rustyhgm/run")),
+        "logs": logs_under(root, &root.join(RUN)),
+        "image_left": image_left(),
     });
     fs::write(root.join("outcome.json"), outcome.to_string()).unwrap();
+}
+
+fn image_left() -> bool {
+    Command::new("docker")
+        .args([
+            "image",
+            "inspect",
+            &format!("rustyhgm-harness-{RUN_ID}:latest"),
+        ])
+        .output()
+        .is_ok_and(|out| out.status.success())
 }
 
 fn is_child_log(path: &Path) -> bool {
@@ -328,11 +344,14 @@ impl Shared {
     }
 
     fn run(&self) -> PathBuf {
-        self.root.join("output_rustyhgm/run")
+        self.root.join(RUN)
     }
 
     fn records(&self) -> Vec<Value> {
         records(&self.run().join("rustyhgm_metadata.jsonl"))
+            .into_iter()
+            .skip(1)
+            .collect()
     }
 
     fn child(&self) -> String {
@@ -384,8 +403,13 @@ fn a_run_improves_the_harness_and_measures_its_child() {
 }
 
 #[test]
-fn the_run_starts_from_a_folder_holding_only_rustyhgm() {
-    assert_eq!(shared().outcome["before"], json!([HGM]));
+fn the_run_starts_from_a_folder_holding_rustyhgm_and_the_planted_run() {
+    assert_eq!(shared().outcome["before"], json!(["output_rustyhgm", HGM]));
+}
+
+#[test]
+fn the_run_removes_its_harness_image() {
+    assert_eq!(shared().outcome["image_left"], json!(false));
 }
 
 #[test]
@@ -421,7 +445,7 @@ fn the_progenitor_needs_no_evaluation() {
 }
 
 #[test]
-fn the_run_records_two_states() {
+fn the_run_adds_two_records() {
     assert_eq!(shared().records().len(), 2);
 }
 
@@ -430,7 +454,7 @@ fn the_first_record_holds_the_unmeasured_child() {
     let s = shared();
     assert_eq!(
         s.records()[0],
-        json!({"n_task_evals": 0, "nodes": s.node(json!("Infinity"), 0)})
+        json!({"run_id": RUN_ID, "n_task_evals": 0, "nodes": s.node(json!("Infinity"), 0)})
     );
 }
 
@@ -439,7 +463,7 @@ fn the_second_record_holds_the_measured_child() {
     let s = shared();
     assert_eq!(
         s.records()[1],
-        json!({"n_task_evals": 1, "nodes": s.node(json!(0.0), 1)})
+        json!({"run_id": RUN_ID, "n_task_evals": 1, "nodes": s.node(json!(0.0), 1)})
     );
 }
 

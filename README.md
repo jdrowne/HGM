@@ -41,7 +41,7 @@ Every folder and file `rustyhgm` uses comes from a flag. A relative path is take
 One run does the whole job:
 
 1. **Fetches task data** it doesn't have yet. For `--polyglot` runs, that means cloning the [Aider Polyglot benchmark](https://github.com/Aider-AI/polyglot-benchmark) into `polyglot-benchmark` in the `--polyglot_dir` folder and writing its task list next to it, to `polyglot_benchmark_metadata.json`.
-2. **Improves the harness** until the task budget is spent. On the first run with a given harness name, it also writes out its built-in progenitor, builds it and measures it on every task in the pool.
+2. **Improves the harness** until the task budget is spent. A fresh run first writes out its built-in progenitor, builds it and measures it on every task in the pool.
 3. **Picks the best version**: the one with the highest success rate it can trust, given how many tasks it was tried on.
 4. **Writes that version's source** to `best_harness/` in the `--output_dir` folder and prints where it went. This folder is the improved harness: the progenitor with every patch on its line applied.
 5. **Optionally scores it on held-out tasks** with `--holdout_split`. These are SWE-bench tasks it never practised on, so the score shows whether it really got better.
@@ -55,11 +55,10 @@ One run does the whole job:
   --docker docker --swebench_python python3 \
   --dataset_endpoint https://huggingface.co --dataset_dir ~/.cache/rustyhgm/datasets \
   --polyglot_repo https://github.com/Aider-AI/polyglot-benchmark.git --polyglot_dir rustyhgm/polyglot \
-  --progenitor_dir rustyhgm/progenitors \
   --alpha 0.6 --beta 1.0 --eval_random_level 1.0 \
   --n_pseudo_descendant_evals 10000 --expansion_statistic clade --epsilon 0.01 \
   --max_workers 20 --max_task_evals 100 --self_improve_timeout 3600 --evaluation_timeout 3600 \
-  --output_dir runs/first --progenitor_name default_harness \
+  --output_dir runs/first \
   --holdout_split Lite --holdout_tasks 50
 ```
 
@@ -95,7 +94,6 @@ Every setting that takes a value is a required flag with no default, so the comm
 | `--dataset_dir <dir>` | Where downloaded datasets are kept |
 | `--polyglot_repo <url>` | Clone URL for the Polyglot benchmark |
 | `--polyglot_dir <dir>` | Where the Polyglot benchmark is cloned and its task list written |
-| `--progenitor_dir <dir>` | Where the progenitor is built and measured, and found again by later runs |
 | `--alpha <x>` | How bushy the tree grows: more children per evaluation as it rises |
 | `--beta <x>` | How fast `--cool_down` sharpens; ignored without it |
 | `--cool_down` | Sharpens every draw as the budget runs out |
@@ -109,8 +107,7 @@ Every setting that takes a value is a required flag with no default, so the comm
 | `--evaluation_timeout <secs>` | Time limit for one task attempt |
 | `--full_eval` | Uses all 500 SWE-bench Verified tasks instead of the 60-task pool |
 | `--polyglot` | Uses the Polyglot benchmark instead of SWE-bench |
-| `--output_dir <dir>` | Where the run record goes |
-| `--progenitor_name <name>` | Name of the progenitor's folder and Docker image |
+| `--output_dir <dir>` | Where the run's files go; a fresh run needs it empty or missing |
 
 These flags ask for an extra step, so they are given only when that step is wanted.
 
@@ -120,7 +117,7 @@ These flags ask for an extra step, so they are given only when that step is want
 | `--holdout_split <name>` | After the run, scores the best harness on `princeton-nlp/SWE-bench_<name>`, such as `Lite`; needs `--holdout_tasks` and is not allowed with `--polyglot` |
 | `--holdout_tasks <n>` | Scores the first `n` held-out tasks; needs `--holdout_split` |
 
-The first run with a given harness name writes the progenitor into `progenitor_swe/<name>/` or `progenitor_polyglot/<name>/` in the `--progenitor_dir` folder and measures it on every task in the pool. The progenitor is the `rustyhgm-coding-harness` source as it was when `rustyhgm` was built, with the builder `Dockerfile` beside it; it is the root of the tree, and a run records it under the commit id `progenitor`. Later runs with the same `--progenitor_dir` reuse that folder and its results, so delete it to measure a newer progenitor. Folders written by a release from before the progenitor got its name, such as `initial_swe/` and `initial_polyglot/`, are not found under the new names, and a run made by such a release, whose root is `initial`, cannot be continued with `--continue_from`.
+Runs share no results: only the downloaded data in `--dataset_dir` and `--polyglot_dir`, and the benchmarks' own Docker images, are reused between them. A fresh run writes the progenitor into `progenitor/` in the `--output_dir` folder, builds it and measures it on every task in the pool: 60 task runs with the default pool, paid by every fresh run and by no continued one. The progenitor is the `rustyhgm-coding-harness` source as it was when `rustyhgm` was built, with the builder `Dockerfile` beside it; it is the root of the tree, and a run records it under the commit id `progenitor`. Each run also gets an id of its own, kept in its record, and names the Docker images it builds for the coding harness after that id, so two runs never share one. The images are removed when the run ends, and a continued run rebuilds what it needs from its own folder. A fresh run stops with an error if `--output_dir` already holds files; `--continue_from` is the only way to pick up an earlier run's files. A run recorded by a release from before run ids cannot be continued.
 
 The held-out check uses the `--downstream_llm` model, the `--evaluation_timeout` limit and `--max_workers`, and writes its results to `holdout/best_harness/` in the `--output_dir` folder.
 

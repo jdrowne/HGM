@@ -22,13 +22,15 @@
               "t3"
             ]
           }
-        ]
+        ],
+        "run_id": "0f8fad5b-d9cb-469f-a165-70867728950e"
       },
       "output": {
         "jsonl_file": "run_metadata/rustyhgm_metadata.jsonl",
         "init_evaluated_tasks_file": "run_metadata/init_evaluated_tasks.json",
         "load_all": [
           {
+            "run_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
             "n_task_evals": 7,
             "nodes": [
               {
@@ -69,6 +71,7 @@
             ]
           },
           {
+            "run_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
             "n_task_evals": 8,
             "nodes": [
               {
@@ -110,6 +113,7 @@
           }
         ],
         "load_last_only": {
+          "run_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
           "n_task_evals": 8,
           "nodes": [
             {

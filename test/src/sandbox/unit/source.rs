@@ -1,10 +1,10 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use rustyhgm_core::log::Log;
 use rustyhgm_core::pyjson;
 use rustyhgm_sandbox::source::{
-    CopyReport, copy_filtered, image_name_for, prepare_progenitor, progenitor_metadata,
+    CopyReport, copy_filtered, prepare_progenitor, progenitor_metadata,
 };
 use rustyhgm_sandbox::{Docker, Error};
 
@@ -16,14 +16,6 @@ fn progenitor_metadata_matches_json_dump() {
          \"total_resolved_instances\": 0, \"total_submitted_instances\": 0, \"files\": [], \
          \"total_unresolved_ids\": [], \"total_emptypatch_ids\": [], \"total_resolved_ids\": [], \
          \"total_submitted_ids\": []}}"
-    );
-}
-
-#[test]
-fn image_is_named_after_the_parent_folder() {
-    assert_eq!(
-        image_name_for(Path::new("/x/progenitor_swe/src")).as_deref(),
-        Some("progenitor_swe")
     );
 }
 
@@ -158,36 +150,13 @@ fn copying_with_an_unreadable_dockerignore_is_an_error() {
 }
 
 #[test]
-fn building_needs_a_parent_folder() {
-    let dir = tree();
-    let docker = Docker::new("rustyhgm-no-such-docker-program");
-    let r = prepare_progenitor(
-        &dir.path().join("repo"),
-        Path::new(""),
-        Some(&docker),
-        &Log::discard(),
-    );
-    assert!(matches!(r, Err(Error::NotFound(_))), "{r:?}");
-}
-
-#[test]
-fn an_empty_path_has_no_image_name() {
-    assert_eq!(image_name_for(Path::new("")), None);
-}
-
-#[test]
-fn the_root_has_no_image_name() {
-    assert_eq!(image_name_for(Path::new("/")), None);
-}
-
-#[test]
 fn building_needs_docker() {
     let dir = tree();
     let docker = Docker::new("rustyhgm-no-such-docker-program");
     let r = prepare_progenitor(
         &dir.path().join("repo"),
         &dir.path().join("out/progenitor/src"),
-        Some(&docker),
+        Some((&docker, "rustyhgm-harness-r:latest")),
         &Log::discard(),
     );
     assert!(matches!(r, Err(Error::Io(_))), "{r:?}");
@@ -203,7 +172,7 @@ fn building_needs_a_dockerfile() {
     let r = prepare_progenitor(
         &src,
         &dir.path().join("out/progenitor/src"),
-        Some(&docker),
+        Some((&docker, "rustyhgm-harness-r:latest")),
         &Log::discard(),
     );
     assert!(matches!(r, Err(Error::Io(_))), "{r:?}");

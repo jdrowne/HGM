@@ -58,25 +58,12 @@ pub fn copy_filtered(source: &Path, dest: &Path) -> Result<CopyReport, Error> {
     })
 }
 
-pub fn image_name_for(dest: &Path) -> Option<String> {
-    let abs = std::path::absolute(dest).ok()?;
-    abs.parent()?
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-}
-
 pub fn prepare_progenitor(
     source: &Path,
     dest: &Path,
-    docker: Option<&Docker>,
+    image: Option<(&Docker, &str)>,
     log: &Log,
 ) -> Result<CopyReport, Error> {
-    let tag = docker
-        .map(|_| {
-            image_name_for(dest)
-                .ok_or_else(|| Error::NotFound(format!("parent folder of {}", dest.display())))
-        })
-        .transpose()?;
     let report = copy_filtered(source, dest)?;
     log.info(format!(
         "Copied {} files to {} ({} ignore patterns)",
@@ -88,12 +75,12 @@ pub fn prepare_progenitor(
     if !metadata.exists() {
         fs::write(&metadata, pyjson::dumps(&progenitor_metadata(), None))?;
     }
-    if let (Some(docker), Some(tag)) = (docker, tag) {
+    if let Some((docker, tag)) = image {
         for name in [DOCKERIGNORE_FILE, DOCKERFILE] {
             fs::copy(source.join(name), dest.join(name))?;
         }
         log.info(format!("Building Docker image '{tag}'..."));
-        docker.build(dest, &tag, true, log)?;
+        docker.build(dest, tag, true, log)?;
     }
     Ok(report)
 }

@@ -11,7 +11,7 @@ use rustyhgm::node::{Bench, Eval};
 use rustyhgm_coding_harness::llm::{Provider, Service};
 use serde_json::{Value, json};
 
-pub const SETTINGS: [(&str, &str); 29] = [
+pub const SETTINGS: [(&str, &str); 27] = [
     ("--self_improve_llm", "si"),
     ("--self_improve_provider", "openai"),
     ("--self_improve_base_url", "http://si/v1"),
@@ -28,7 +28,6 @@ pub const SETTINGS: [(&str, &str); 29] = [
     ("--dataset_dir", "cache"),
     ("--polyglot_repo", "no-such-repo"),
     ("--polyglot_dir", "polyglot"),
-    ("--progenitor_dir", "progenitors"),
     ("--alpha", "0.6"),
     ("--beta", "1.0"),
     ("--eval_random_level", "1.0"),
@@ -40,7 +39,6 @@ pub const SETTINGS: [(&str, &str); 29] = [
     ("--self_improve_timeout", "3600"),
     ("--evaluation_timeout", "3600"),
     ("--output_dir", "out"),
-    ("--progenitor_name", "harness"),
 ];
 
 pub fn argv(changes: &[(&str, &str)], without: &[&str]) -> Vec<String> {

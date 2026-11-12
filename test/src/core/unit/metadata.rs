@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use rustyhgm_core::metadata::{
     OverallPerformance, get_all_performance, is_compiled_self_improve, load_init_evaluated_tasks,
     load_last_rustyhgm_metadata, load_rustyhgm_metadata, model_patch_paths,
-    read_overall_performance, tree_from_record, update_metadata,
+    read_overall_performance, run_id_from_record, tree_from_record, update_metadata,
 };
 use rustyhgm_core::pyjson::PyValue;
 use rustyhgm_core::tree::Tree;
@@ -43,6 +43,7 @@ fn written_run() -> TempDir {
         }
         update_metadata(
             dir.path(),
+            input["run_id"].as_str().unwrap(),
             &tree,
             update["n_task_evals"].as_u64().unwrap() as usize,
             &strings(&update["init_evaluated_tasks"]),
@@ -451,7 +452,7 @@ fn reading_performance_of_a_missing_node_is_an_error() {
 #[test]
 fn updating_metadata_in_a_missing_directory_is_an_error() {
     let (_tmp, path) = missing();
-    assert!(update_metadata(&path, &Tree::with_root(), 0, &[]).is_err());
+    assert!(update_metadata(&path, "r", &Tree::with_root(), 0, &[]).is_err());
 }
 
 #[test]
@@ -474,4 +475,19 @@ fn patch_paths_through_broken_metadata_are_an_error() {
     fs::create_dir_all(run.join("c")).unwrap();
     fs::write(run.join("c/metadata.json"), "{").unwrap();
     assert!(model_patch_paths(tmp.path(), "h", "c").is_err());
+}
+
+#[test]
+fn a_record_gives_back_its_run_id() {
+    assert_eq!(run_id_from_record(&json!({"run_id": "r"})).unwrap(), "r");
+}
+
+#[test]
+fn a_record_without_a_run_id_is_invalid() {
+    assert_eq!(
+        run_id_from_record(&json!({"nodes": []}))
+            .unwrap_err()
+            .kind(),
+        ErrorKind::InvalidData
+    );
 }

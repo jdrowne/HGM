@@ -88,8 +88,8 @@ fn expansion_fails_fast_when_no_node_has_resolved_a_task() {
 }
 
 #[test]
-fn no_expandable_node_points_at_the_progenitor() {
-    assert!(NoExpandableNode.to_string().contains("--progenitor_dir"));
+fn no_expandable_node_points_at_a_fresh_run() {
+    assert!(NoExpandableNode.to_string().contains("empty --output_dir"));
 }
 
 #[test]

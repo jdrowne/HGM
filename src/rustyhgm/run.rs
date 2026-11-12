@@ -8,7 +8,6 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rustyhgm_bench::dataset::{Hub, SWE_BENCH_VERIFIED, instance_ids};
 use rustyhgm_bench::polyglot::{self, DATASET};
-use rustyhgm_bench::polyglot_build::copy_tree;
 use rustyhgm_bench::polyglot_prepare::prepare;
 use rustyhgm_bench::polyglot_spec::NAMESPACE;
 use rustyhgm_bench::swe;
@@ -18,15 +17,16 @@ use rustyhgm_core::config::HgmConfig;
 use rustyhgm_core::log::Log;
 use rustyhgm_core::metadata::{
     HGM_METADATA_FILE, INIT_EVALUATED_TASKS_FILE, load_init_evaluated_tasks,
-    load_last_rustyhgm_metadata, read_overall_performance, tree_from_record,
+    load_last_rustyhgm_metadata, read_overall_performance, run_id_from_record, tree_from_record,
 };
 use rustyhgm_core::tree::{ROOT_COMMIT, Tree};
 use rustyhgm_sandbox::Docker;
 use rustyhgm_sandbox::source::prepare_progenitor;
 use serde_json::Value;
+use uuid::Uuid;
 
 use crate::best::{BEST_HARNESS, check_epsilon, export, pick};
-use crate::cli::{Cli, Tools};
+use crate::cli::{Cli, Services, Tools};
 use crate::harness_build::Builder;
 use crate::improve::SelfImprove;
 use crate::node::{Bench, Evaluator, at};
@@ -35,41 +35,68 @@ use crate::search::{Search, Settings, State};
 
 pub const JITTER: Duration = Duration::from_secs(1);
 
-pub const HOLDOUT_IMAGE: &str = "rustyhgm-holdout-harness:latest";
+pub const HARNESS_IMAGE: &str = "rustyhgm-harness";
+
+pub const HOLDOUT_IMAGE: &str = "rustyhgm-holdout-harness";
 
 pub const HOLDOUT_DIR: &str = "holdout";
 
-fn builder(docker: &Docker, context: &Path, harness_name: &str) -> Builder {
+pub fn image_name(kind: &str, run_id: &str) -> String {
+    format!("{kind}-{run_id}:latest")
+}
+
+fn builder(docker: &Docker, context: &Path, image_name: &str) -> Builder {
     Builder {
         docker: docker.clone(),
         context: context.to_path_buf(),
-        image_name: format!("{harness_name}:latest"),
+        image_name: image_name.to_owned(),
         rebuild: false,
     }
 }
 
-pub fn progenitor_folder(polyglot: bool) -> &'static str {
-    if polyglot {
-        "progenitor_polyglot"
+pub fn new_run_id() -> String {
+    Uuid::new_v4().to_string()
+}
+
+pub fn run_id_of(prev: &Path) -> Result<String, String> {
+    let record = prev.join(HGM_METADATA_FILE);
+    load_last_rustyhgm_metadata(&record)
+        .and_then(|last| run_id_from_record(&last))
+        .map_err(|e| e.to_string())
+        .and_then(|id| {
+            Uuid::parse_str(&id)
+                .map(|uuid| uuid.to_string())
+                .map_err(|e| format!("run_id {id}: {e}"))
+        })
+        .map_err(|e| at(&record, e))
+}
+
+pub fn check_fresh_output_dir(output_dir: &Path) -> Result<(), String> {
+    if fs::read_dir(output_dir).is_ok_and(|mut entries| entries.next().is_some()) {
+        Err(format!(
+            "{}: a fresh run needs an empty --output_dir, and this one already holds files; \
+             pass --continue_from to pick up the run in it",
+            output_dir.display()
+        ))
     } else {
-        "progenitor_swe"
+        Ok(())
     }
 }
 
-pub fn resolve_output_dir(output_dir: &str, cwd: &Path) -> (PathBuf, String) {
-    let dir = cwd.join(output_dir);
-    let run_id = dir
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    (dir, run_id)
+pub fn remove_images(docker: &Docker, images: &[String], log: &Log) {
+    for image in images {
+        let removed = docker
+            .image_exists(image)
+            .and_then(|exists| exists.then(|| docker.remove_image(image)).transpose());
+        if let Err(e) = removed {
+            log.warning(format!("Could not remove the Docker image '{image}': {e}"));
+        }
+    }
 }
 
 pub struct Init<'a> {
-    pub progenitor_dir: &'a Path,
     pub output_dir: &'a Path,
-    pub harness_name: &'a str,
-    pub polyglot: bool,
+    pub image_name: &'a str,
     pub continue_from: Option<&'a Path>,
     pub total_tasks: &'a [String],
     pub max_workers: usize,
@@ -96,12 +123,15 @@ fn previous_run(prev: &Path) -> Result<(Vec<String>, Tree), String> {
 fn build_progenitor(
     src_path: &Path,
     docker: &Docker,
+    image_name: &str,
     log: &Log,
 ) -> Result<(), rustyhgm_sandbox::Error> {
     tempfile::tempdir()
         .and_then(|build| progenitor::write(build.path()).map(|()| build))
         .map_err(rustyhgm_sandbox::Error::from)
-        .and_then(|build| prepare_progenitor(build.path(), src_path, Some(docker), log))
+        .and_then(|build| {
+            prepare_progenitor(build.path(), src_path, Some((docker, image_name)), log)
+        })
         .map(|_| ())
 }
 
@@ -111,21 +141,17 @@ pub fn initialize_run(
     docker: &Docker,
     log: &Log,
 ) -> Result<Start, String> {
-    let folder = init.progenitor_dir.join(progenitor_folder(init.polyglot));
-    let harness_dir = folder.join(init.harness_name);
-    let src_path = harness_dir.join("src");
-    if init.continue_from.is_none() && !harness_dir.exists() {
-        build_progenitor(&src_path, docker, log).map_err(|e| e.to_string())?;
+    let src_path = init.output_dir.join(ROOT_COMMIT).join("src");
+    if init.continue_from.is_none() {
+        build_progenitor(&src_path, docker, init.image_name, log).map_err(|e| e.to_string())?;
         Evaluator {
             bench,
-            output_dir: &folder,
+            output_dir: init.output_dir,
             max_workers: init.max_workers,
-            builder: &builder(docker, &src_path, init.harness_name),
+            builder: &builder(docker, &src_path, init.image_name),
         }
-        .eval_harness(init.harness_name, init.total_tasks)?;
+        .eval_harness(ROOT_COMMIT, init.total_tasks)?;
     }
-    copy_tree(&harness_dir, &init.output_dir.join(ROOT_COMMIT))
-        .unwrap_or_else(|e| eprintln!("cp: {}: {e}", harness_dir.display()));
     let (init_evaluated_tasks, mut tree) = match init.continue_from {
         Some(prev) => previous_run(prev)?,
         None => (Vec::new(), Tree::with_root()),
@@ -231,110 +257,161 @@ pub fn settings(config: &HgmConfig, jitter: Duration) -> Settings {
     }
 }
 
+struct Ready<'a> {
+    args: &'a Cli,
+    config: &'a HgmConfig,
+    services: &'a Services,
+    tools: &'a Tools,
+    polyglot_dir: &'a Path,
+    output_dir: &'a Path,
+    continue_from: Option<&'a Path>,
+    run_id: &'a str,
+    log: &'a Log,
+    jitter: Duration,
+}
+
 pub fn run(args: &Cli, root_dir: &Path, jitter: Duration) -> Result<(), String> {
     let config = args.config();
-    if config.paths.progenitor_name.is_empty() {
-        return Err("--progenitor_name must not be empty".to_owned());
-    }
     check_epsilon(args.epsilon)?;
     if config.evaluation.polyglot && args.holdout_split.is_some() {
         return Err(
             "--holdout_split scores on SWE-bench, so it cannot follow a --polyglot run".to_owned(),
         );
     }
+    let output_dir = root_dir.join(&config.paths.output_dir);
+    let continue_from = config
+        .paths
+        .continue_from
+        .as_ref()
+        .map(|p| root_dir.join(p));
+    if continue_from.is_none() {
+        check_fresh_output_dir(&output_dir)?;
+    }
     let services = args.services(root_dir)?;
     let polyglot_dir = root_dir.join(&args.polyglot_dir);
     if config.evaluation.polyglot {
         prepare_polyglot(&polyglot_dir, &args.polyglot_repo)?;
     }
-    let (output_dir, run_id) = resolve_output_dir(&config.paths.output_dir, root_dir);
     fs::create_dir_all(&output_dir).map_err(|e| at(&output_dir, e))?;
     println!("Working directory: {}", root_dir.display());
     println!("Output directory: {}", output_dir.display());
     println!("Output directory exists: {}", output_dir.exists());
     let outer = output_dir.join("rustyhgm_outer.log");
     let log = Log::to_file(&outer).map_err(|e| at(&outer, e))?;
+    let run_id = continue_from
+        .as_deref()
+        .map_or_else(|| Ok(new_run_id()), run_id_of)?;
     let tools = args.tools(root_dir);
-    let tasks = dedup(&run_tasks(&config, &tools.hub)?);
-    let bench = bench_for(&config, &services.downstream, &polyglot_dir, &tools);
-    let polyglot = config.evaluation.polyglot;
-    let max_workers = config.execution.max_workers;
-    let continue_from = config
-        .paths
-        .continue_from
-        .as_ref()
-        .map(|p| root_dir.join(p));
-    let start = initialize_run(
-        &Init {
-            progenitor_dir: &root_dir.join(&args.progenitor_dir),
-            output_dir: &output_dir,
-            harness_name: &config.paths.progenitor_name,
-            polyglot,
-            continue_from: continue_from.as_deref(),
-            total_tasks: &tasks,
-            max_workers,
-        },
-        bench.as_ref(),
-        &tools.docker,
-        &log,
-    )?;
-    log.info(format!(
-        "Starting HGM run {run_id} with configuration: {}",
-        config.to_json()
-    ));
-    let improver = SelfImprove {
-        docker: tools.docker.clone(),
-        harness_source: start.src_path.clone(),
-        output_dir: output_dir.clone(),
-        polyglot,
-        dataset: improve_dataset(polyglot, &polyglot_dir, &tools.hub),
-        image_name: format!("{}:latest", config.paths.progenitor_name),
-        diagnose: services
-            .diagnose
-            .client(&config.llm.diagnose_llm, &services.api_key),
-        self_improve_llm: config.llm.self_improve_llm.clone(),
-        self_improve_service: services.self_improve.clone(),
-        timeout: config.execution.self_improve_timeout,
-    };
-    let builder = builder(
-        &improver.docker,
-        &start.src_path,
-        &config.paths.progenitor_name,
-    );
-    let evaluator = Evaluator {
-        bench: bench.as_ref(),
+    let ready = Ready {
+        args,
+        config: &config,
+        services: &services,
+        tools: &tools,
+        polyglot_dir: &polyglot_dir,
         output_dir: &output_dir,
-        max_workers,
-        builder: &builder,
-    };
-    let evaluate = |commit: &str, tasks: &[String]| evaluator.eval_harness(commit, tasks);
-    let search = Search {
-        settings: settings(&config, jitter),
-        state: Mutex::new(State {
-            tree: start.tree,
-            submitted_ids: start.submitted_ids,
-            n_task_evals: start.n_task_evals,
-            init_evaluated_tasks: start.init_evaluated_tasks,
-            n_pending_expands: 0,
-            rng: StdRng::from_rng(&mut rand::rng()),
-        }),
-        output_dir: &output_dir,
-        total_tasks: &tasks,
-        improver: &improver,
-        evaluate: &evaluate,
+        continue_from: continue_from.as_deref(),
+        run_id: &run_id,
         log: &log,
+        jitter,
     };
-    search.run()?;
-    finish(args, &config, &services.downstream, &tools, &output_dir)
+    let searched = ready.search();
+    remove_images(
+        &tools.docker,
+        &[
+            image_name(HARNESS_IMAGE, &run_id),
+            image_name(HOLDOUT_IMAGE, &run_id),
+        ],
+        &log,
+    );
+    searched
+}
+
+impl Ready<'_> {
+    fn search(&self) -> Result<(), String> {
+        let config = self.config;
+        let tools = self.tools;
+        let output_dir = self.output_dir;
+        let harness_image = image_name(HARNESS_IMAGE, self.run_id);
+        let tasks = dedup(&run_tasks(config, &tools.hub)?);
+        let bench = bench_for(config, &self.services.downstream, self.polyglot_dir, tools);
+        let polyglot = config.evaluation.polyglot;
+        let max_workers = config.execution.max_workers;
+        let start = initialize_run(
+            &Init {
+                output_dir,
+                image_name: &harness_image,
+                continue_from: self.continue_from,
+                total_tasks: &tasks,
+                max_workers,
+            },
+            bench.as_ref(),
+            &tools.docker,
+            self.log,
+        )?;
+        self.log.info(format!(
+            "Starting HGM run {} with configuration: {}",
+            self.run_id,
+            config.to_json()
+        ));
+        let services = self.services;
+        let improver = SelfImprove {
+            docker: tools.docker.clone(),
+            harness_source: start.src_path.clone(),
+            output_dir: output_dir.to_path_buf(),
+            polyglot,
+            dataset: improve_dataset(polyglot, self.polyglot_dir, &tools.hub),
+            image_name: harness_image.clone(),
+            diagnose: services
+                .diagnose
+                .client(&config.llm.diagnose_llm, &services.api_key),
+            self_improve_llm: config.llm.self_improve_llm.clone(),
+            self_improve_service: services.self_improve.clone(),
+            timeout: config.execution.self_improve_timeout,
+        };
+        let builder = builder(&improver.docker, &start.src_path, &harness_image);
+        let evaluator = Evaluator {
+            bench: bench.as_ref(),
+            output_dir,
+            max_workers,
+            builder: &builder,
+        };
+        let evaluate = |commit: &str, tasks: &[String]| evaluator.eval_harness(commit, tasks);
+        let search = Search {
+            settings: settings(config, self.jitter),
+            state: Mutex::new(State {
+                tree: start.tree,
+                submitted_ids: start.submitted_ids,
+                n_task_evals: start.n_task_evals,
+                init_evaluated_tasks: start.init_evaluated_tasks,
+                n_pending_expands: 0,
+                rng: StdRng::from_rng(&mut rand::rng()),
+            }),
+            output_dir,
+            run_id: self.run_id,
+            total_tasks: &tasks,
+            improver: &improver,
+            evaluate: &evaluate,
+            log: self.log,
+        };
+        search.run()?;
+        finish(
+            self.args,
+            &services.downstream,
+            tools,
+            output_dir,
+            &image_name(HOLDOUT_IMAGE, self.run_id),
+        )
+    }
 }
 
 pub fn finish(
     args: &Cli,
-    config: &HgmConfig,
     downstream: &Service,
     tools: &Tools,
     output_dir: &Path,
+    holdout_image: &str,
 ) -> Result<(), String> {
+    let config = args.config();
     let best = pick(output_dir, args.epsilon)?;
     let harness_dir = output_dir.join(BEST_HARNESS);
     export(output_dir, &best.commit_id, &harness_dir)?;
@@ -347,6 +424,7 @@ pub fn finish(
         (Some(split), Some(n_tasks)) => holdout(&Holdout {
             harness_dir: &harness_dir,
             results_dir: &output_dir.join(HOLDOUT_DIR),
+            image_name: holdout_image,
             split,
             n_tasks,
             llm: &config.llm.downstream_llm,
@@ -362,6 +440,7 @@ pub fn finish(
 pub struct Holdout<'a> {
     pub harness_dir: &'a Path,
     pub results_dir: &'a Path,
+    pub image_name: &'a str,
     pub split: &'a str,
     pub n_tasks: usize,
     pub llm: &'a str,
@@ -397,7 +476,7 @@ pub fn holdout(h: &Holdout) -> Result<(), String> {
     let builder = Builder {
         docker: bench.docker.clone(),
         context: h.harness_dir.to_path_buf(),
-        image_name: HOLDOUT_IMAGE.to_owned(),
+        image_name: h.image_name.to_owned(),
         rebuild: true,
     };
     let solved = Evaluator {

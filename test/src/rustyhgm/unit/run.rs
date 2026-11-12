@@ -5,8 +5,8 @@ use std::time::Duration;
 use rustyhgm::cli::Cli;
 use rustyhgm::node::Evaluator;
 use rustyhgm::run::{
-    Holdout, Init, bench_for, finish, holdout, improve_dataset, initialize_run, progenitor_folder,
-    resolve_output_dir, run, run_tasks, settings,
+    Holdout, Init, bench_for, check_fresh_output_dir, finish, holdout, image_name, improve_dataset,
+    initialize_run, new_run_id, remove_images, run, run_id_of, run_tasks, settings,
 };
 use rustyhgm::search::Settings;
 use rustyhgm_bench::dataset::Hub;
@@ -18,31 +18,138 @@ use serde_json::json;
 
 use crate::common::{FakeBench, FakeBuild, cli, node, performance, read_json, service};
 
-fn resolved(output_dir: &str) -> (PathBuf, String) {
-    resolve_output_dir(output_dir, Path::new("/w"))
-}
+const RUN_ID: &str = "0f8fad5b-d9cb-469f-a165-70867728950e";
 
 #[test]
-fn an_output_directory_names_the_run() {
+fn an_image_is_named_after_the_run() {
     assert_eq!(
-        resolved("runs/x/"),
-        (PathBuf::from("/w/runs/x/"), "x".to_owned())
+        image_name("rustyhgm-harness", RUN_ID),
+        format!("rustyhgm-harness-{RUN_ID}:latest")
     );
 }
 
 #[test]
-fn the_root_as_output_directory_has_no_name() {
-    assert_eq!(resolved("/"), (PathBuf::from("/"), String::new()));
+fn each_new_run_gets_its_own_id() {
+    assert_ne!(new_run_id(), new_run_id());
 }
 
 #[test]
-fn polyglot_runs_start_from_the_polyglot_folder() {
-    assert_eq!(progenitor_folder(true), "progenitor_polyglot");
+fn a_new_run_id_is_a_uuid() {
+    assert_eq!(new_run_id().len(), RUN_ID.len());
+}
+
+fn record_with(run_id: serde_json::Value) -> Result<String, String> {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(
+        tmp.path().join("rustyhgm_metadata.jsonl"),
+        format!(
+            "{}\n",
+            json!({"run_id": run_id, "n_task_evals": 0, "nodes": []})
+        ),
+    )
+    .unwrap();
+    run_id_of(tmp.path())
 }
 
 #[test]
-fn swe_runs_start_from_the_swe_folder() {
-    assert_eq!(progenitor_folder(false), "progenitor_swe");
+fn a_continued_run_reads_its_id_back() {
+    assert_eq!(record_with(json!(RUN_ID)).unwrap(), RUN_ID);
+}
+
+#[test]
+fn a_continued_run_keeps_its_id_in_lower_case() {
+    assert_eq!(record_with(json!(RUN_ID.to_uppercase())).unwrap(), RUN_ID);
+}
+
+#[test]
+fn a_record_without_a_run_id_cannot_be_continued() {
+    assert!(record_with(json!(null)).unwrap_err().contains("run_id"));
+}
+
+#[test]
+fn a_run_id_that_is_not_a_uuid_cannot_be_continued() {
+    assert!(record_with(json!("x")).unwrap_err().contains("run_id x"));
+}
+
+#[test]
+fn a_missing_output_directory_is_fresh() {
+    let tmp = tempfile::tempdir().unwrap();
+    assert_eq!(check_fresh_output_dir(&tmp.path().join("out")), Ok(()));
+}
+
+#[test]
+fn an_empty_output_directory_is_fresh() {
+    let tmp = tempfile::tempdir().unwrap();
+    assert_eq!(check_fresh_output_dir(tmp.path()), Ok(()));
+}
+
+#[test]
+fn an_output_directory_holding_files_is_not_fresh() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("x"), "").unwrap();
+    assert!(
+        check_fresh_output_dir(tmp.path())
+            .unwrap_err()
+            .contains("--continue_from")
+    );
+}
+
+#[cfg(unix)]
+fn fake_docker(script: &str) -> (tempfile::TempDir, Docker) {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = tempfile::tempdir().unwrap();
+    let program = tmp.path().join("docker");
+    fs::write(
+        &program,
+        format!("#!/bin/sh\necho \"$@\" >> \"$0.calls\"\n{script}\n"),
+    )
+    .unwrap();
+    fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
+    let docker = Docker::new(program.to_string_lossy());
+    (tmp, docker)
+}
+
+#[cfg(unix)]
+fn removal_calls(script: &str) -> Vec<String> {
+    let (tmp, docker) = fake_docker(script);
+    remove_images(&docker, &["i:latest".to_owned()], &Log::discard());
+    fs::read_to_string(tmp.path().join("docker.calls"))
+        .unwrap()
+        .lines()
+        .map(str::to_owned)
+        .collect()
+}
+
+#[cfg(unix)]
+#[test]
+fn a_finished_run_removes_its_images() {
+    assert_eq!(
+        removal_calls("exit 0"),
+        [
+            "image inspect --format {{.Id}} i:latest",
+            "image rm -f i:latest"
+        ]
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn an_image_that_is_gone_is_not_removed() {
+    assert_eq!(removal_calls("exit 1").len(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_failed_removal_does_not_stop_the_next_one() {
+    let (tmp, docker) = fake_docker("[ \"$2\" = rm ] && exit 1\nexit 0");
+    remove_images(&docker, &["a".to_owned(), "b".to_owned()], &Log::discard());
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("docker.calls"))
+            .unwrap()
+            .lines()
+            .count(),
+        4
+    );
 }
 
 #[test]
@@ -210,17 +317,10 @@ fn the_polyglot_bench_follows_the_benchmark_flag() {
     assert!(e.starts_with("Dataset file not found: "), "{e}");
 }
 
-fn init<'a>(
-    root: &'a Path,
-    out: &'a Path,
-    tasks: &'a [String],
-    prev: Option<&'a Path>,
-) -> Init<'a> {
+fn init<'a>(out: &'a Path, tasks: &'a [String], prev: Option<&'a Path>) -> Init<'a> {
     Init {
-        progenitor_dir: root,
         output_dir: out,
-        harness_name: "harness",
-        polyglot: false,
+        image_name: "rustyhgm-harness-r:latest",
         continue_from: prev,
         total_tasks: tasks,
         max_workers: 3,
@@ -247,16 +347,6 @@ impl Started {
     fn seen(&self) -> Vec<crate::common::Seen> {
         self.bench.seen.lock().unwrap().clone()
     }
-
-    fn again(&self) -> rustyhgm::run::Start {
-        initialize_run(
-            &init(self.root(), &self.root().join("out"), &two_tasks(), None),
-            &self.bench,
-            &Docker::new("true"),
-            &Log::discard(),
-        )
-        .unwrap()
-    }
 }
 
 #[cfg(unix)]
@@ -265,7 +355,7 @@ fn started() -> Started {
     let root = tmp.path();
     let bench = FakeBench::resolving(&["a"]);
     let start = initialize_run(
-        &init(root, &root.join("out"), &two_tasks(), None),
+        &init(&root.join("out"), &two_tasks(), None),
         &bench,
         &Docker::new("true"),
         &Log::discard(),
@@ -276,23 +366,9 @@ fn started() -> Started {
 
 #[cfg(unix)]
 #[test]
-fn a_new_run_points_at_the_prepared_source() {
+fn a_new_run_points_at_the_progenitor_inside_the_run() {
     let s = started();
-    assert_eq!(
-        s.start.src_path,
-        s.root().join("progenitor_swe/harness/src")
-    );
-}
-
-#[cfg(unix)]
-#[test]
-fn a_new_run_copies_the_harness_source() {
-    assert!(
-        started()
-            .root()
-            .join("progenitor_swe/harness/src/src/coding-harness/main.rs")
-            .is_file()
-    );
+    assert_eq!(s.start.src_path, s.root().join("out/progenitor/src"));
 }
 
 #[cfg(unix)]
@@ -301,14 +377,14 @@ fn a_new_run_copies_the_dockerfile() {
     assert!(
         started()
             .root()
-            .join("progenitor_swe/harness/src/Dockerfile")
+            .join("out/progenitor/src/Dockerfile")
             .is_file()
     );
 }
 
 #[cfg(unix)]
 #[test]
-fn a_new_run_copies_the_progenitor_into_the_run() {
+fn a_new_run_writes_the_progenitor_into_the_run() {
     assert!(
         started()
             .root()
@@ -325,8 +401,8 @@ fn a_new_run_evaluates_the_progenitor_once() {
 
 #[cfg(unix)]
 #[test]
-fn the_progenitor_evaluation_names_the_harness() {
-    assert_eq!(started().seen()[0].commit, "harness");
+fn the_progenitor_evaluation_is_filed_under_progenitor() {
+    assert_eq!(started().seen()[0].commit, "progenitor");
 }
 
 #[cfg(unix)]
@@ -376,23 +452,6 @@ fn a_new_run_has_no_initially_evaluated_tasks() {
 
 #[cfg(unix)]
 #[test]
-fn a_second_start_reads_the_progenitor_measures_back() {
-    assert_eq!(
-        started().again().tree.get(0).unwrap().utility_measures,
-        [1.0, 0.0]
-    );
-}
-
-#[cfg(unix)]
-#[test]
-fn a_second_start_does_not_evaluate_again() {
-    let s = started();
-    s.again();
-    assert_eq!(s.seen().len(), 1);
-}
-
-#[cfg(unix)]
-#[test]
 fn the_progenitor_node_is_named_progenitor() {
     assert_eq!(
         read_json(&started().root().join("out/progenitor/metadata.json"))["run_id"],
@@ -406,7 +465,7 @@ fn a_missing_docker_fails_the_setup() {
     let root = tmp.path();
     assert!(
         initialize_run(
-            &init(root, &root.join("out"), &["a".to_owned()], None),
+            &init(&root.join("out"), &["a".to_owned()], None),
             &FakeBench::resolving(&[]),
             &Docker::new("rustyhgm-no-such-docker-program"),
             &Log::discard()
@@ -426,7 +485,7 @@ fn a_failing_progenitor_evaluation_is_reported() {
     };
     assert_eq!(
         initialize_run(
-            &init(root, &root.join("out"), &["a".to_owned()], None),
+            &init(&root.join("out"), &["a".to_owned()], None),
             &failing,
             &Docker::new("true"),
             &Log::discard()
@@ -436,25 +495,11 @@ fn a_failing_progenitor_evaluation_is_reported() {
     );
 }
 
-#[test]
-fn a_progenitor_folder_without_source_is_an_error() {
-    let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path();
-    fs::create_dir_all(root.join("progenitor_swe/harness")).unwrap();
-    let e = initialize_run(
-        &init(root, &root.join("out"), &["a".to_owned()], None),
-        &FakeBench::resolving(&[]),
-        &Docker::new("true"),
-        &Log::discard(),
-    )
-    .err();
-    assert!(e.unwrap().contains("progenitor"));
-}
-
 fn previous(prev: &Path) {
     fs::write(prev.join("init_evaluated_tasks.json"), "[\"a\"]").unwrap();
     let record = |n: usize, nodes: serde_json::Value| {
-        serde_json::to_string_pretty(&json!({"n_task_evals": n, "nodes": nodes})).unwrap()
+        serde_json::to_string_pretty(&json!({"run_id": RUN_ID, "n_task_evals": n, "nodes": nodes}))
+            .unwrap()
     };
     fs::write(
         prev.join("rustyhgm_metadata.jsonl"),
@@ -476,12 +521,7 @@ fn continued() -> (FakeBench, rustyhgm::run::Start) {
     let out = root.join("run");
     fs::create_dir_all(&out).unwrap();
     previous(&out);
-    node(
-        &root.join("progenitor_swe"),
-        "harness",
-        None,
-        performance(&["a"], &["b"], &[]),
-    );
+    node(&out, "progenitor", None, performance(&["a"], &["b"], &[]));
     node(
         &out,
         "c1",
@@ -491,7 +531,7 @@ fn continued() -> (FakeBench, rustyhgm::run::Start) {
     node(&out, "c2", Some("c1"), performance(&["a"], &["b"], &[]));
     let bench = FakeBench::resolving(&[]);
     let start = initialize_run(
-        &init(root, &out, &two_tasks(), Some(&out)),
+        &init(&out, &two_tasks(), Some(&out)),
         &bench,
         &Docker::new("rustyhgm-no-such-docker-program"),
         &Log::discard(),
@@ -503,6 +543,19 @@ fn continued() -> (FakeBench, rustyhgm::run::Start) {
 #[test]
 fn a_continued_run_evaluates_nothing() {
     assert!(continued().0.seen.lock().unwrap().is_empty());
+}
+
+#[test]
+fn a_continued_run_reads_the_progenitor_measures_from_the_run() {
+    assert_eq!(
+        continued().1.tree.get(0).unwrap().utility_measures,
+        [1.0, 0.0]
+    );
+}
+
+#[test]
+fn a_continued_run_uses_the_progenitor_source_inside_the_run() {
+    assert!(continued().1.src_path.ends_with("run/progenitor/src"));
 }
 
 #[test]
@@ -550,7 +603,7 @@ fn continue_error(prepare: impl FnOnce(&Path)) -> Option<String> {
     fs::create_dir_all(&out).unwrap();
     prepare(&out);
     initialize_run(
-        &init(root, &out, &["a".to_owned()], Some(&out)),
+        &init(&out, &["a".to_owned()], Some(&out)),
         &FakeBench::resolving(&[]),
         &Docker::new("rustyhgm-no-such-docker-program"),
         &Log::discard(),
@@ -603,6 +656,15 @@ fn a_continued_run_needs_each_node_folder() {
     );
 }
 
+#[test]
+fn a_continued_run_needs_its_progenitor() {
+    assert!(
+        continue_error(previous)
+            .unwrap()
+            .contains("run/progenitor: ")
+    );
+}
+
 fn run_args(extra: impl FnOnce(&mut Cli)) -> Cli {
     let mut args = cli(&[]);
     extra(&mut args);
@@ -637,10 +699,38 @@ fn a_run_without_its_key_file_fetches_no_polyglot_dataset() {
 }
 
 #[test]
-fn a_run_without_a_harness_name_stops_early() {
+fn a_fresh_run_into_a_folder_holding_files_stops_early() {
     assert!(
-        run_error(|_| {}, |a| a.progenitor_name = String::new())
-            .starts_with("--progenitor_name must not be empty")
+        run_error(
+            |root| {
+                fs::create_dir_all(root.join("out")).unwrap();
+                fs::write(root.join("out/x"), "").unwrap();
+            },
+            |_| {}
+        )
+        .contains("a fresh run needs an empty --output_dir")
+    );
+}
+
+#[test]
+fn a_refused_fresh_run_leaves_the_folder_alone() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("out")).unwrap();
+    fs::write(root.join("out/x"), "").unwrap();
+    fs::write(root.join("key"), "k\n").unwrap();
+    run(&run_args(|_| {}), root, Duration::ZERO).unwrap_err();
+    assert_eq!(fs::read_dir(root.join("out")).unwrap().count(), 1);
+}
+
+#[test]
+fn a_continued_run_without_its_record_says_so() {
+    assert!(
+        run_error(
+            |root| fs::create_dir_all(root.join("out")).unwrap(),
+            |a| a.continue_from = Some("out".into())
+        )
+        .contains("rustyhgm_metadata.jsonl")
     );
 }
 
@@ -660,7 +750,7 @@ fn a_run_that_cannot_open_its_log_says_so() {
     assert!(
         run_error(
             |root| fs::create_dir_all(root.join("out/rustyhgm_outer.log")).unwrap(),
-            |a| a.output_dir = "out".into()
+            |a| a.continue_from = Some("out".into())
         )
         .contains("rustyhgm_outer.log")
     );
@@ -716,7 +806,7 @@ fn finished_run() -> (tempfile::TempDir, PathBuf) {
         "--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1,2 @@\n progenitor\n+child\n",
     )
     .unwrap();
-    let record = json!({"n_task_evals": 2, "nodes": [{"commit_id": "c1", "id": 1, "parent_id": 0, "mean_utility": 0.5, "num_evals": 2}]});
+    let record = json!({"run_id": RUN_ID, "n_task_evals": 2, "nodes": [{"commit_id": "c1", "id": 1, "parent_id": 0, "mean_utility": 0.5, "num_evals": 2}]});
     fs::write(out.join("rustyhgm_metadata.jsonl"), format!("{record}\n")).unwrap();
     (tmp, out)
 }
@@ -726,10 +816,10 @@ fn finish_writes_the_best_harness_source_into_the_run() {
     let (_tmp, out) = finished_run();
     finish(
         &cli(&[]),
-        &cli(&[]).config(),
         &service(),
         &cli(&[]).tools(&out),
         &out,
+        "rustyhgm-holdout-harness-r:latest",
     )
     .unwrap();
     assert_eq!(
@@ -745,10 +835,10 @@ fn finish_needs_the_run_records() {
     assert!(
         finish(
             &cli(&[]),
-            &cli(&[]).config(),
             &service(),
             &cli(&[]).tools(&out),
             &out,
+            "rustyhgm-holdout-harness-r:latest",
         )
         .unwrap_err()
         .contains("rustyhgm_metadata.jsonl")
@@ -762,10 +852,10 @@ fn finish_needs_the_progenitor_source() {
     assert!(
         finish(
             &cli(&[]),
-            &cli(&[]).config(),
             &service(),
             &cli(&[]).tools(&out),
             &out,
+            "rustyhgm-holdout-harness-r:latest",
         )
         .unwrap_err()
         .contains("the progenitor's source is missing")
@@ -790,6 +880,7 @@ fn held_out(results: &str) -> String {
     holdout(&Holdout {
         harness_dir: &harness_dir,
         results_dir: &root.join(results),
+        image_name: "rustyhgm-holdout-harness-r:latest",
         split: "Lite",
         n_tasks: 1,
         llm: "m",

@@ -13,7 +13,7 @@ fn binary(name: &str) -> PathBuf {
         })
 }
 
-const SETTINGS: [(&str, &str); 29] = [
+const SETTINGS: [(&str, &str); 27] = [
     ("--self_improve_llm", "m"),
     ("--self_improve_provider", "openrouter"),
     ("--self_improve_base_url", "http://127.0.0.1:9/v1"),
@@ -30,7 +30,6 @@ const SETTINGS: [(&str, &str); 29] = [
     ("--dataset_dir", "cache"),
     ("--polyglot_repo", "no-such-repo"),
     ("--polyglot_dir", "polyglot"),
-    ("--progenitor_dir", "progenitors"),
     ("--alpha", "0.6"),
     ("--beta", "1.0"),
     ("--eval_random_level", "1.0"),
@@ -42,7 +41,6 @@ const SETTINGS: [(&str, &str); 29] = [
     ("--self_improve_timeout", "3600"),
     ("--evaluation_timeout", "3600"),
     ("--output_dir", "out"),
-    ("--progenitor_name", "harness"),
 ];
 
 fn flags(changes: &[(&str, &str)]) -> Vec<String> {
@@ -145,11 +143,7 @@ fn rustyhgm_without_its_flags_exits_with_usage_status() {
 
 #[test]
 fn rustyhgm_without_its_flags_names_them() {
-    assert!(
-        rustyhgm_with(&[])
-            .stderr
-            .contains("--progenitor_name <NAME>")
-    );
+    assert!(rustyhgm_with(&[]).stderr.contains("--output_dir <DIR>"));
 }
 
 fn key_file(dir: &std::path::Path) {
@@ -163,8 +157,10 @@ fn rustyhgm_in(dir: &std::path::Path) -> Command {
     cmd
 }
 
+const RUN_ID: &str = "0f8fad5b-d9cb-469f-a165-70867728950e";
+
 fn progenitor_source(root: &std::path::Path) {
-    let src = root.join("progenitors/progenitor_swe/harness/src");
+    let src = root.join("output_rustyhgm/prev/progenitor/src");
     std::fs::create_dir_all(&src).unwrap();
     std::fs::write(src.join("lib.rs"), "progenitor\n").unwrap();
 }
@@ -195,13 +191,9 @@ fn metadata(dir: &std::path::Path, commit: &str, extra: serde_json::Value) {
 }
 
 fn finished_run(root: &std::path::Path) {
-    metadata(
-        &root.join("progenitors/progenitor_swe"),
-        "harness",
-        serde_json::json!({}),
-    );
-    progenitor_source(root);
     let prev = root.join("output_rustyhgm/prev");
+    metadata(&prev, "progenitor", serde_json::json!({}));
+    progenitor_source(root);
     metadata(
         &prev,
         "c1",
@@ -211,7 +203,10 @@ fn finished_run(root: &std::path::Path) {
     std::fs::write(prev.join("init_evaluated_tasks.json"), "[]").unwrap();
     std::fs::write(
         prev.join("rustyhgm_metadata.jsonl"),
-        "{\"n_task_evals\": 2, \"nodes\": [{\"commit_id\": \"c1\", \"id\": 1, \"parent_id\": 0, \"mean_utility\": 0.5, \"num_evals\": 2}]}\n",
+        format!(
+            "{}\n",
+            serde_json::json!({"run_id": RUN_ID, "n_task_evals": 2, "nodes": [{"commit_id": "c1", "id": 1, "parent_id": 0, "mean_utility": 0.5, "num_evals": 2}]})
+        ),
     )
     .unwrap();
 }
@@ -290,7 +285,7 @@ fn a_continued_run_logs_its_configuration() {
     assert!(
         continued_finished()
             .file("output_rustyhgm/prev/rustyhgm_outer.log")
-            .contains("Starting HGM run prev with configuration: {")
+            .contains(&format!("Starting HGM run {RUN_ID} with configuration: {{"))
     );
 }
 
@@ -303,27 +298,35 @@ fn a_continued_run_logs_its_budget() {
     );
 }
 
-fn unnamed() -> Ran {
+fn crowded() -> Ran {
     in_root(
-        |_| {},
+        |root| {
+            std::fs::create_dir_all(root.join("out")).unwrap();
+            std::fs::write(root.join("out/left_over"), "").unwrap();
+        },
         |c| {
-            c.args(flags(&[("--progenitor_name", "")]));
+            c.args(flags(&[]));
         },
     )
 }
 
 #[test]
-fn a_run_without_a_harness_name_fails() {
-    assert_eq!(unnamed().code, Some(1));
+fn a_fresh_run_into_a_folder_holding_files_fails() {
+    assert_eq!(crowded().code, Some(1));
 }
 
 #[test]
-fn a_run_without_a_harness_name_says_so() {
+fn a_fresh_run_into_a_folder_holding_files_says_so() {
     assert!(
-        unnamed()
+        crowded()
             .stderr
-            .contains("rustyhgm: --progenitor_name must not be empty")
+            .contains("a fresh run needs an empty --output_dir")
     );
+}
+
+#[test]
+fn a_fresh_run_into_a_folder_holding_files_leaves_it_alone() {
+    assert!(!crowded().root().join("out/progenitor").exists());
 }
 
 #[cfg(unix)]
@@ -433,11 +436,7 @@ fn a_missing_holdout_dataset_still_writes_the_best_harness() {
 
 fn continued(root: &std::path::Path, nodes: &[&str], n_task_evals: usize) {
     let prev = root.join("output_rustyhgm/prev");
-    metadata(
-        &root.join("progenitors/progenitor_swe"),
-        "harness",
-        serde_json::json!({}),
-    );
+    metadata(&prev, "progenitor", serde_json::json!({}));
     let mut records = Vec::new();
     for (i, commit) in nodes.iter().enumerate() {
         metadata(
@@ -452,7 +451,7 @@ fn continued(root: &std::path::Path, nodes: &[&str], n_task_evals: usize) {
         prev.join("rustyhgm_metadata.jsonl"),
         format!(
             "{}\n",
-            serde_json::json!({"n_task_evals": n_task_evals, "nodes": records})
+            serde_json::json!({"run_id": RUN_ID, "n_task_evals": n_task_evals, "nodes": records})
         ),
     )
     .unwrap();
@@ -544,7 +543,7 @@ fn a_run_without_its_key_file_names_it() {
     );
 }
 
-const FRESH_PROGENITOR: &str = "progenitors/progenitor_swe/harness/src";
+const FRESH_PROGENITOR: &str = "out/progenitor/src";
 
 fn fresh() -> Ran {
     in_root(
@@ -595,11 +594,7 @@ fn continuing_a_missing_run_fails() {
 
 #[test]
 fn continuing_a_missing_run_names_the_missing_records() {
-    assert!(
-        missing_records()
-            .stderr
-            .contains("init_evaluated_tasks.json")
-    );
+    assert!(missing_records().stderr.contains("rustyhgm_metadata.jsonl"));
 }
 
 fn homeless() -> Ran {

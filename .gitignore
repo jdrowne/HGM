@@ -3,8 +3,6 @@
 .DS_Store
 
 logs/
-progenitor_swe/
-progenitor_polyglot/
 output_rustyhgm/
 results/
 

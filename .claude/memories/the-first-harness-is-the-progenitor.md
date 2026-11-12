@@ -10,7 +10,7 @@ metadata:
 
 # The first harness is the progenitor
 
-The coding harness the tree starts from is the **progenitor** in code, flags, folders, messages, tests, README and issues: `--progenitor_dir`, `--progenitor_name`, `progenitor_swe/`, commit id `progenitor`, `src/rustyhgm/progenitor.rs`. "Root" is kept only for tree-structure code (`Tree::with_root`, `ROOT_COMMIT`, clade roots).
+The coding harness the tree starts from is the **progenitor** in code, flags, folders, messages, tests, README and issues: the `progenitor/` folder inside each run, commit id `progenitor`, `src/rustyhgm/progenitor.rs`. "Root" is kept only for tree-structure code (`Tree::with_root`, `ROOT_COMMIT`, clade roots).
 
 **Why:** the repo had drifted into several names for one thing (seed, initial version, root), and "seed" also means random-number seeds here.
 

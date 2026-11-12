@@ -88,6 +88,7 @@ fn search_in(
         settings,
         state: Mutex::new(state),
         output_dir: setup.dir,
+        run_id: "r",
         total_tasks: setup.tasks,
         improver: setup.improver,
         evaluate,
@@ -167,6 +168,11 @@ fn records(big: &Big) -> Vec<serde_json::Value> {
 fn a_run_records_each_expansion_and_evaluation() {
     let big = big_run();
     assert_eq!(records(&big).len(), big.made.len() + 6);
+}
+
+#[test]
+fn every_record_carries_the_run_id() {
+    assert!(records(&big_run()).iter().all(|r| r["run_id"] == "r"));
 }
 
 #[test]

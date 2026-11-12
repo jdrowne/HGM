@@ -39,6 +39,7 @@ rand = "*"
 serde_json = { version = "*", features = ["preserve_order"] }
 statrs = "*"
 tempfile = "*"
+uuid = { version = "*", features = ["v4"] }
 
 [dev-dependencies]
 serde_json = { version = "*", features = ["preserve_order"] }

@@ -32,7 +32,6 @@ fn config() -> HgmConfig {
         paths: PathConfig {
             output_dir: "out".into(),
             continue_from: None,
-            progenitor_name: "harness".into(),
         },
     }
 }
@@ -58,7 +57,7 @@ fn the_configuration_is_logged_by_section() {
                 "max_task_evals": 800,
             },
             "evaluation": {"full_eval": false, "polyglot": true},
-            "paths": {"output_dir": "out", "continue_from": null, "progenitor_name": "harness"},
+            "paths": {"output_dir": "out", "continue_from": null},
         })
     );
 }

@@ -54,7 +54,6 @@ fn every_flag_reaches_the_configuration() {
         ("--full_eval", ""),
         ("--polyglot", ""),
         ("--output_dir", "out"),
-        ("--progenitor_name", "harness"),
         ("--continue_from", "prev"),
     ]);
     assert_eq!(
@@ -76,7 +75,7 @@ fn every_flag_reaches_the_configuration() {
                 "max_task_evals": 7,
             },
             "evaluation": {"full_eval": true, "polyglot": true},
-            "paths": {"output_dir": "out", "continue_from": "prev", "progenitor_name": "harness"},
+            "paths": {"output_dir": "out", "continue_from": "prev"},
         })
     );
 }

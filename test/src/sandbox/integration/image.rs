@@ -42,7 +42,7 @@ fn prepared() -> Prepared {
     let name = unique("rustyhgm-progenitor");
     let dest = dir.path().join(&name).join("src");
     let image = Image(name);
-    let report = prepare_progenitor(&repo, &dest, Some(&d), &Log::discard()).unwrap();
+    let report = prepare_progenitor(&repo, &dest, Some((&d, &image.0)), &Log::discard()).unwrap();
     Prepared {
         _dir: dir,
         image,

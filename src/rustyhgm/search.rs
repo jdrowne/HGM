@@ -49,6 +49,7 @@ pub struct Search<'a> {
     pub settings: Settings,
     pub state: Mutex<State>,
     pub output_dir: &'a Path,
+    pub run_id: &'a str,
     pub total_tasks: &'a [String],
     pub improver: &'a dyn Improver,
     pub evaluate: &'a Evaluate<'a>,
@@ -76,6 +77,7 @@ impl Search<'_> {
     fn record(&self, state: &State) -> Result<(), String> {
         update_metadata(
             self.output_dir,
+            self.run_id,
             &state.tree,
             state.n_task_evals,
             &state.init_evaluated_tasks,
