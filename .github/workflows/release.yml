@@ -235,7 +235,7 @@ jobs:
         run: >-
           docker build
           --cache-from "type=gha,scope=$SCOPE"
-          --cache-to "type=gha,mode=max,scope=$SCOPE"
+          --cache-to "type=gha,mode=max,scope=$SCOPE,compression=zstd,force-compression=true"
           -t rustyhgm-harness-cache:latest
           .
     strategy:
@@ -273,6 +273,7 @@ jobs:
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
       - env:
+          COMPRESSION: ${{ steps.images.outputs.compression }}
           IMAGE: ${{ steps.images.outputs.base }}
           PLATFORM: ${{ matrix.docker_platform }}
           SOURCE: ${{ github.server_url }}/${{ github.repository }}
@@ -284,7 +285,7 @@ jobs:
           docker build \
             --platform "$PLATFORM" \
             --label "org.opencontainers.image.source=$SOURCE" \
-            -t "$IMAGE" \
+            --output "type=image,name=$IMAGE,compression=$COMPRESSION,force-compression=true,unpack=true" \
             context
       - env:
           ACTOR: ${{ github.actor }}
@@ -336,6 +337,7 @@ jobs:
           fi
       - env:
           BASE: ${{ steps.images.outputs.base }}
+          COMPRESSION: ${{ steps.images.outputs.compression }}
           IMAGE: ${{ steps.images.outputs.env }}
           LOCAL_BASE: ${{ steps.images.outputs.local_base }}
           PLATFORM: ${{ matrix.docker_platform }}
@@ -352,7 +354,7 @@ jobs:
           docker build \
             --platform "$PLATFORM" \
             --label "org.opencontainers.image.source=$SOURCE" \
-            -t "$IMAGE" \
+            --output "type=image,name=$IMAGE,compression=$COMPRESSION,force-compression=true,unpack=true" \
             context
       - env:
           ACTOR: ${{ github.actor }}
