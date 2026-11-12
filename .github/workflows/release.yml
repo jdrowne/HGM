@@ -804,6 +804,10 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     steps:
+      - env:
+          VERSION: ${{ needs.package.outputs.version }}
+        name: Stop before tagging when the package job gave no version
+        run: test -n "$VERSION"
       - name: Checkout code
         uses: actions/checkout@main
         with:
