@@ -6,8 +6,8 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rustyhgm::FAILED;
 use rustyhgm::improve::{
-    Improver, SelfImprove, child_performance, choose_entry, claim_run_dir, container_name,
-    diagnose_problem,
+    Improver, SelfImprove, child_performance, choose_entry, claim_run_dir, claim_run_dir_from,
+    container_name, diagnose_problem,
 };
 use rustyhgm_coding_harness::llm::{Client, Provider};
 use rustyhgm_core::log::Log;
@@ -509,4 +509,17 @@ fn containers_for_the_same_run_get_different_names() {
 #[test]
 fn a_container_name_starts_with_its_run_id() {
     assert!(container_name("r1").starts_with("rustyhgm-container-r1-"));
+}
+
+#[test]
+fn a_run_folder_that_is_already_taken_is_skipped_for_the_next_id() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::create_dir(tmp.path().join("taken")).unwrap();
+    let mut ids = ["taken", "free"].into_iter().map(str::to_owned);
+    assert_eq!(
+        claim_run_dir_from(tmp.path(), &mut || ids.next().unwrap())
+            .unwrap()
+            .0,
+        "free"
+    );
 }

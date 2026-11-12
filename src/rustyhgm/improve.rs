@@ -34,9 +34,18 @@ pub trait Improver: Sync {
 }
 
 pub fn claim_run_dir(output_dir: &Path) -> io::Result<(String, PathBuf)> {
+    claim_run_dir_from(output_dir, &mut || {
+        Local::now().format("%Y%m%d_%H%M%S_%6f").to_string()
+    })
+}
+
+pub fn claim_run_dir_from(
+    output_dir: &Path,
+    next_id: &mut dyn FnMut() -> String,
+) -> io::Result<(String, PathBuf)> {
     fs::create_dir_all(output_dir)?;
     loop {
-        let run_id = Local::now().format("%Y%m%d_%H%M%S_%6f").to_string();
+        let run_id = next_id();
         let run_dir = output_dir.join(&run_id);
         match fs::create_dir(&run_dir) {
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
