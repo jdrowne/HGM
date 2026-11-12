@@ -1,6 +1,8 @@
 FROM rust:latest
 
-RUN apt-get update && apt-get install -y musl-tools patch && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends musl-tools patch && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+ENV CARGO_PROFILE_DEV_DEBUG=line-tables-only
 
 WORKDIR /rustyhgm
 
