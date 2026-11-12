@@ -83,7 +83,7 @@ fn stopped_at_the_missing_run(out: &Output) -> Vec<String> {
     if out.status.code() != Some(1) {
         wrong.push(format!("status {:?}", out.status.code()));
     }
-    if !stderr(out).contains("init_evaluated_tasks.json") {
+    if !stderr(out).contains("rustyhgm_metadata.jsonl") {
         wrong.push(stderr(out));
     }
     wrong
