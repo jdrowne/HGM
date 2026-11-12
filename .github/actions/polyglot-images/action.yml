@@ -2,8 +2,9 @@
 description: >-
   Work out the names of the polyglot base and env images for one
   architecture: the GHCR images they are published as, tagged with a hash of
-  the files in src/bench/polyglot_images that define them, and the local
-  names rustyhgm looks for before it builds them itself
+  the files in src/bench/polyglot_images that define them and of the
+  compression of their layers, and the local names rustyhgm looks for
+  before it builds them itself
 inputs:
   arch:
     description: The image architecture, x86_64 or arm64
