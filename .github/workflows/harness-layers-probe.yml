@@ -5,24 +5,22 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@main
-        with:
-          fetch-depth: 0
-      - name: Time a from-scratch build and a rebuild after a one-line harness change, for both layouts
+      - name: Time a from-scratch build with gzip and with zstd layers
         run: |
-          git show 7e242cce049db742e90087c7c1e0e78d04b7700d:Dockerfile > /tmp/one.Dockerfile
-          cp Dockerfile /tmp/four.Dockerfile
-          for layout in one four; do
-            git checkout -- src/coding-harness/lib.rs
+          for layers in gzip zstd; do
             docker builder prune -af > /dev/null
             docker image prune -af > /dev/null
+            if [ "$layers" = gzip ]; then
+              set -- -t probe:latest
+            else
+              set -- --output type=image,name=probe:latest,compression=zstd,unpack=true
+            fi
             start=$(date +%s)
-            docker build --no-cache -f "/tmp/$layout.Dockerfile" -t "probe-$layout" . > "/tmp/$layout-scratch.log" 2>&1
-            echo "$layout scratch $(( $(date +%s) - start ))s"
-            printf '\n' >> src/coding-harness/lib.rs
-            start=$(date +%s)
-            docker build --progress=plain -f "/tmp/$layout.Dockerfile" -t "probe-$layout" . > "/tmp/$layout-rebuild.log" 2>&1
-            echo "$layout rebuild $(( $(date +%s) - start ))s"
-            grep -E '^#[0-9]+ (CACHED|DONE [0-9.]+s|\[ *[0-9]+/[0-9]+\]|exporting|unpacking)' "/tmp/$layout-rebuild.log" | cut -c1-100
+            docker build --progress=plain --no-cache "$@" . > "/tmp/$layers.log" 2>&1
+            echo "$layers build $(( $(date +%s) - start ))s"
+            grep -E '^#[0-9]+ (exporting layers|unpacking|DONE [0-9.]+s$)' "/tmp/$layers.log" | tail -4
+            docker run --rm probe:latest sh -c '"target/$(uname -m)-unknown-linux-musl/release/rustyhgm-coding-harness" --help | head -1'
+            docker image ls probe --format '{{.Size}}'
           done
     strategy:
       fail-fast: false
