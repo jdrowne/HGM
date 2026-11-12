@@ -21,3 +21,4 @@
 - [Machine and coding harness](machine-and-coding-harness.md) — rustyhgm is the machine; what it evolves is the coding harness, never agent, prompts included; harness means nothing else
 - [Memory files start with a heading](memory-files-start-with-a-heading.md) — an H1 title right after the front matter, or markdownlint MD041 fails CI
 - [Memory links are Markdown links](memory-links-are-markdown-links.md) — link memories as `[Heading](slug.md)`, never `[[slug]]`; GitHub shows wiki links as raw brackets
+- [A decision goes into the issue's body and title](a-decision-goes-into-the-issue-body.md) — rewrite body and title to describe the work and remove "needs decision"; no decision comment, no label kept as a brake
