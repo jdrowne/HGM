@@ -436,12 +436,12 @@ fn base_images_build_under_their_own_folder() {
 }
 
 #[test]
-fn the_base_dockerfile_starts_from_buildpack_deps() {
+fn the_base_dockerfile_starts_from_debian_slim() {
     let fake = base_built();
     assert!(
         fs::read_to_string(base_dir(&fake).join("Dockerfile"))
             .unwrap()
-            .contains("buildpack-deps")
+            .starts_with("FROM debian:stable-slim\n")
     );
 }
 

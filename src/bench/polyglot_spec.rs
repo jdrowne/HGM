@@ -256,7 +256,10 @@ fn shared_env_script_list() -> Vec<String> {
 fn env_script_list(language: &str) -> Vec<String> {
     let mut list = shared_env_script_list();
     if language == "python" {
-        list.push(format!("python -m pip install {}", PIP_PACKAGES.join(" ")));
+        list.push(format!(
+            "python -m pip install --no-cache-dir {}",
+            PIP_PACKAGES.join(" ")
+        ));
     }
     list
 }
