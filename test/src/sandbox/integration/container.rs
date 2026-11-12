@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
+use std::time::Instant;
 
 use rustyhgm_core::log::Log;
 use rustyhgm_sandbox::{Error, ExecOptions, ExecResult, RunOptions};
@@ -306,6 +307,23 @@ fn a_read_only_mount_cannot_be_written_in_the_container() {
             .unwrap()
             .success()
     );
+}
+
+fn seconds_to_stop(c: &Running) -> f64 {
+    let started = Instant::now();
+    c.0.stop().unwrap();
+    started.elapsed().as_secs_f64()
+}
+
+#[test]
+fn a_started_container_stops_without_waiting_out_the_timeout() {
+    assert!(seconds_to_stop(&start()) < 5.0);
+}
+
+#[test]
+fn a_container_run_with_options_stops_without_waiting_out_the_timeout() {
+    let (_tmp, c) = mounted();
+    assert!(seconds_to_stop(&c) < 5.0);
 }
 
 #[test]

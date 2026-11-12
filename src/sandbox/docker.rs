@@ -267,7 +267,7 @@ impl Docker {
         command: &[&str],
         log: &Log,
     ) -> Result<Container, Error> {
-        let mut args = vec!["run", "-d", "--name", name, image];
+        let mut args = vec!["run", "-d", "--name", name, "--init", image];
         args.extend_from_slice(command);
         match self.run(args) {
             Ok(_) => {
@@ -293,6 +293,7 @@ impl Docker {
             "-d".to_owned(),
             "--name".to_owned(),
             name.to_owned(),
+            "--init".to_owned(),
         ];
         if let Some(user) = &opts.user {
             args.extend(["--user".to_owned(), user.clone()]);

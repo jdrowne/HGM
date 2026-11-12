@@ -836,7 +836,7 @@ fn containers_start_from_the_instance_image() {
     let calls = fake.calls();
     assert!(
         calls.contains(
-            "run -d --name pb.eval.t.r1 --user root --platform linux/x86_64 pb.eval.x86_64.t:latest tail -f /dev/null"
+            "run -d --name pb.eval.t.r1 --init --user root --platform linux/x86_64 pb.eval.x86_64.t:latest tail -f /dev/null"
         ),
         "{calls}"
     );
