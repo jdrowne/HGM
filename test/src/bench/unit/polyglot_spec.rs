@@ -221,3 +221,19 @@ fn the_instance_dockerfile_copies_the_folder_the_repo_starts_in() {
             .contains("\nCOPY ./polyglot-benchmark /polyglot-benchmark\n")
     );
 }
+
+#[test]
+fn a_non_python_env_runs_the_setup_script_file_as_it_is() {
+    assert_eq!(
+        make_test_spec(&json!({"language": "javascript"}), "x86_64").setup_env_script(),
+        include_str!("../../../../src/bench/polyglot_images/setup_env.sh")
+    );
+}
+
+#[test]
+fn the_base_dockerfile_is_the_file_on_every_arch() {
+    assert_eq!(
+        make_test_spec(&json!({}), "arm64").base_dockerfile(),
+        include_str!("../../../../src/bench/polyglot_images/base.Dockerfile")
+    );
+}

@@ -1,0 +1,54 @@
+---
+description: >-
+  Work out the names of the polyglot base and env images for one
+  architecture: the GHCR images they are published as, tagged with a hash of
+  the files in src/bench/polyglot_images that define them, and the local
+  names rustyhgm looks for before it builds them itself
+inputs:
+  arch:
+    description: The image architecture, x86_64 or arm64
+    required: true
+name: Polyglot Images
+outputs:
+  base:
+    description: The base image as published on GHCR
+    value: ${{ steps.names.outputs.base }}
+  env:
+    description: The env image for every language but Python, as published on GHCR
+    value: ${{ steps.names.outputs.env }}
+  local_base:
+    description: The base image name rustyhgm looks for
+    value: ${{ steps.names.outputs.local_base }}
+  local_env:
+    description: The env image name rustyhgm looks for
+    value: ${{ steps.names.outputs.local_env }}
+runs:
+  steps:
+    - env:
+        ARCH: ${{ inputs.arch }}
+        DIR: ${{ github.workspace }}/src/bench/polyglot_images
+      id: names
+      name: Work out the polyglot image names
+      run: |
+        registry="ghcr.io/${GITHUB_REPOSITORY,,}"
+        base_tag=$(sha256sum < "$DIR/base.Dockerfile" | cut -c1-22)
+        env_tag=$(
+          { cat "$DIR/env.Dockerfile" "$DIR/setup_env.sh"; echo "$base_tag"; } \
+            | sha256sum | cut -c1-22
+        )
+        local_env=$(python3 -I - "$DIR/setup_env.sh" <<'EOF'
+        import hashlib
+        import sys
+        lines = open(sys.argv[1]).read().splitlines()[2:]
+        listed = "[" + ", ".join(f"'{line}'" for line in lines) + "]"
+        print(hashlib.sha256(listed.encode()).hexdigest()[:22])
+        EOF
+        )
+        {
+          echo "base=$registry/pb.base.$ARCH:$base_tag"
+          echo "env=$registry/pb.env.$ARCH:$env_tag"
+          echo "local_base=pb.base.$ARCH:latest"
+          echo "local_env=pb.env.$ARCH.$local_env:latest"
+        } | tee -a "$GITHUB_OUTPUT"
+      shell: bash
+  using: composite

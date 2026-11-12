@@ -67,86 +67,13 @@ pub fn get_eval_script<S: AsRef<str>>(commands: &[S]) -> String {
     script("set -uxo pipefail", commands)
 }
 
-const DOCKERFILE_BASE: &str = r#"
-FROM buildpack-deps:jammy
+const DOCKERFILE_BASE: &str = include_str!("polyglot_images/base.Dockerfile");
 
-# Install Python 3.11
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    cmake \
-    libboost-all-dev \
-    && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update \
-    && apt-get install -y \
-    python3.11 \
-    python3.11-venv \
-    python3.11-dev \
-    python3-pip \
-    ca-certificates-java \
-    openjdk-21-jdk \
-    libtbb-dev \
-    && rm -rf /var/lib/apt/lists/*
+const DOCKERFILE_ENV: &str = include_str!("polyglot_images/env.Dockerfile");
 
-# Install Go with architecture detection
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then \
-        GOARCH="amd64"; \
-    elif [ "$ARCH" = "aarch64" ]; then \
-        GOARCH="arm64"; \
-    else \
-        false; \
-    fi && \
-    curl -L "https://golang.org/dl/go1.21.5.linux-$GOARCH.tar.gz" -o go.tar.gz && \
-    tar -C /usr/local -xzf go.tar.gz && \
-    rm go.tar.gz
-ENV PATH="/usr/local/go/bin:${PATH}"
+const SETUP_ENV: &str = include_str!("polyglot_images/setup_env.sh");
 
-# Install Rust
-ADD https://sh.rustup.rs /tmp/rustup.sh
-RUN chmod +x /tmp/rustup.sh && /tmp/rustup.sh -y && rm /tmp/rustup.sh
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Install Node.js and dependencies
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
-    rm -rf /var/lib/apt/lists/* && \
-    mkdir -p /npm-install && \
-    cd /npm-install && \
-    npm init -y && \
-    npm install \
-    jest \
-    @babel/core@7.25.2 \
-    @exercism/babel-preset-javascript@0.2.1 \
-    @exercism/eslint-config-javascript@0.6.0 \
-    @types/jest@29.5.12 \
-    @types/node@20.12.12 \
-    babel-jest@29.6.4 \
-    core-js@3.37.1 \
-    eslint@8.49.0
-
-# Download and install conda
-RUN wget 'https://repo.anaconda.com/miniconda/Miniconda3-py311_23.11.0-2-Linux-{conda_arch}.sh' -O miniconda.sh \
-    && bash miniconda.sh -b -p /opt/miniconda3
-# Add conda to PATH
-ENV PATH=/opt/miniconda3/bin:$PATH
-# Add conda to shell startup scripts like .bashrc (DO NOT REMOVE THIS)
-RUN conda init --all
-RUN conda config --append channels conda-forge
-
-RUN adduser --disabled-password --gecos 'dog' nonroot
-"#;
-
-const DOCKERFILE_ENV: &str = r#"FROM --platform={platform} {base_image}
-
-COPY ./setup_env.sh /root/
-RUN chmod +x /root/setup_env.sh
-RUN /bin/bash -c "source ~/.bashrc && /root/setup_env.sh"
-
-WORKDIR /testbed/
-
-# Automatically activate the testbed environment
-RUN echo "source /opt/miniconda3/etc/profile.d/conda.sh && conda activate testbed" > /root/.bashrc
-"#;
+const SETUP_ENV_HEADER: &str = "set -euxo pipefail";
 
 const DOCKERFILE_INSTANCE: &str = r"FROM --platform={platform} {env_image_name}
 
@@ -189,7 +116,7 @@ pub struct TestSpec {
 
 impl TestSpec {
     pub fn setup_env_script(&self) -> String {
-        script("set -euxo pipefail", &self.env_script_list)
+        script(SETUP_ENV_HEADER, &self.env_script_list)
     }
 
     pub fn eval_script(&self) -> String {
@@ -234,12 +161,7 @@ impl TestSpec {
     }
 
     pub fn base_dockerfile(&self) -> String {
-        let conda_arch = if self.arch == "arm64" {
-            "aarch64"
-        } else {
-            &self.arch
-        };
-        DOCKERFILE_BASE.replace("{conda_arch}", conda_arch)
+        DOCKERFILE_BASE.to_owned()
     }
 
     pub fn env_dockerfile(&self) -> String {
@@ -321,12 +243,18 @@ fn eval_script_list(language: &str, base_commit: &str, test_patch: &str) -> Vec<
     ]
 }
 
+fn shared_env_script_list() -> Vec<String> {
+    let header = script(SETUP_ENV_HEADER, &[] as &[&str]);
+    SETUP_ENV
+        .strip_prefix(&header)
+        .unwrap_or(SETUP_ENV)
+        .lines()
+        .map(str::to_owned)
+        .collect()
+}
+
 fn env_script_list(language: &str) -> Vec<String> {
-    let mut list = vec![
-        "source /opt/miniconda3/bin/activate".to_owned(),
-        "conda create -n testbed python=3.11  -y".to_owned(),
-        "conda activate testbed".to_owned(),
-    ];
+    let mut list = shared_env_script_list();
     if language == "python" {
         list.push(format!("python -m pip install {}", PIP_PACKAGES.join(" ")));
     }

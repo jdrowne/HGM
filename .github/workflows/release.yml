@@ -125,7 +125,7 @@ jobs:
       - name: Assert no comments
         uses: 10U-Labs/assert-no-comments@latest
         with:
-          trees: .github/workflows/release.yml etc src test
+          trees: .github/actions .github/workflows/release.yml etc src test
           verbose: "true"
   assert-no-empty-test-files:
     runs-on: ubuntu-latest
@@ -221,8 +221,173 @@ jobs:
         with:
           files: src test
           verbose: "true"
-  build:
-    name: build-${{ matrix.platform }}
+  build-polyglot-base-img:
+    name: build-polyglot-base-img-${{ matrix.platform }}
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - id: images
+        name: Work out the polyglot image names
+        uses: ./.github/actions/polyglot-images
+        with:
+          arch: ${{ matrix.arch }}
+      - env:
+          IMAGE: ${{ steps.images.outputs.base }}
+        id: published
+        name: Look for the base image on GHCR without logging in
+        run: |
+          if docker manifest inspect "$IMAGE" > /dev/null; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - env:
+          IMAGE: ${{ steps.images.outputs.base }}
+          PLATFORM: ${{ matrix.docker_platform }}
+          SOURCE: ${{ github.server_url }}/${{ github.repository }}
+        if: steps.published.outputs.found == 'false'
+        name: Build the base image
+        run: |
+          mkdir context
+          cp src/bench/polyglot_images/base.Dockerfile context/Dockerfile
+          docker build \
+            --platform "$PLATFORM" \
+            --label "org.opencontainers.image.source=$SOURCE" \
+            -t "$IMAGE" \
+            context
+      - env:
+          ACTOR: ${{ github.actor }}
+          IMAGE: ${{ steps.images.outputs.base }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: steps.published.outputs.found == 'false'
+        name: Publish the base image and pull it back without logging in
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker push "$IMAGE"
+          docker logout ghcr.io
+          docker pull "$IMAGE"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            docker_platform: linux/x86_64
+            platform: linux-x86-64
+            runner: ubuntu-latest
+          - arch: arm64
+            docker_platform: linux/arm64/v8
+            platform: linux-arm64
+            runner: ubuntu-24.04-arm
+  build-polyglot-env-img:
+    name: build-polyglot-env-img-${{ matrix.platform }}
+    needs: build-polyglot-base-img
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - id: images
+        name: Work out the polyglot image names
+        uses: ./.github/actions/polyglot-images
+        with:
+          arch: ${{ matrix.arch }}
+      - env:
+          IMAGE: ${{ steps.images.outputs.env }}
+        id: published
+        name: Look for the env image on GHCR without logging in
+        run: |
+          if docker manifest inspect "$IMAGE" > /dev/null; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - env:
+          BASE: ${{ steps.images.outputs.base }}
+          IMAGE: ${{ steps.images.outputs.env }}
+          LOCAL_BASE: ${{ steps.images.outputs.local_base }}
+          PLATFORM: ${{ matrix.docker_platform }}
+          SOURCE: ${{ github.server_url }}/${{ github.repository }}
+        if: steps.published.outputs.found == 'false'
+        name: Build the env image
+        run: |
+          docker pull "$BASE"
+          docker tag "$BASE" "$LOCAL_BASE"
+          mkdir context
+          sed -e "s|{platform}|$PLATFORM|" -e "s|{base_image}|$LOCAL_BASE|" \
+            src/bench/polyglot_images/env.Dockerfile > context/Dockerfile
+          cp src/bench/polyglot_images/setup_env.sh context/
+          docker build \
+            --platform "$PLATFORM" \
+            --label "org.opencontainers.image.source=$SOURCE" \
+            -t "$IMAGE" \
+            context
+      - env:
+          ACTOR: ${{ github.actor }}
+          IMAGE: ${{ steps.images.outputs.env }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: steps.published.outputs.found == 'false'
+        name: Publish the env image and pull it back without logging in
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker push "$IMAGE"
+          docker logout ghcr.io
+          docker pull "$IMAGE"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            docker_platform: linux/x86_64
+            platform: linux-x86-64
+            runner: ubuntu-latest
+          - arch: arm64
+            docker_platform: linux/arm64/v8
+            platform: linux-arm64
+            runner: ubuntu-24.04-arm
+  build-release:
+    name: build-release-${{ matrix.platform }}
+    needs:
+      - e2e-test
+      - integration-test
+      - unit-test
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache the build
+        uses: Swatinem/rust-cache@master
+        with:
+          key: release-${{ matrix.platform }}
+      - name: Build the release binary
+        run: cargo build --release -p rustyhgm --bin rustyhgm
+      - name: Stage the release binary
+        run: |
+          mkdir dist
+          cp target/release/rustyhgm "dist/rustyhgm-${{ matrix.platform }}"
+      - name: Upload the release binary
+        uses: actions/upload-artifact@main
+        with:
+          name: release-${{ matrix.platform }}
+          path: dist/
+          retention-days: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86-64
+            runner: ubuntu-latest
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+  build-test-binaries:
+    name: build-test-binaries-${{ matrix.platform }}
     needs: assert-coverage
     runs-on: ${{ matrix.runner }}
     steps:
@@ -246,18 +411,6 @@ jobs:
           name: build-${{ matrix.platform }}
           path: build.tar.zst
           retention-days: 1
-      - name: Build the release binary
-        run: cargo build --release -p rustyhgm --bin rustyhgm
-      - name: Stage the release binary
-        run: |
-          mkdir dist
-          cp target/release/rustyhgm "dist/rustyhgm-${{ matrix.platform }}"
-      - name: Upload the release binary
-        uses: actions/upload-artifact@main
-        with:
-          name: release-${{ matrix.platform }}
-          path: dist/
-          retention-days: 1
     strategy:
       fail-fast: false
       matrix:
@@ -266,7 +419,7 @@ jobs:
             runner: ubuntu-latest
           - platform: linux-arm64
             runner: ubuntu-24.04-arm
-  build-coverage:
+  build-test-binaries-with-coverage:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -316,7 +469,9 @@ jobs:
         run: cargo clippy --workspace --tests -- -D warnings
   e2e-test:
     name: e2e-test-${{ matrix.platform }}
-    needs: build
+    needs:
+      - build-polyglot-env-img
+      - build-test-binaries
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
@@ -329,6 +484,22 @@ jobs:
         uses: taiki-e/install-action@main
         with:
           tool: cargo-nextest
+      - id: images
+        name: Work out the polyglot image names
+        uses: ./.github/actions/polyglot-images
+        with:
+          arch: ${{ matrix.arch }}
+      - env:
+          BASE: ${{ steps.images.outputs.base }}
+          ENV: ${{ steps.images.outputs.env }}
+          LOCAL_BASE: ${{ steps.images.outputs.local_base }}
+          LOCAL_ENV: ${{ steps.images.outputs.local_env }}
+        name: Pull the polyglot images without logging in, under the names rustyhgm looks for
+        run: |
+          docker pull "$BASE"
+          docker tag "$BASE" "$LOCAL_BASE"
+          docker pull "$ENV"
+          docker tag "$ENV" "$LOCAL_ENV"
       - name: Run the e2e tier
         run: >-
           cargo-nextest nextest run
@@ -340,12 +511,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: linux-x86-64
+          - arch: x86_64
+            platform: linux-x86-64
             runner: ubuntu-latest
-          - platform: linux-arm64
+          - arch: arm64
+            platform: linux-arm64
             runner: ubuntu-24.04-arm
   e2e-test-coverage:
-    needs: build-coverage
+    needs:
+      - build-polyglot-env-img
+      - build-test-binaries-with-coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -362,6 +537,22 @@ jobs:
         uses: actions/download-artifact@main
         with:
           name: build-coverage
+      - id: images
+        name: Work out the polyglot image names
+        uses: ./.github/actions/polyglot-images
+        with:
+          arch: x86_64
+      - env:
+          BASE: ${{ steps.images.outputs.base }}
+          ENV: ${{ steps.images.outputs.env }}
+          LOCAL_BASE: ${{ steps.images.outputs.local_base }}
+          LOCAL_ENV: ${{ steps.images.outputs.local_env }}
+        name: Pull the polyglot images without logging in, under the names rustyhgm looks for
+        run: |
+          docker pull "$BASE"
+          docker tag "$BASE" "$LOCAL_BASE"
+          docker pull "$ENV"
+          docker tag "$ENV" "$LOCAL_ENV"
       - env:
           LLVM_PROFILE_FILE_NAME: e2e-%p-%m.profraw
         name: Run the e2e tier under coverage
@@ -390,7 +581,7 @@ jobs:
         run: test/harness-subtree.sh
   integration-test:
     name: integration-test-${{ matrix.platform }}
-    needs: build
+    needs: build-test-binaries
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
@@ -418,7 +609,7 @@ jobs:
           - platform: linux-arm64
             runner: ubuntu-24.04-arm
   integration-test-coverage:
-    needs: build-coverage
+    needs: build-test-binaries-with-coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -452,7 +643,7 @@ jobs:
           path: target/llvm-cov-target/*.profraw
           retention-days: 1
   package:
-    needs: build
+    needs: build-release
     outputs:
       version: ${{ steps.version.outputs.version }}
     runs-on: ubuntu-latest
@@ -623,7 +814,7 @@ jobs:
           | xargs -0 -r rustfmt --check --edition 2024
   unit-test:
     name: unit-test-${{ matrix.platform }}
-    needs: build
+    needs: build-test-binaries
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
@@ -652,7 +843,7 @@ jobs:
           - platform: linux-arm64
             runner: ubuntu-24.04-arm
   unit-test-coverage:
-    needs: build-coverage
+    needs: build-test-binaries-with-coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -699,6 +890,7 @@ jobs:
           assert-no-inline-directives
           --tools yamllint
           --verbose
+          .github/actions
           .github/workflows/release.yml
       - if: ${{ !cancelled() }}
         name: Lint YAML
@@ -712,6 +904,7 @@ jobs:
           yamllint --strict \
             --config-data \
             "{extends: default, rules: {$RULES}}" \
+            .github/actions \
             .github/workflows/release.yml
 name: release
 on:
@@ -719,6 +912,7 @@ on:
     branches: [main]
     paths:
       - .dockerignore
+      - .github/actions/**
       - .github/workflows/release.yml
       - Cargo.toml
       - Dockerfile
