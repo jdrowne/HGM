@@ -2,7 +2,7 @@
 
 - [Work only on this repo](work-only-on-this-repo.md) — never touch upstream metauto-ai/HGM or other repos; gh writes must target jdrowne/RustyHGM
 - [Commit directly to main](commit-directly-to-main.md) — no branches or PRs; push straight to origin main; commits need not be small
-- [Always use latest versions](always-use-latest-versions.md) — never pin toolchains, crates, actions or images; stable / "*" / @main / :latest; no committed Cargo.lock
+- [Always use latest versions](always-use-latest-versions.md) — never pin toolchains, crates, actions or images; stable / "*" / @main / :latest; no committed Cargo.lock; only the polyglot benchmark's tool versions stay fixed
 - [No comments in any file](no-comments-in-any-file.md) — no comments, doc comments, docstrings or fixture notes anywhere in the port; reasons go in commits and issues
 - [CI follows 10U-Labs conventions](ci-follows-10u-labs-conventions.md) — copy deltahdl and 10U-Labs before inventing a pattern; one workflow per thing guarded; fix code, not limits; stable-only coverage
 - [Layout follows 10U-Labs](layout-follows-10u-labs.md) — crates in `src/<component>/` with flat files, no nested src; `lib/<language>/<pkg>` for shared support; `test/src/<component>/<tier>`

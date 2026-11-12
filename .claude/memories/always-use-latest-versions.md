@@ -21,6 +21,7 @@ Do not pin versions anywhere in jdrowne/RustyHGM. Always use the latest.
 - GitHub Actions: `@latest` where the action publishes that tag (the 10U-Labs actions do); otherwise its default branch (`@main` or `@master`).
 - Docker images: use the `:latest` tag.
 - Python interpreters for tooling (such as `uv venv`): the newest available, unless it cannot run the code.
+- The one exception is the polyglot benchmark's own tools in `src/bench/polyglot_images/base.Dockerfile`: Go, Node and the npm packages, Jest among them, keep the versions the benchmark's tests were written against. A newer test runner can make a task impossible to pass, so these are fixed and are not to be moved to the latest.
 
 Related: [Commit directly to main](commit-directly-to-main.md).
 
