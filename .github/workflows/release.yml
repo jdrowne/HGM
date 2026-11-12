@@ -796,6 +796,7 @@ jobs:
       - assert-no-oversized-source-files
       - assert-one-assert-per-test
       - clippy
+      - package
       - package-test
       - rustfmt
       - yamllint
