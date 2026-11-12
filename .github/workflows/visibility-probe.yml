@@ -1,0 +1,34 @@
+---
+jobs:
+  visibility-probe:
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build the probe image
+        run: |
+          mkdir probe
+          printf 'FROM busybox:latest\n' > probe/Dockerfile
+          docker build \
+            --label org.opencontainers.image.source=https://github.com/jdrowne/RustyHGM \
+            -t ghcr.io/jdrowne/rustyhgm/visibility-probe:latest \
+            probe
+      - name: Push the probe image
+        run: docker push ghcr.io/jdrowne/rustyhgm/visibility-probe:latest
+      - name: Pull the probe manifest anonymously
+        run: |
+          token=$(curl -fsS "https://ghcr.io/token?scope=repository:jdrowne/rustyhgm/visibility-probe:pull" | jq -r .token)
+          curl -fsS -o /dev/null -w '%{http_code}\n' \
+            -H "Authorization: Bearer $token" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json' \
+            https://ghcr.io/v2/jdrowne/rustyhgm/visibility-probe/manifests/latest
+name: visibility-probe
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/visibility-probe.yml"
