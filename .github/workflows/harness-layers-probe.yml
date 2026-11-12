@@ -5,6 +5,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@main
+        with:
+          fetch-depth: 0
       - name: Time a from-scratch build and a rebuild after a one-line harness change, for both layouts
         run: |
           git show 7e242cce049db742e90087c7c1e0e78d04b7700d:Dockerfile > /tmp/one.Dockerfile
