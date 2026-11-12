@@ -221,6 +221,33 @@ jobs:
         with:
           files: src test
           verbose: "true"
+  build-harness-img:
+    name: build-harness-img-${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Expose the Actions cache to docker build
+        uses: crazy-max/ghaction-github-runtime@master
+      - env:
+          SCOPE: harness-${{ matrix.arch }}
+        name: Build the coding harness image and save its layers to the Actions cache
+        run: >-
+          docker build
+          --cache-from "type=gha,scope=$SCOPE"
+          --cache-to "type=gha,mode=max,scope=$SCOPE"
+          -t rustyhgm-harness-cache:latest
+          .
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            platform: linux-x86-64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux-arm64
+            runner: ubuntu-26.04-arm
   build-polyglot-base-img:
     name: build-polyglot-base-img-${{ matrix.platform }}
     permissions:
@@ -281,7 +308,7 @@ jobs:
           - arch: arm64
             docker_platform: linux/arm64/v8
             platform: linux-arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
   build-polyglot-env-img:
     name: build-polyglot-env-img-${{ matrix.platform }}
     needs: build-polyglot-base-img
@@ -349,7 +376,7 @@ jobs:
           - arch: arm64
             docker_platform: linux/arm64/v8
             platform: linux-arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
   build-release:
     name: build-release-${{ matrix.platform }}
     needs:
@@ -385,7 +412,7 @@ jobs:
           - platform: linux-x86-64
             runner: ubuntu-latest
           - platform: linux-arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
   build-test-binaries:
     name: build-test-binaries-${{ matrix.platform }}
     needs: assert-coverage
@@ -418,7 +445,7 @@ jobs:
           - platform: linux-x86-64
             runner: ubuntu-latest
           - platform: linux-arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
   build-test-binaries-with-coverage:
     runs-on: ubuntu-latest
     steps:
@@ -470,12 +497,23 @@ jobs:
   e2e-test:
     name: e2e-test-${{ matrix.platform }}
     needs:
+      - build-harness-img
       - build-polyglot-env-img
       - build-test-binaries
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
         uses: actions/checkout@main
+      - name: Expose the Actions cache to docker build
+        uses: crazy-max/ghaction-github-runtime@master
+      - env:
+          SCOPE: harness-${{ matrix.arch }}
+        name: Warm the local build cache from the coding harness image's layers
+        run: >-
+          docker build
+          --cache-from "type=gha,scope=$SCOPE"
+          -t rustyhgm-harness-cache:latest
+          .
       - name: Download build
         uses: actions/download-artifact@main
         with:
@@ -516,15 +554,24 @@ jobs:
             runner: ubuntu-latest
           - arch: arm64
             platform: linux-arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
   e2e-test-coverage:
     needs:
+      - build-harness-img
       - build-polyglot-env-img
       - build-test-binaries-with-coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@main
+      - name: Expose the Actions cache to docker build
+        uses: crazy-max/ghaction-github-runtime@master
+      - name: Warm the local build cache from the coding harness image's layers
+        run: >-
+          docker build
+          --cache-from "type=gha,scope=harness-x86_64"
+          -t rustyhgm-harness-cache:latest
+          .
       - name: Install the toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -607,7 +654,7 @@ jobs:
           - platform: linux-x86-64
             runner: ubuntu-latest
           - platform: linux-arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
   integration-test-coverage:
     needs: build-test-binaries-with-coverage
     runs-on: ubuntu-latest
@@ -729,12 +776,12 @@ jobs:
               apt-get update
               && DEBIAN_FRONTEND=noninteractive apt-get install -y
             platform: linux-arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
           - format: rpm
             image: fedora:latest
             install: dnf install -y
             platform: linux-arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
   release:
     if: >-
       github.ref_name == 'main'
@@ -837,7 +884,7 @@ jobs:
           - platform: linux-x86-64
             runner: ubuntu-latest
           - platform: linux-arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
   unit-test-coverage:
     needs: build-test-binaries-with-coverage
     runs-on: ubuntu-latest
