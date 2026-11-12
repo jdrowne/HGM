@@ -14,4 +14,4 @@ Every file in `.claude/memories/` has a `# <Title>` line straight after the clos
 
 **Why:** the markdownlint workflow runs with `--dot`, so it lints the memories, and MD041 fails any file whose first content line is not a top-level heading.
 
-**How to apply:** write the heading whenever a memory is created or rewritten. To lint locally, pass only tracked files (`git ls-files '*.md'`), because `target/` and `venv/` hold untracked Markdown that CI never sees. See [[ci-follows-10u-labs-conventions]].
+**How to apply:** write the heading whenever a memory is created or rewritten. To lint locally, pass only tracked files (`git ls-files '*.md'`), because `target/` and `venv/` hold untracked Markdown that CI never sees. See [CI follows the 10U-Labs conventions](ci-follows-10u-labs-conventions.md).

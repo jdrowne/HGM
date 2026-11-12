@@ -14,4 +14,4 @@ Do not create branches or open PRs in this repo. Every change is committed direc
 
 **Why:** The user wants every change on main, without branches, pull requests or a size limit on commits. Where issues #11 and #12 speak of a series of small PRs or one change per PR, this rule wins.
 
-**How to apply:** Commit coherent units of work on `main` and push them. Don't split work artificially. Related: [[work-only-on-this-repo]].
+**How to apply:** Commit coherent units of work on `main` and push them. Don't split work artificially. Related: [Work only on this repo](work-only-on-this-repo.md).

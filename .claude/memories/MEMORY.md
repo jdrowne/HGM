@@ -20,3 +20,4 @@
 - [The first harness is the progenitor](the-first-harness-is-the-progenitor.md) — one name in code, flags, folders and docs; "root" only for tree structure; "seed" only for RNG
 - [Machine and coding harness](machine-and-coding-harness.md) — rustyhgm is the machine; what it evolves is the coding harness, never agent, prompts included; harness means nothing else
 - [Memory files start with a heading](memory-files-start-with-a-heading.md) — an H1 title right after the front matter, or markdownlint MD041 fails CI
+- [Memory links are Markdown links](memory-links-are-markdown-links.md) — link memories as `[Heading](slug.md)`, never `[[slug]]`; GitHub shows wiki links as raw brackets

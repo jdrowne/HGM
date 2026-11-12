@@ -14,4 +14,4 @@ A memory says what to do and why, and nothing about its own past. Its **Why:** g
 
 **Why:** A note earns its place by changing what a session would otherwise get wrong, and its history changes nothing. The git log already keeps when and how each note changed.
 
-**How to apply:** Before saving a memory, drop dates, "the user asked", "adopted from", "later that day" and "this replaces" wording. When a rule changes, edit its statement in place. Related: [[user-words-are-never-recorded-verbatim]].
+**How to apply:** Before saving a memory, drop dates, "the user asked", "adopted from", "later that day" and "this replaces" wording. When a rule changes, edit its statement in place. Related: [The user's words are restated, never copied](user-words-are-never-recorded-verbatim.md).

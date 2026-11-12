@@ -14,4 +14,4 @@ RustyHGM is built, tested and released for Linux x86_64 and arm64 only.
 
 **Why:** Every run drives Linux containers through Docker, and GitHub's free runners offer that on Linux alone. A macOS or Windows build could never be run end to end in CI, so it is not built or released.
 
-**How to apply:** All three test tiers run in full on both platforms. Do not add macOS or Windows legs, release files or README download rows. Paths inside containers are always Linux paths. Related: [[ci-follows-10u-labs-conventions]].
+**How to apply:** All three test tiers run in full on both platforms. Do not add macOS or Windows legs, release files or README download rows. Paths inside containers are always Linux paths. Related: [CI follows the 10U-Labs conventions](ci-follows-10u-labs-conventions.md).

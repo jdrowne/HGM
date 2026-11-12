@@ -26,4 +26,4 @@ Push, then read the run for the verdict.
 - Build and run each new test locally and see it pass, and fail first where the change fixes a bug. Do the same for the existing tests of the code in hand.
 - Don't run the whole workspace under `cargo llvm-cov` locally. Find uncovered lines from CI's `coverage-html` artifact and the gate's output, then fix them with targeted tests.
 - Integration and e2e tests that need Docker may be run locally when they are the tests a change adds, filtered to those tests. The full tiers are CI's.
-- Local commands that may run past a minute still go in the background, per [[long-running-commands-in-the-background]].
+- Local commands that may run past a minute still go in the background, per [Long-running commands in the background](long-running-commands-in-the-background.md).

@@ -15,4 +15,4 @@ The tree is laid out like deltahdl and the 10U-Labs repos, not like Cargo's defa
 
 **Why:** deltahdl and the 10U-Labs repos are the reference for layout.
 
-**How to apply:** a new crate goes in `src/<name>/` with flat files and explicit paths in its manifest. Shared Rust test support, if it is ever needed, goes in `lib/rust/<package>/`. Related: [[ci-follows-10u-labs-conventions]], [[no-comments-in-any-file]].
+**How to apply:** a new crate goes in `src/<name>/` with flat files and explicit paths in its manifest. Shared Rust test support, if it is ever needed, goes in `lib/rust/<package>/`. Related: [CI follows the 10U-Labs conventions](ci-follows-10u-labs-conventions.md), [No comments in any file](no-comments-in-any-file.md).

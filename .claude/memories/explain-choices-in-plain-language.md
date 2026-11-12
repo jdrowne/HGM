@@ -14,4 +14,4 @@ When a choice depends on a tool or domain the user hasn't worked with, don't ask
 
 **Why:** A question framed in a tool's own terms can't be answered by someone who only knows what the tool is for, so it stalls the work.
 
-**How to apply:** Make the comparison an artifact page with real renders. Give defaults for the smaller choices so the user only decides what visibly matters. See [[readme-diagrams-are-mermaid]].
+**How to apply:** Make the comparison an artifact page with real renders. Give defaults for the smaller choices so the user only decides what visibly matters. See [README diagrams are Mermaid](readme-diagrams-are-mermaid.md).

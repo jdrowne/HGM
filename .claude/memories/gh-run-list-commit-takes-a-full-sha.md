@@ -11,4 +11,4 @@ Find a push's CI run with `gh run list -R jdrowne/RustyHGM --commit "$(git rev-p
 
 **Why:** `--commit` matches only the full 40-character SHA. A short one lists no runs and raises no error, so a watcher waiting for the list to fill polls forever while its run has long finished.
 
-**How to apply:** Wherever a command hands a commit to `gh`, let the command compute the SHA itself, e.g. `sha=$(git rev-parse <ref>) && … --commit "$sha"`. Never write out a SHA, so a copied one can't be wrong. Then watch the run by id with `gh run watch <id> --interval 60 --exit-status` in the background, per [[long-running-commands-in-the-background]].
+**How to apply:** Wherever a command hands a commit to `gh`, let the command compute the SHA itself, e.g. `sha=$(git rev-parse <ref>) && … --commit "$sha"`. Never write out a SHA, so a copied one can't be wrong. Then watch the run by id with `gh run watch <id> --interval 60 --exit-status` in the background, per [Long-running commands in the background](long-running-commands-in-the-background.md).

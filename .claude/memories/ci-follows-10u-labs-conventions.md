@@ -19,6 +19,6 @@ CI is written the way deltahdl (`../../deltahdl/deltahdl`) and the 10U-Labs repo
 - Before adding or changing a CI pattern, look at how those repos do it and copy it.
 - A new kind of file gets its own workflow named after what it guards, rather than a job in `release.yml`.
 - Fix the code rather than raise a threshold. The one deliberate difference from deltahdl is the 1000-line file limit instead of 949.
-- Coverage runs on stable Rust only, never nightly, even for branch coverage ([[always-use-latest-versions]]). New code lands with its tests at full coverage.
+- Coverage runs on stable Rust only, never nightly, even for branch coverage ([Always use the latest versions](always-use-latest-versions.md)). New code lands with its tests at full coverage.
 
-Related: [[supported-platforms]], [[no-comments-in-any-file]], [[verifying-through-ci]].
+Related: [Supported platforms](supported-platforms.md), [No comments in any file](no-comments-in-any-file.md), [Checking locally, then verifying through CI](verifying-through-ci.md).

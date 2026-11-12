@@ -19,4 +19,4 @@ Plain `cargo clippy` uses Clippy's default limits, so a function with six argume
 
 **Why:** the src limit is five arguments including `self`, and src and test have different line limits. Neither shows up without the config folder.
 
-**How to apply:** use these commands for the local fmt and clippy pass described in [[verifying-through-ci]].
+**How to apply:** use these commands for the local fmt and clippy pass described in [Checking locally, then verifying through CI](verifying-through-ci.md).

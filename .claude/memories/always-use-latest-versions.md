@@ -22,6 +22,6 @@ Do not pin versions anywhere in jdrowne/RustyHGM. Always use the latest.
 - Docker images: use the `:latest` tag.
 - Python interpreters for tooling (such as `uv venv`): the newest available, unless it cannot run the code.
 
-Related: [[commit-directly-to-main]].
+Related: [Commit directly to main](commit-directly-to-main.md).
 
 **Stable only.** The toolchain is stable Rust alone. "Latest" means the latest *stable* Rust, never nightly, even when a feature such as branch coverage exists only on nightly. Do what stable supports, and say what that leaves out.
