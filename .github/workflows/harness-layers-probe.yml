@@ -1,0 +1,38 @@
+jobs:
+  probe:
+    name: probe-${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Time a from-scratch build and a rebuild after a one-line harness change, for both layouts
+        run: |
+          git show 7e242cce049db742e90087c7c1e0e78d04b7700d:Dockerfile > /tmp/one.Dockerfile
+          cp Dockerfile /tmp/four.Dockerfile
+          for layout in one four; do
+            git checkout -- src/coding-harness/lib.rs
+            docker builder prune -af > /dev/null
+            docker image prune -af > /dev/null
+            start=$(date +%s)
+            docker build --no-cache -f "/tmp/$layout.Dockerfile" -t "probe-$layout" . > "/tmp/$layout-scratch.log" 2>&1
+            echo "$layout scratch $(( $(date +%s) - start ))s"
+            printf '\n' >> src/coding-harness/lib.rs
+            start=$(date +%s)
+            docker build --progress=plain -f "/tmp/$layout.Dockerfile" -t "probe-$layout" . > "/tmp/$layout-rebuild.log" 2>&1
+            echo "$layout rebuild $(( $(date +%s) - start ))s"
+            grep -E '^#[0-9]+ (CACHED|DONE [0-9.]+s|\[ *[0-9]+/[0-9]+\]|exporting|unpacking)' "/tmp/$layout-rebuild.log" | cut -c1-100
+          done
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86-64
+            runner: ubuntu-latest
+          - platform: linux-arm64
+            runner: ubuntu-26.04-arm
+name: harness-layers-probe
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/harness-layers-probe.yml
