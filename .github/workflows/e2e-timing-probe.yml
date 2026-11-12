@@ -1,0 +1,56 @@
+---
+jobs:
+  e2e-timing-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+      - name: Install the toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache the build
+        uses: Swatinem/rust-cache@master
+        with:
+          key: linux-x86-64
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@main
+        with:
+          tool: cargo-nextest
+      - name: Build the e2e binary
+        run: cargo nextest run --no-run -p rustyhgm --test e2e
+      - id: images
+        name: Work out the polyglot image names
+        uses: ./.github/actions/polyglot-images
+        with:
+          arch: x86_64
+      - env:
+          BASE: ${{ steps.images.outputs.base }}
+          ENV: ${{ steps.images.outputs.env }}
+          LOCAL_BASE: ${{ steps.images.outputs.local_base }}
+          LOCAL_ENV: ${{ steps.images.outputs.local_env }}
+        name: Pull the polyglot images
+        run: |
+          docker pull "$BASE"
+          docker tag "$BASE" "$LOCAL_BASE"
+          docker pull "$ENV"
+          docker tag "$ENV" "$LOCAL_ENV"
+      - name: Run the improve scenario once
+        run: >-
+          cargo nextest run -p rustyhgm --test e2e
+          -E 'test(=improve::a_run_improves_the_harness_and_measures_its_child)'
+      - if: always()
+        name: Print the scenario's timestamped output
+        run: |
+          for root in /tmp/rustyhgm-e2e-improve-*/attempt*; do
+            jq -r '.stdout, .stderr' "$root/outcome.json"
+            find "$root" -name '*.log' -print | sort | while read -r log; do
+              echo "==> $log <=="
+              cat "$log"
+            done
+          done
+name: e2e-timing-probe
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/e2e-timing-probe.yml"
