@@ -230,13 +230,13 @@ jobs:
       - name: Expose the Actions cache to docker build
         uses: crazy-max/ghaction-github-runtime@master
       - env:
-          SCOPE: harness-${{ matrix.arch }}
+          SCOPE: harness-zstd-${{ matrix.arch }}
         name: Build the coding harness image and save its layers to the Actions cache
         run: >-
           docker build
           --cache-from "type=gha,scope=$SCOPE"
-          --cache-to "type=gha,mode=max,scope=$SCOPE,compression=zstd,force-compression=true"
-          -t rustyhgm-harness-cache:latest
+          --cache-to "type=gha,mode=max,scope=$SCOPE,compression=zstd"
+          --output type=image,name=rustyhgm-harness-cache:latest,compression=zstd,unpack=true
           .
     strategy:
       fail-fast: false
@@ -273,8 +273,8 @@ jobs:
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
       - env:
-          COMPRESSION: ${{ steps.images.outputs.compression }}
           IMAGE: ${{ steps.images.outputs.base }}
+          LAYERS: ${{ steps.images.outputs.layers }}
           PLATFORM: ${{ matrix.docker_platform }}
           SOURCE: ${{ github.server_url }}/${{ github.repository }}
         if: steps.published.outputs.found == 'false'
@@ -285,7 +285,7 @@ jobs:
           docker build \
             --platform "$PLATFORM" \
             --label "org.opencontainers.image.source=$SOURCE" \
-            --output "type=image,name=$IMAGE,compression=$COMPRESSION,force-compression=true,unpack=true" \
+            --output "type=image,name=$IMAGE,$LAYERS,unpack=true" \
             context
       - env:
           ACTOR: ${{ github.actor }}
@@ -337,8 +337,8 @@ jobs:
           fi
       - env:
           BASE: ${{ steps.images.outputs.base }}
-          COMPRESSION: ${{ steps.images.outputs.compression }}
           IMAGE: ${{ steps.images.outputs.env }}
+          LAYERS: ${{ steps.images.outputs.layers }}
           LOCAL_BASE: ${{ steps.images.outputs.local_base }}
           PLATFORM: ${{ matrix.docker_platform }}
           SOURCE: ${{ github.server_url }}/${{ github.repository }}
@@ -354,7 +354,7 @@ jobs:
           docker build \
             --platform "$PLATFORM" \
             --label "org.opencontainers.image.source=$SOURCE" \
-            --output "type=image,name=$IMAGE,compression=$COMPRESSION,force-compression=true,unpack=true" \
+            --output "type=image,name=$IMAGE,$LAYERS,unpack=true" \
             context
       - env:
           ACTOR: ${{ github.actor }}
@@ -509,7 +509,7 @@ jobs:
       - name: Expose the Actions cache to docker build
         uses: crazy-max/ghaction-github-runtime@master
       - env:
-          SCOPE: harness-${{ matrix.arch }}
+          SCOPE: harness-zstd-${{ matrix.arch }}
         name: Warm the local build cache from the coding harness image's layers
         run: >-
           docker build
@@ -571,7 +571,7 @@ jobs:
       - name: Warm the local build cache from the coding harness image's layers
         run: >-
           docker build
-          --cache-from "type=gha,scope=harness-x86_64"
+          --cache-from "type=gha,scope=harness-zstd-x86_64"
           -t rustyhgm-harness-cache:latest
           .
       - name: Install the toolchain

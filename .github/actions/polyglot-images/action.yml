@@ -3,8 +3,8 @@ description: >-
   Work out the names of the polyglot base and env images for one
   architecture: the GHCR images they are published as, tagged with a hash of
   the files in src/bench/polyglot_images that define them and of the
-  compression of their layers, and the local names rustyhgm looks for
-  before it builds them itself
+  options their layers are exported with, and the local names rustyhgm
+  looks for before it builds them itself
 inputs:
   arch:
     description: The image architecture, x86_64 or arm64
@@ -14,12 +14,12 @@ outputs:
   base:
     description: The base image as published on GHCR
     value: ${{ steps.names.outputs.base }}
-  compression:
-    description: The compression of the published images' layers, part of their tags
-    value: ${{ steps.names.outputs.compression }}
   env:
     description: The env image for every language but Python, as published on GHCR
     value: ${{ steps.names.outputs.env }}
+  layers:
+    description: The options the images' layers are exported with, part of their tags
+    value: ${{ steps.names.outputs.layers }}
   local_base:
     description: The base image name rustyhgm looks for
     value: ${{ steps.names.outputs.local_base }}
@@ -30,14 +30,14 @@ runs:
   steps:
     - env:
         ARCH: ${{ inputs.arch }}
-        COMPRESSION: zstd
         DIR: ${{ github.workspace }}/src/bench/polyglot_images
+        LAYERS: compression=zstd
       id: names
       name: Work out the polyglot image names
       run: |
         registry="ghcr.io/${GITHUB_REPOSITORY,,}"
         base_tag=$(
-          { cat "$DIR/base.Dockerfile"; echo "$COMPRESSION"; } \
+          { cat "$DIR/base.Dockerfile"; echo "$LAYERS"; } \
             | sha256sum | cut -c1-22
         )
         env_tag=$(
@@ -53,9 +53,9 @@ runs:
         EOF
         )
         {
-          echo "compression=$COMPRESSION"
           echo "base=$registry/pb.base.$ARCH:$base_tag"
           echo "env=$registry/pb.env.$ARCH:$env_tag"
+          echo "layers=$LAYERS"
           echo "local_base=pb.base.$ARCH:latest"
           echo "local_env=pb.env.$ARCH.$local_env:latest"
         } | tee -a "$GITHUB_OUTPUT"
