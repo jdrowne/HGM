@@ -5,7 +5,10 @@ use std::path::{Path, PathBuf};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rustyhgm::FAILED;
-use rustyhgm::improve::{Improver, SelfImprove, child_performance, choose_entry, diagnose_problem};
+use rustyhgm::improve::{
+    Improver, SelfImprove, child_performance, choose_entry, claim_run_dir, container_name,
+    diagnose_problem,
+};
 use rustyhgm_coding_harness::llm::{Client, Provider};
 use rustyhgm_core::log::Log;
 use rustyhgm_core::prompts::{
@@ -438,7 +441,7 @@ fn child_with_unsavable_metadata() -> (TempDir, String) {
     let docker = out.join("docker");
     fs::write(
         &docker,
-        "#!/bin/sh\nfor a in \"$@\"; do case \"$a\" in rustyhgm-container-*) mkdir -p \"$(dirname \"$0\")/${a#rustyhgm-container-}/metadata.json\" ;; esac; done\nexit 1\n",
+        "#!/bin/sh\nfor a in \"$@\"; do case \"$a\" in rustyhgm-container-*) id=\"${a#rustyhgm-container-}\"; mkdir -p \"$(dirname \"$0\")/${id%-*}/metadata.json\" ;; esac; done\nexit 1\n",
     )
     .unwrap();
     fs::set_permissions(&docker, fs::Permissions::from_mode(0o755)).unwrap();
@@ -459,4 +462,51 @@ fn a_child_whose_metadata_cannot_be_saved_logs_the_error() {
     let (tmp, _) = child_with_unsavable_metadata();
     let log = fs::read_to_string(only_run_dir(tmp.path()).join("self_improve.log")).unwrap();
     assert!(log.contains("Error saving metadata: "), "{log}");
+}
+
+fn claimed_concurrently(out: &Path) -> BTreeSet<String> {
+    std::thread::scope(|s| {
+        let workers: Vec<_> = (0..16)
+            .map(|_| s.spawn(|| claim_run_dir(out).unwrap().0))
+            .collect();
+        workers.into_iter().map(|w| w.join().unwrap()).collect()
+    })
+}
+
+#[test]
+fn run_folders_claimed_at_the_same_time_are_all_different() {
+    let tmp = tempfile::tempdir().unwrap();
+    assert_eq!(claimed_concurrently(tmp.path()).len(), 16);
+}
+
+#[test]
+fn a_claimed_run_folder_is_made_inside_a_missing_output_folder() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = tmp.path().join("missing");
+    assert!(claim_run_dir(&out).unwrap().1.starts_with(&out));
+}
+
+#[test]
+fn a_claimed_run_folder_is_named_for_its_run_id() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (id, dir) = claim_run_dir(tmp.path()).unwrap();
+    assert_eq!(dir, tmp.path().join(id));
+}
+
+#[test]
+fn a_run_folder_cannot_be_claimed_under_a_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    let file = tmp.path().join("file");
+    fs::write(&file, "").unwrap();
+    assert!(claim_run_dir(&file).is_err());
+}
+
+#[test]
+fn containers_for_the_same_run_get_different_names() {
+    assert_ne!(container_name("r1"), container_name("r1"));
+}
+
+#[test]
+fn a_container_name_starts_with_its_run_id() {
+    assert!(container_name("r1").starts_with("rustyhgm-container-r1-"));
 }

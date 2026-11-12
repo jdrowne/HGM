@@ -1,4 +1,5 @@
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
@@ -19,6 +20,7 @@ use rustyhgm_core::prompts::{
 use rustyhgm_core::pyjson::PyValue;
 use rustyhgm_sandbox::{Container, Docker, ExecOptions, RunOptions};
 use serde_json::Value;
+use uuid::Uuid;
 
 use crate::FAILED;
 use crate::harness_build::{HARNESS_BINARY, INSTALLED_HARNESS, compile, copy_binary, patch_steps};
@@ -29,6 +31,22 @@ pub const CHAT_HISTORY: &str = "/rustyhgm/self_evo.md";
 
 pub trait Improver: Sync {
     fn sample_child(&self, parent_commit: &str) -> String;
+}
+
+pub fn claim_run_dir(output_dir: &Path) -> io::Result<(String, PathBuf)> {
+    fs::create_dir_all(output_dir)?;
+    loop {
+        let run_id = Local::now().format("%Y%m%d_%H%M%S_%6f").to_string();
+        let run_dir = output_dir.join(&run_id);
+        match fs::create_dir(&run_dir) {
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
+            claimed => return claimed.map(|()| (run_id, run_dir)),
+        }
+    }
+}
+
+pub fn container_name(run_id: &str) -> String {
+    format!("rustyhgm-container-{run_id}-{}", Uuid::new_v4().simple())
 }
 
 fn pick<R: Rng + ?Sized>(ids: &[&String], rng: &mut R) -> Option<String> {
@@ -232,7 +250,7 @@ impl SelfImprove {
     ) -> Result<bool, String> {
         let log = attempt.log;
         let dataset = self.dataset.as_ref().map_err(Clone::clone)?;
-        let name = format!("rustyhgm-container-{}", attempt.run_id);
+        let name = container_name(attempt.run_id);
         let started = self
             .docker
             .remove_existing_container(&name, log)
@@ -301,12 +319,10 @@ impl SelfImprove {
 
 impl Improver for SelfImprove {
     fn sample_child(&self, parent_commit: &str) -> String {
-        let run_id = Local::now().format("%Y%m%d_%H%M%S_%6f").to_string();
-        let run_dir = self.output_dir.join(&run_id);
-        let log = match fs::create_dir_all(&run_dir)
-            .and_then(|()| Log::to_file(&run_dir.join("self_improve.log")))
-        {
-            Ok(log) => log,
+        let (run_id, run_dir, log) = match claim_run_dir(&self.output_dir).and_then(|(id, dir)| {
+            Log::to_file(&dir.join("self_improve.log")).map(|log| (id, dir, log))
+        }) {
+            Ok(claimed) => claimed,
             Err(e) => {
                 eprintln!("Error while sampling a child: {e}");
                 return FAILED.to_owned();
