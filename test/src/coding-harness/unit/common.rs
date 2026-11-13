@@ -89,3 +89,13 @@ pub fn refused() -> String {
     drop(listener);
     base
 }
+
+pub fn silent() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}/v1", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        let held: Vec<_> = listener.incoming().flatten().collect();
+        drop(held);
+    });
+    base
+}

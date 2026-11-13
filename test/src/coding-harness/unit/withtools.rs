@@ -10,7 +10,7 @@ use rustyhgm_coding_harness::withtools::{
 };
 use serde_json::{Value, json};
 
-use crate::common::{Seen, cases, ok, refused, serve};
+use crate::common::{Seen, cases, ok, refused, serve, silent};
 
 #[test]
 fn tool_conversion_matches_the_python() {
@@ -744,4 +744,67 @@ fn an_openai_cut_off_reply_is_followed_by_a_request_for_a_tool_call() {
         openai_resumed().history[2],
         json!({"role": "user", "content": [{"type": "input_text", "text": CUT_OFF}]})
     );
+}
+
+struct Stalled {
+    ran: Ran,
+    took: Duration,
+}
+
+fn stalled(provider: Provider, model: &str) -> Stalled {
+    let start = std::time::Instant::now();
+    let ran = chat_on(
+        client(provider, model, &silent()),
+        |chat| chat.timeout = 0.5,
+        "x",
+        &[],
+    );
+    Stalled {
+        ran,
+        took: start.elapsed(),
+    }
+}
+
+#[test]
+fn a_chat_with_an_unanswered_request_ends_within_its_timeout() {
+    assert!(stalled(Provider::OpenRouter, "qwen").took < Duration::from_secs(2));
+}
+
+#[test]
+fn a_timed_out_request_is_not_retried() {
+    let lines = stalled(Provider::OpenRouter, "qwen").ran.lines;
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|l| l.starts_with("Error in get_response_withtools: timed out"))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn a_timed_out_request_ends_the_chat() {
+    assert!(
+        stalled(Provider::OpenRouter, "qwen").ran.lines[2]
+            .starts_with("Error in chat_with_tools_open_router: timed out")
+    );
+}
+
+#[test]
+fn an_unanswered_served_model_lookup_ends_within_the_timeout() {
+    assert!(stalled(Provider::Vllm, "vllm-x").took < Duration::from_secs(2));
+}
+
+#[test]
+fn an_unanswered_openai_request_ends_within_the_timeout() {
+    assert!(stalled(Provider::OpenAi, "gpt-5").took < Duration::from_secs(2));
+}
+
+#[test]
+fn a_spent_deadline_stops_the_retries() {
+    let ran = on_refused(Provider::OpenRouter, "qwen", |chat| {
+        chat.timeout = 0.000_001;
+        chat.retries = 1000;
+    });
+    assert!(ran.lines.len() < 1000);
 }

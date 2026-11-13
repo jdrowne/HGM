@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use crate::llm::{Client, Error, MAX_OUTPUT_TOKENS, Provider};
+use crate::llm::{Client, Error, MAX_OUTPUT_TOKENS, Provider, REQUEST_TIMEOUT};
 use crate::tools::{Tools, tool_infos};
 
 pub const SYSTEM_MESSAGE: &str = "You are the best coder in the world!";
@@ -204,6 +204,20 @@ impl Backoff {
     }
 }
 
+fn left(deadline: Instant) -> Duration {
+    deadline.saturating_duration_since(Instant::now())
+}
+
+fn limit(deadline: Instant) -> Result<Duration, Error> {
+    let limit = left(deadline).min(REQUEST_TIMEOUT);
+    if limit.is_zero() {
+        return Err(Error::Timeout(
+            "no time left for another request".to_owned(),
+        ));
+    }
+    Ok(limit)
+}
+
 pub struct Chat<'a> {
     pub client: Client,
     pub tools: Tools,
@@ -231,11 +245,16 @@ impl<'a> Chat<'a> {
         is_openai(&self.client.model)
     }
 
-    fn request(&self, messages: &[Value], tools: &[Value]) -> Result<Value, Error> {
+    fn request(
+        &self,
+        messages: &[Value],
+        tools: &[Value],
+        deadline: Instant,
+    ) -> Result<Value, Error> {
         let mut input = vec![json!({"role": "system", "content": SYSTEM_MESSAGE})];
         input.extend(messages.iter().cloned());
         if self.openai() {
-            return self.client.post(
+            return self.client.post_within(
                 "responses",
                 &json!({
                     "model": self.client.model,
@@ -244,13 +263,14 @@ impl<'a> Chat<'a> {
                     "tools": tools,
                     "parallel_tool_calls": false,
                 }),
+                limit(deadline)?,
             );
         }
         let model = match self.client.provider {
-            Provider::Vllm => self.client.served_model()?,
+            Provider::Vllm => self.client.served_model_within(limit(deadline)?)?,
             _ => self.client.model.clone(),
         };
-        self.client.post(
+        self.client.post_within(
             "chat/completions",
             &json!({
                 "model": model,
@@ -260,17 +280,26 @@ impl<'a> Chat<'a> {
                 "parallel_tool_calls": false,
                 "max_tokens": MAX_OUTPUT_TOKENS,
             }),
+            limit(deadline)?,
         )
     }
 
-    fn attempts(&self, messages: &[Value], tools: &[Value]) -> Result<Value, Error> {
+    fn attempts(
+        &self,
+        messages: &[Value],
+        tools: &[Value],
+        deadline: Instant,
+    ) -> Result<Value, Error> {
         let mut retry = 0;
         loop {
-            match self.request(messages, tools) {
+            match self.request(messages, tools, deadline) {
                 Ok(response) => return Ok(response),
                 Err(e) => {
                     (self.log)(&format!("Error in get_response_withtools: {e}"));
-                    if retry == self.retries {
+                    if retry == self.retries
+                        || matches!(e, Error::Timeout(_))
+                        || left(deadline).is_zero()
+                    {
                         return Err(e);
                     }
                     retry += 1;
@@ -279,13 +308,20 @@ impl<'a> Chat<'a> {
         }
     }
 
-    pub fn respond(&self, messages: &[Value], tools: &[Value]) -> Result<Value, Error> {
+    pub fn respond(
+        &self,
+        messages: &[Value],
+        tools: &[Value],
+        deadline: Instant,
+    ) -> Result<Value, Error> {
         let start = Instant::now();
         let mut attempt = 0;
         loop {
-            match self.attempts(messages, tools) {
-                Err(Error::Status { code: 429, .. }) if start.elapsed() < self.backoff.budget => {
-                    std::thread::sleep(self.backoff.wait(attempt));
+            match self.attempts(messages, tools, deadline) {
+                Err(Error::Status { code: 429, .. })
+                    if start.elapsed() < self.backoff.budget && !left(deadline).is_zero() =>
+                {
+                    std::thread::sleep(self.backoff.wait(attempt).min(left(deadline)));
                     attempt += 1;
                 }
                 result => return result,
@@ -298,10 +334,11 @@ impl<'a> Chat<'a> {
         history: &[Value],
         new: &mut Vec<Value>,
         tools: &[Value],
+        deadline: Instant,
     ) -> Result<bool, Error> {
         let mut messages = history.to_vec();
         messages.extend(new.iter().cloned());
-        let response = self.respond(&messages, tools)?;
+        let response = self.respond(&messages, tools, deadline)?;
         (self.log)(&format!("Tool Response: {response}"));
         if self.openai() {
             new.extend(response["output"].as_array().cloned().unwrap_or_default());
@@ -338,6 +375,7 @@ impl<'a> Chat<'a> {
 
     pub fn run(&self, msg: &str, history: &[Value]) -> (Vec<Value>, usize) {
         let start = Instant::now();
+        let deadline = start + Duration::from_secs_f64(self.timeout.clamp(0.0, 1e9));
         let mut new = vec![if self.openai() {
             json!({"role": "user", "content": [{"type": "input_text", "text": msg}]})
         } else {
@@ -358,7 +396,7 @@ impl<'a> Chat<'a> {
                 calls = i;
                 break;
             }
-            match self.step(history, &mut new, &tools) {
+            match self.step(history, &mut new, &tools, deadline) {
                 Ok(true) => {}
                 Ok(false) => {
                     calls = i + 1;

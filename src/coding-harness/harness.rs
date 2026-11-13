@@ -120,11 +120,7 @@ pub fn forward(args: &Args, client: Client, log: &ChatLog) {
     let start = Instant::now();
     let sink = |m: &str| log.log(m);
     let mut chat = Chat::new(client, &sink);
-    chat.timeout = if args.polyglot {
-        args.timeout as f64
-    } else {
-        (args.timeout - 60) as f64 - start.elapsed().as_secs_f64()
-    };
+    chat.timeout = (args.timeout - 60) as f64 - start.elapsed().as_secs_f64();
     chat.run(&args.instruction(), &[]);
 }
 

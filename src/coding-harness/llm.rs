@@ -10,6 +10,8 @@ use serde_json::{Value, json};
 
 pub const MAX_OUTPUT_TOKENS: u64 = 4096;
 
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(600);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Provider {
     #[value(name = "openai")]
@@ -46,6 +48,7 @@ pub struct Client {
 #[derive(Debug)]
 pub enum Error {
     Http(String),
+    Timeout(String),
     Status { code: u16, body: String },
     Response(String),
 }
@@ -54,6 +57,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::Http(e) => write!(f, "{e}"),
+            Error::Timeout(e) => write!(f, "timed out: {e}"),
             Error::Status { code, body } => write!(f, "Error code: {code} - {body}"),
             Error::Response(e) => write!(f, "unexpected response: {e}"),
         }
@@ -83,12 +87,19 @@ pub fn create_client(model: &str, service: &Service) -> Result<Client, String> {
     read_api_key(&service.api_key_file).map(|key| service.client(model, &key))
 }
 
-fn http() -> ureq::Agent {
+fn http(limit: Duration) -> ureq::Agent {
     ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(600)))
+        .timeout_global(Some(limit))
         .http_status_as_error(false)
         .build()
         .into()
+}
+
+fn failure(e: ureq::Error) -> Error {
+    match e {
+        ureq::Error::Timeout(t) => Error::Timeout(t.to_string()),
+        e => Error::Http(e.to_string()),
+    }
 }
 
 impl Client {
@@ -98,10 +109,7 @@ impl Client {
 
     fn read(mut response: ureq::http::Response<ureq::Body>) -> Result<Value, Error> {
         let code = response.status().as_u16();
-        let body = response
-            .body_mut()
-            .read_to_string()
-            .map_err(|e| Error::Http(e.to_string()))?;
+        let body = response.body_mut().read_to_string().map_err(failure)?;
         if !(200..300).contains(&code) {
             return Err(Error::Status { code, body });
         }
@@ -109,27 +117,37 @@ impl Client {
     }
 
     pub fn post(&self, path: &str, body: &Value) -> Result<Value, Error> {
-        let mut request = http().post(&self.url(path));
+        self.post_within(path, body, REQUEST_TIMEOUT)
+    }
+
+    pub fn post_within(&self, path: &str, body: &Value, limit: Duration) -> Result<Value, Error> {
+        let mut request = http(limit).post(&self.url(path));
         if let Some(key) = &self.api_key {
             request = request.header("Authorization", &format!("Bearer {key}"));
         }
-        let response = request
-            .send_json(body)
-            .map_err(|e| Error::Http(e.to_string()))?;
+        let response = request.send_json(body).map_err(failure)?;
         Self::read(response)
     }
 
     pub fn get(&self, path: &str) -> Result<Value, Error> {
-        let mut request = http().get(&self.url(path));
+        self.get_within(path, REQUEST_TIMEOUT)
+    }
+
+    pub fn get_within(&self, path: &str, limit: Duration) -> Result<Value, Error> {
+        let mut request = http(limit).get(&self.url(path));
         if let Some(key) = &self.api_key {
             request = request.header("Authorization", &format!("Bearer {key}"));
         }
-        let response = request.call().map_err(|e| Error::Http(e.to_string()))?;
+        let response = request.call().map_err(failure)?;
         Self::read(response)
     }
 
     pub fn served_model(&self) -> Result<String, Error> {
-        let models = self.get("models")?;
+        self.served_model_within(REQUEST_TIMEOUT)
+    }
+
+    pub fn served_model_within(&self, limit: Duration) -> Result<String, Error> {
+        let models = self.get_within("models", limit)?;
         models["data"][0]["id"]
             .as_str()
             .map(str::to_owned)

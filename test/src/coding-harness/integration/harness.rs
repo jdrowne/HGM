@@ -409,3 +409,71 @@ fn the_version_names_the_harness() {
             .starts_with("rustyhgm-coding-harness ")
     );
 }
+
+fn silent() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}/v1", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        let held: Vec<_> = listener.incoming().flatten().collect();
+        drop(held);
+    });
+    base
+}
+
+struct Stalled {
+    tmp: tempfile::TempDir,
+    out: Output,
+    took: std::time::Duration,
+}
+
+fn stalled(polyglot: bool) -> Stalled {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo = repo(tmp.path());
+    fs::write(repo.join("a.txt"), "changed\n").unwrap();
+    let key = tmp.path().join("key");
+    fs::write(&key, "k\n").unwrap();
+    let mut cmd = harness();
+    cmd.current_dir(tmp.path())
+        .args(["--timeout", "61", "--provider", "openrouter"])
+        .args(["--base_url", &silent()])
+        .arg("--api_key_file")
+        .arg(&key)
+        .args(["--problem_statement", "fix it", "--base_commit", "HEAD"])
+        .arg("--git_dir")
+        .arg(&repo)
+        .args(["--chat_history_file", "chat.md", "--outdir", ""])
+        .args(["--language", "rust", "--model", "qwen"])
+        .args(["--test_description", "run it"]);
+    if polyglot {
+        cmd.arg("--polyglot");
+    }
+    let start = std::time::Instant::now();
+    let out = cmd.output().unwrap();
+    Stalled {
+        tmp,
+        out,
+        took: start.elapsed(),
+    }
+}
+
+#[test]
+fn a_harness_whose_model_never_answers_stops_inside_its_timeout() {
+    assert!(stalled(false).took < std::time::Duration::from_secs(10));
+}
+
+#[test]
+fn a_harness_whose_model_never_answers_still_succeeds() {
+    let ran = stalled(false);
+    assert!(ran.out.status.success(), "{}", stderr(&ran.out));
+}
+
+#[test]
+fn a_harness_whose_model_never_answers_still_writes_its_patch() {
+    let patch = fs::read_to_string(stalled(false).tmp.path().join("model_patch.diff")).unwrap();
+    assert!(patch.contains("+changed"));
+}
+
+#[test]
+fn a_polyglot_harness_keeps_the_same_margin() {
+    assert!(stalled(true).took < std::time::Duration::from_secs(10));
+}

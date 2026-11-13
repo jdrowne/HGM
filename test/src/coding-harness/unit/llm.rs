@@ -4,7 +4,7 @@ use rustyhgm_coding_harness::llm::{
 };
 use serde_json::{Value, json};
 
-use crate::common::{Seen, cases, content, ok, refused, serve};
+use crate::common::{Seen, cases, content, ok, refused, serve, silent};
 
 #[test]
 fn extract_json_matches_the_python() {
@@ -295,4 +295,30 @@ fn getting_from_a_dead_server_is_an_http_error() {
 #[test]
 fn an_http_error_says_what_went_wrong() {
     assert!(!dead().get("p").unwrap_err().to_string().is_empty());
+}
+
+fn unanswered() -> Error {
+    let client = Client {
+        provider: Provider::OpenRouter,
+        model: "m".to_owned(),
+        base_url: silent(),
+        api_key: None,
+    };
+    client
+        .post_within(
+            "chat/completions",
+            &json!({}),
+            std::time::Duration::from_millis(200),
+        )
+        .unwrap_err()
+}
+
+#[test]
+fn a_request_past_its_limit_is_a_timeout() {
+    assert!(matches!(unanswered(), Error::Timeout(_)));
+}
+
+#[test]
+fn a_timeout_says_so() {
+    assert!(unanswered().to_string().starts_with("timed out: "));
 }
