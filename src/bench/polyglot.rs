@@ -13,8 +13,8 @@ use serde_json::Value;
 use crate::polyglot_build::Images;
 use crate::polyglot_spec::{TestSpec, get_eval_script, make_test_spec, test_cmd, test_commands};
 use crate::swe::{
-    HARNESS_PATH, Run, Step, finished, key_mount, message, run_logged, run_step, salvage,
-    service_flags,
+    HARNESS_PATH, Run, Step, container_run_id, finished, key_mount, message, run_logged, run_step,
+    salvage, service_flags,
 };
 
 pub const DATASET: &str = "polyglot_benchmark_metadata.json";
@@ -249,7 +249,7 @@ impl Evaluator {
         log: &Log,
     ) -> Result<Ending, String> {
         let spec = self.spec(job.entry);
-        let run_id = Local::now().format("%Y%m%d_%H%M%S_%6f").to_string();
+        let run_id = container_run_id();
         self.docker
             .remove_existing_container(&spec.container_name(&run_id), log)
             .map_err(message)?;

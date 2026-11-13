@@ -2,7 +2,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use rustyhgm_bench::report::{default_run_ids, load_predictions, preds_to_jsonl};
-use rustyhgm_bench::swe::{finished, next_run_name, prediction, timed_out_prediction};
+use rustyhgm_bench::swe::{
+    container_run_id, finished, next_run_name, prediction, timed_out_prediction,
+};
 use serde_json::Value;
 
 use crate::common::{cases, strings};
@@ -242,4 +244,9 @@ fn a_harness_that_failed_is_an_error() {
         finished(Err(rustyhgm_sandbox::Error::ExitCode(1))),
         Err("Script failed with exit code 1".to_owned())
     );
+}
+
+#[test]
+fn a_container_run_id_ends_with_the_process_id() {
+    assert!(container_run_id().ends_with(&format!("_{}", std::process::id())));
 }

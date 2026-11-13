@@ -104,6 +104,14 @@ pub fn message(e: rustyhgm_sandbox::Error) -> String {
     e.to_string()
 }
 
+pub fn container_run_id() -> String {
+    format!(
+        "{}_{}",
+        Local::now().format("%Y%m%d_%H%M%S_%6f"),
+        std::process::id()
+    )
+}
+
 pub const TIMED_OUT: i32 = 124;
 
 pub fn finished(run: Result<String, rustyhgm_sandbox::Error>) -> Result<bool, String> {
@@ -192,7 +200,7 @@ pub fn run_step(
 
 impl Evaluator {
     fn start(&self, job: &Job, log: &Log) -> Result<Container, String> {
-        let run_id = Local::now().format("%Y%m%d_%H%M%S_%6f").to_string();
+        let run_id = container_run_id();
         let name = job.spec.container_name(&run_id);
         self.docker
             .remove_existing_container(&name, log)
