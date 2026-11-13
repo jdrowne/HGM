@@ -33,6 +33,14 @@ jobs:
         run: |
           mkdir -p target/llvm-cov-target
           tar --zstd -xf build-coverage.tar.zst -C target/llvm-cov-target
+      - name: Link every test binary into deps, where the report finds its objects
+        run: |
+          cd target/llvm-cov-target/target
+          mkdir -p debug/deps
+          jq -r '."rust-build-meta"."target-directory" as $t
+            | ."rust-binaries"[]."binary-path"
+            | ltrimstr($t + "/")' nextest/binaries-metadata.json \
+            | xargs -I{} ln -f {} debug/deps/
       - name: Download the profile data of every tier
         uses: actions/download-artifact@main
         with:
