@@ -162,6 +162,7 @@ fn outcome(id: &str, success: bool, eval_result: &str) -> Outcome {
         instance_id: id.to_owned(),
         success,
         eval_result: eval_result.to_owned(),
+        error: None,
     }
 }
 
@@ -207,12 +208,25 @@ fn scenario(root: &Path) {
     let mut blocked = h.evaluate(&entries, &unwritable, &harness(root));
     blocked.sort_by(|a, b| a.instance_id.cmp(&b.instance_id));
     let lost = h.evaluate(&[entry("ghost")], &root.join("lost"), &harness(root));
+    for dir in ["timedout", "failed", "errors"] {
+        fs::create_dir_all(root.join(dir)).unwrap();
+    }
+    let timedout = h.evaluate(&[entry("timeout")], &root.join("timedout"), &harness(root));
+    let failed = h.evaluate(&[entry("fail")], &root.join("failed"), &harness(root));
+    let skipped = h.evaluate(&[entry("fail")], &root.join("failed"), &harness(root));
+    let resolved = h.evaluate(&[entry("resolved")], &root.join("errors"), &harness(root));
     let seen = json!({
         "report": report,
         "again": again,
         "noharness": outcomes_json(&noharness),
         "blocked": outcomes_json(&blocked),
         "lost": outcomes_json(&lost),
+        "errors": {
+            "timedout": timedout[0].error,
+            "failed": failed[0].error,
+            "skipped": skipped[0].error,
+            "resolved": resolved[0].error,
+        },
     });
     fs::write(root.join("seen.json"), seen.to_string()).unwrap();
 }
@@ -663,4 +677,30 @@ fn an_entry_without_docker_is_incomplete() {
         .gone()
         .evaluate(&[entry("resolved")], &s.root().join("out"), &s.run);
     assert_eq!(outcomes, [outcome("python__resolved", false, "incomplete")]);
+}
+
+#[test]
+fn a_timed_out_outcome_says_how_long_it_ran() {
+    assert_eq!(shared().seen["errors"]["timedout"], "timed out after 60 s");
+}
+
+#[test]
+fn a_failed_outcome_carries_the_failure() {
+    assert_eq!(
+        shared().seen["errors"]["failed"],
+        "Script failed with exit code 1"
+    );
+}
+
+#[test]
+fn a_skipped_failure_says_what_was_recorded() {
+    assert_eq!(
+        shared().seen["errors"]["skipped"],
+        "recorded earlier as incomplete"
+    );
+}
+
+#[test]
+fn a_resolved_outcome_carries_no_error() {
+    assert_eq!(shared().seen["errors"]["resolved"], Value::Null);
 }

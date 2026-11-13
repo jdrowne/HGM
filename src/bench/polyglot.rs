@@ -36,6 +36,7 @@ pub struct Outcome {
     pub instance_id: String,
     pub success: bool,
     pub eval_result: String,
+    pub error: Option<String>,
 }
 
 enum Ending {
@@ -298,10 +299,13 @@ impl Evaluator {
                 .ok()
                 .and_then(|t| serde_json::from_str(&t).ok())
                 .unwrap_or_default();
+            let eval_result = text(&saved, "eval_result");
+            let success = saved["success"].as_bool().unwrap_or_default();
             return Outcome {
                 instance_id,
-                success: saved["success"].as_bool().unwrap_or_default(),
-                eval_result: text(&saved, "eval_result"),
+                success,
+                error: (!success).then(|| format!("recorded earlier as {eval_result}")),
+                eval_result,
             };
         }
         let log = Log::to_file(&job.out_dname.join(format!("{instance_id}_docker.log")))
@@ -314,6 +318,7 @@ impl Evaluator {
                 instance_id,
                 success: true,
                 eval_result,
+                error: None,
             },
             Ok(Ending::TimedOut) => {
                 let patch = model_patch.unwrap_or_default();
@@ -323,14 +328,13 @@ impl Evaluator {
                 ) {
                     println!("Error writing result for {instance_id}: {write_error}");
                 }
-                log.error(format!(
-                    "Error processing entry {instance_id}: timed out after {} s",
-                    self.timeout
-                ));
+                let e = format!("timed out after {} s", self.timeout);
+                log.error(format!("Error processing entry {instance_id}: {e}"));
                 Outcome {
                     instance_id,
                     success: false,
                     eval_result: "incomplete".to_owned(),
+                    error: Some(e),
                 }
             }
             Err(e) => {
@@ -349,6 +353,7 @@ impl Evaluator {
                     instance_id,
                     success: false,
                     eval_result: eval_result.to_owned(),
+                    error: Some(e),
                 }
             }
         };
@@ -369,16 +374,15 @@ impl Evaluator {
             .collect();
         rustyhgm_core::pool::map(&jobs, run.max_workers, |job| {
             let outcome = self.process_entry(job);
-            if outcome.success {
-                println!(
+            match &outcome.error {
+                None => println!(
                     "Successfully processed entry {} for eval 0",
                     outcome.instance_id
-                );
-            } else {
-                println!(
-                    "Failed to process entry {} for eval 0: Unknown error",
+                ),
+                Some(e) => println!(
+                    "Failed to process entry {} for eval 0: {e}",
                     outcome.instance_id
-                );
+                ),
             }
             outcome
         })
