@@ -23,6 +23,7 @@ done
 case "$mode" in
   fail) echo harness failed; exit 1 ;;
   timeout) echo "chat $id" > "$chat"; exit 124 ;;
+  silent) exit 124 ;;
   norustyhgm) rm -rf /rustyhgm; exit 0 ;;
 esac
 [ "$mode" = nochat ] || echo "chat $id $(cat "$key")" > "$chat"
@@ -550,7 +551,10 @@ fn timed_out() -> Evaluated {
     let root = tmp.path();
     let h = evaluator(root, swebench(root, "exit 0", "exit 0"));
     let out = root.join("out");
-    let specs = [spec("timedout", "echo timeout > /mode", IMAGE)];
+    let specs = [
+        spec("timedout", "echo timeout > /mode", IMAGE),
+        spec("silent", "echo silent > /mode", IMAGE),
+    ];
     let results = evaluate(&h, &specs, &out, &harness_run(root));
     Evaluated {
         _tmp: tmp,
@@ -577,4 +581,10 @@ fn a_timed_out_prediction_is_marked() {
 fn a_timed_out_harness_keeps_its_chat_history() {
     let e = timed_out();
     assert_eq!(text(e.out.join("timedout.md")), "chat timedout\n");
+}
+
+#[test]
+fn a_timed_out_harness_without_a_chat_history_is_still_recorded() {
+    let e = timed_out();
+    assert_eq!(prediction(&e.out, "silent")["timed_out"], true);
 }

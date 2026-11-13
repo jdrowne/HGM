@@ -208,7 +208,7 @@ fn left(deadline: Instant) -> Duration {
     deadline.saturating_duration_since(Instant::now())
 }
 
-fn limit(deadline: Instant) -> Result<Duration, Error> {
+pub fn request_limit(deadline: Instant) -> Result<Duration, Error> {
     let limit = left(deadline).min(REQUEST_TIMEOUT);
     if limit.is_zero() {
         return Err(Error::Timeout(
@@ -263,11 +263,11 @@ impl<'a> Chat<'a> {
                     "tools": tools,
                     "parallel_tool_calls": false,
                 }),
-                limit(deadline)?,
+                request_limit(deadline)?,
             );
         }
         let model = match self.client.provider {
-            Provider::Vllm => self.client.served_model_within(limit(deadline)?)?,
+            Provider::Vllm => self.client.served_model_within(request_limit(deadline)?)?,
             _ => self.client.model.clone(),
         };
         self.client.post_within(
@@ -280,7 +280,7 @@ impl<'a> Chat<'a> {
                 "parallel_tool_calls": false,
                 "max_tokens": MAX_OUTPUT_TOKENS,
             }),
-            limit(deadline)?,
+            request_limit(deadline)?,
         )
     }
 

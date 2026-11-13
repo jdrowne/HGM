@@ -198,13 +198,19 @@ fn scenario(root: &Path) {
     fs::create_dir_all(&unwritable).unwrap();
     let nowhere = root.join("no/such/dir/file");
     for name in [
+        "python__timeout.json",
         "python__empty.json",
         "python__resolved_eval.sh",
         "python__unresolved_eval.md",
     ] {
         crate::dangling(&nowhere, &unwritable.join(name));
     }
-    let entries = [entry("empty"), entry("resolved"), entry("unresolved")];
+    let entries = [
+        entry("empty"),
+        entry("resolved"),
+        entry("timeout"),
+        entry("unresolved"),
+    ];
     let mut blocked = h.evaluate(&entries, &unwritable, &harness(root));
     blocked.sort_by(|a, b| a.instance_id.cmp(&b.instance_id));
     let lost = h.evaluate(&[entry("ghost")], &root.join("lost"), &harness(root));
@@ -528,6 +534,7 @@ fn unwritable_outputs_are_errors() {
         expected(&[
             outcome("python__empty", false, "error"),
             outcome("python__resolved", false, "error"),
+            outcome("python__timeout", false, "incomplete"),
             outcome("python__unresolved", false, "error"),
         ])
     );

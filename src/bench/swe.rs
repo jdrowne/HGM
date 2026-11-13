@@ -145,10 +145,7 @@ pub fn salvage(
             &ExecOptions::workdir("/"),
         )
         .map(|r| r.text())
-        .unwrap_or_else(|e| {
-            log.error(format!("Could not compute the patch: {e}"));
-            String::new()
-        })
+        .unwrap_or_default()
 }
 
 pub fn run_logged(

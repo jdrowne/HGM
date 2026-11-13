@@ -6,7 +6,7 @@ use rustyhgm_coding_harness::llm::{Client, MAX_OUTPUT_TOKENS, Provider};
 use rustyhgm_coding_harness::tools::tool_infos;
 use rustyhgm_coding_harness::withtools::{
     Backoff, CUT_OFF, Chat, SYSTEM_MESSAGE, ToolUse, check_for_tool_use, convert_msg_history,
-    convert_tool_info, is_cut_off, is_openai,
+    convert_tool_info, is_cut_off, is_openai, request_limit,
 };
 use serde_json::{Value, json};
 
@@ -807,4 +807,15 @@ fn a_spent_deadline_stops_the_retries() {
         chat.retries = 1000;
     });
     assert!(ran.lines.len() < 1000);
+}
+
+#[test]
+fn a_passed_deadline_leaves_no_time_for_a_request() {
+    assert!(request_limit(std::time::Instant::now()).is_err());
+}
+
+#[test]
+fn a_request_waits_at_most_the_client_timeout() {
+    let far = std::time::Instant::now() + Duration::from_secs(3600);
+    assert_eq!(request_limit(far).unwrap(), Duration::from_secs(600));
 }
