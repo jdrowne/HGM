@@ -2,11 +2,11 @@ use std::cell::RefCell;
 use std::fs;
 use std::time::Duration;
 
-use rustyhgm_coding_harness::llm::{Client, Provider};
+use rustyhgm_coding_harness::llm::{Client, MAX_OUTPUT_TOKENS, Provider};
 use rustyhgm_coding_harness::tools::tool_infos;
 use rustyhgm_coding_harness::withtools::{
-    Backoff, Chat, SYSTEM_MESSAGE, ToolUse, check_for_tool_use, convert_msg_history,
-    convert_tool_info, is_openai,
+    Backoff, CUT_OFF, Chat, SYSTEM_MESSAGE, ToolUse, check_for_tool_use, convert_msg_history,
+    convert_tool_info, is_cut_off, is_openai,
 };
 use serde_json::{Value, json};
 
@@ -623,5 +623,125 @@ fn an_unreachable_server_is_logged_by_the_openai_chat() {
     assert!(
         unreachable(Provider::OpenAi, "gpt-5").lines[2]
             .starts_with("Error in chat_with_tools_openai: ")
+    );
+}
+
+#[test]
+fn a_chat_caps_the_length_of_each_reply() {
+    assert_eq!(first_request()["max_tokens"], MAX_OUTPUT_TOKENS);
+}
+
+fn cut_off() -> Value {
+    json!({"choices": [{"finish_reason": "length", "message": {"role": "assistant", "content": "", "reasoning": "hmm"}}]})
+}
+
+fn openai_cut_off() -> Value {
+    json!({"status": "incomplete", "incomplete_details": {"reason": "max_output_tokens"}, "output": [{"type": "reasoning"}]})
+}
+
+#[test]
+fn a_length_finish_is_a_cut_off_reply() {
+    assert!(is_cut_off(&cut_off(), "qwen"));
+}
+
+#[test]
+fn a_stop_finish_is_not_a_cut_off_reply() {
+    let stopped = json!({"choices": [{"finish_reason": "stop", "message": {"content": "done"}}]});
+    assert!(!is_cut_off(&stopped, "qwen"));
+}
+
+#[test]
+fn an_openai_reply_out_of_tokens_is_cut_off() {
+    assert!(is_cut_off(&openai_cut_off(), "gpt-5"));
+}
+
+#[test]
+fn an_openai_reply_incomplete_for_another_reason_is_not_cut_off() {
+    let filtered =
+        json!({"status": "incomplete", "incomplete_details": {"reason": "content_filter"}});
+    assert!(!is_cut_off(&filtered, "gpt-5"));
+}
+
+fn resumed() -> (Ran, Seen) {
+    served(
+        vec![
+            ok(cut_off()),
+            ok(tool_call("c", "nope", &json!({}))),
+            ok(reply("done")),
+        ],
+        Provider::OpenRouter,
+        "qwen",
+        |_| {},
+    )
+}
+
+#[test]
+fn a_cut_off_reply_does_not_end_the_chat() {
+    assert_eq!(resumed().0.calls, 3);
+}
+
+#[test]
+fn a_cut_off_reply_is_followed_by_a_request_for_a_tool_call() {
+    assert_eq!(
+        resumed().0.history[2],
+        json!({"role": "user", "content": CUT_OFF})
+    );
+}
+
+#[test]
+fn a_cut_off_reply_stays_in_the_history() {
+    assert_eq!(
+        resumed().0.history[1],
+        cut_off()["choices"][0]["message"].clone()
+    );
+}
+
+#[test]
+fn a_cut_off_reply_is_logged() {
+    assert_eq!(
+        resumed().0.lines[2],
+        "Reply cut off at the length limit, asking for a tool call."
+    );
+}
+
+#[test]
+fn the_request_after_a_cut_off_carries_the_reminder() {
+    assert_eq!(body(&resumed().1, 1)["messages"][3]["content"], CUT_OFF);
+}
+
+#[test]
+fn a_chat_of_only_cut_off_replies_ends_at_the_call_limit() {
+    let (ran, _) = served(
+        vec![ok(cut_off()), ok(cut_off()), ok(cut_off())],
+        Provider::OpenRouter,
+        "qwen",
+        |chat| chat.max_llm_calls = 3,
+    );
+    assert_eq!(ran.calls, 3);
+}
+
+fn openai_resumed() -> Ran {
+    served(
+        vec![
+            ok(openai_cut_off()),
+            ok(json!({"output": [openai_message()]})),
+        ],
+        Provider::OpenAi,
+        "gpt-5",
+        |_| {},
+    )
+    .0
+}
+
+#[test]
+fn an_openai_cut_off_reply_does_not_end_the_chat() {
+    assert_eq!(openai_resumed().calls, 2);
+}
+
+#[test]
+fn an_openai_cut_off_reply_is_followed_by_a_request_for_a_tool_call() {
+    assert_eq!(
+        openai_resumed().history[2],
+        json!({"role": "user", "content": [{"type": "input_text", "text": CUT_OFF}]})
     );
 }

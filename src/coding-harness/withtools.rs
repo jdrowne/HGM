@@ -2,10 +2,12 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use crate::llm::{Client, Error, Provider};
+use crate::llm::{Client, Error, MAX_OUTPUT_TOKENS, Provider};
 use crate::tools::{Tools, tool_infos};
 
 pub const SYSTEM_MESSAGE: &str = "You are the best coder in the world!";
+
+pub const CUT_OFF: &str = "Your reply was cut off because it ran past the length limit. Keep your thinking short and act now with a single tool call.";
 
 pub fn is_openai(model: &str) -> bool {
     model.starts_with('o') || model.to_lowercase().contains("gpt")
@@ -149,6 +151,14 @@ fn tool_use(id: &Value, name: &Value, arguments: &Value) -> Result<ToolUse, Erro
     })
 }
 
+pub fn is_cut_off(response: &Value, model: &str) -> bool {
+    if is_openai(model) {
+        return response["status"] == "incomplete"
+            && response["incomplete_details"]["reason"] == "max_output_tokens";
+    }
+    response["choices"][0]["finish_reason"] == "length"
+}
+
 pub fn check_for_tool_use(response: &Value, model: &str) -> Result<Option<ToolUse>, Error> {
     if is_openai(model) {
         let call = response["output"]
@@ -248,6 +258,7 @@ impl<'a> Chat<'a> {
                 "tool_choice": "auto",
                 "tools": tools,
                 "parallel_tool_calls": false,
+                "max_tokens": MAX_OUTPUT_TOKENS,
             }),
         )
     }
@@ -302,7 +313,16 @@ impl<'a> Chat<'a> {
             new.push(message.clone());
         }
         let Some(call) = check_for_tool_use(&response, &self.client.model)? else {
-            return Ok(false);
+            if !is_cut_off(&response, &self.client.model) {
+                return Ok(false);
+            }
+            (self.log)("Reply cut off at the length limit, asking for a tool call.");
+            new.push(if self.openai() {
+                json!({"role": "user", "content": [{"type": "input_text", "text": CUT_OFF}]})
+            } else {
+                json!({"role": "user", "content": CUT_OFF})
+            });
+            return Ok(true);
         };
         let result = self.tools.call(&call.name, &call.input);
         (self.log)(&format!("Tool Used: {}", call.name));
