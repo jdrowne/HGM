@@ -23,3 +23,6 @@
 - [Memory files start with a heading](memory-files-start-with-a-heading.md) — an H1 title right after the front matter, or markdownlint MD041 fails CI
 - [Memory links are Markdown links](memory-links-are-markdown-links.md) — link memories as `[Heading](slug.md)`, never `[[slug]]`; GitHub shows wiki links as raw brackets
 - [A decision goes into the issue's body and title](a-decision-goes-into-the-issue-body.md) — rewrite body and title to describe the work and remove "needs decision"; no decision comment, no label kept as a brake
+- [Model thinking stays on](model-thinking-stays-on.md) — never propose disabling a thinking model's reasoning; cap tokens or time and handle cut-off replies instead
+- [No Sources lists](no-sources-lists.md) — never end an answer with a Sources list of links, even after a web search
+- [Red CI gets fixed, not filed](red-ci-gets-fixed-not-filed.md) — a red job on main is worked until green in the same session, even when a toolchain or CI tool caused it; an issue never ends the work
