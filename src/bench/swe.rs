@@ -83,8 +83,72 @@ pub fn prediction(
     )
 }
 
+pub fn timed_out_prediction(
+    model_name_or_path: &str,
+    instance_id: &str,
+    model_patch: &str,
+) -> String {
+    dumps(
+        &PyValue::dict([
+            ("instance_id", PyValue::str(instance_id)),
+            ("model_name_or_path", PyValue::str(model_name_or_path)),
+            ("model_patch", PyValue::str(model_patch)),
+            ("proposed_model_patches", PyValue::List(Vec::new())),
+            ("timed_out", PyValue::Bool(true)),
+        ]),
+        Some(4),
+    )
+}
+
 pub fn message(e: rustyhgm_sandbox::Error) -> String {
     e.to_string()
+}
+
+pub const TIMED_OUT: i32 = 124;
+
+pub fn finished(run: Result<String, rustyhgm_sandbox::Error>) -> Result<bool, String> {
+    match run {
+        Ok(_) => Ok(true),
+        Err(rustyhgm_sandbox::Error::ExitCode(TIMED_OUT)) => Ok(false),
+        Err(e) => Err(message(e)),
+    }
+}
+
+const DIFF: &str = "cd /testbed && git diff \"$1\" 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null | while IFS= read -r f; do git diff --no-index /dev/null \"$f\" 2>/dev/null; done; exit 0";
+
+pub fn salvage(
+    container: &Container,
+    instance_id: &str,
+    base_commit: &str,
+    out_dname: &Path,
+    log: &Log,
+) -> String {
+    log.info("Keeping the chat history and edits of the timed-out harness");
+    let pattern = format!("{instance_id}_*.md");
+    let found = container
+        .exec(
+            &["find", "/rustyhgm/", "-name", &pattern],
+            &ExecOptions::workdir("/"),
+        )
+        .map(|r| r.text())
+        .unwrap_or_default();
+    let chat_history = format!("/rustyhgm/{instance_id}.md");
+    for file in std::iter::once(chat_history.as_str()).chain(found.split_whitespace()) {
+        let name = file.rsplit('/').next().unwrap_or(file);
+        if let Err(e) = container.copy_out(file, &out_dname.join(name), log) {
+            log.error(format!("Could not copy {file}: {e}"));
+        }
+    }
+    container
+        .exec(
+            &["sh", "-c", DIFF, "sh", base_commit],
+            &ExecOptions::workdir("/"),
+        )
+        .map(|r| r.text())
+        .unwrap_or_else(|e| {
+            log.error(format!("Could not compute the patch: {e}"));
+            String::new()
+        })
 }
 
 pub fn run_logged(
@@ -166,7 +230,7 @@ impl Evaluator {
             .map_err(message)
     }
 
-    fn solve(&self, job: &Job, container: &Container, log: &Log) -> Result<(), String> {
+    fn solve(&self, job: &Job, container: &Container, log: &Log) -> Result<bool, String> {
         let instance_id = &job.spec.instance_id;
         let chat_history = format!("/rustyhgm/{instance_id}.md");
         let timeout = self.timeout.to_string();
@@ -201,9 +265,12 @@ impl Evaluator {
             &timeout,
         ];
         argv.extend(service.iter().map(String::as_str));
-        run_logged(container, &argv, &ExecOptions::workdir("/"), log)
-            .map(drop)
-            .map_err(message)
+        finished(run_logged(
+            container,
+            &argv,
+            &ExecOptions::workdir("/"),
+            log,
+        ))
     }
 
     fn collect(&self, job: &Job, container: &Container, log: &Log) -> Result<String, String> {
@@ -252,11 +319,24 @@ impl Evaluator {
         job: &Job,
         slot: &mut Option<Container>,
         log: &Log,
-    ) -> Result<String, String> {
+    ) -> Result<(String, Option<String>), String> {
         let container = slot.insert(self.start(job, log)?);
         self.setup(job, container, log)?;
-        self.solve(job, container, log)?;
-        self.collect(job, container, log)
+        if self.solve(job, container, log)? {
+            return self.collect(job, container, log).map(|p| (p, None));
+        }
+        let instance_id = &job.spec.instance_id;
+        let patch = salvage(
+            container,
+            instance_id,
+            &text(job.entry, "base_commit"),
+            job.out_dname,
+            log,
+        );
+        Ok((
+            timed_out_prediction(&job.run.model_name_or_path, instance_id, &patch),
+            Some(format!("timed out after {} s", self.timeout)),
+        ))
     }
 
     fn process_entry(&self, job: &Job) -> EntryResult {
@@ -274,15 +354,26 @@ impl Evaluator {
         let mut container = None;
         let outcome = self
             .attempt(job, &mut container, &log)
-            .and_then(|result| fs::write(&out_fname, result).map_err(|e| e.to_string()));
+            .and_then(|(result, timeout)| {
+                fs::write(&out_fname, result)
+                    .map(|()| timeout)
+                    .map_err(|e| e.to_string())
+            });
         if let Some(c) = &container {
             c.cleanup(&log);
         }
         match outcome {
-            Ok(()) => EntryResult {
+            Ok(None) => EntryResult {
                 instance_id,
                 error: None,
             },
+            Ok(Some(timeout)) => {
+                println!("Error processing entry {instance_id}: {timeout}");
+                EntryResult {
+                    instance_id,
+                    error: Some(timeout),
+                }
+            }
             Err(e) => {
                 println!("Error processing entry {instance_id}: {e}");
                 let empty = prediction(&job.run.model_name_or_path, &instance_id, "", &[]);

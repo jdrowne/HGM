@@ -69,9 +69,11 @@ pub fn preds_to_jsonl(dname: &Path, predictions: &Map<String, Value>) -> Result<
             ("model_name_or_path", PyValue::str(model)),
             (
                 "model_patch",
-                PyValue::str(remove_patches_to_tests(
-                    pred["model_patch"].as_str().unwrap_or_default(),
-                )),
+                PyValue::str(if pred["timed_out"] == true {
+                    String::new()
+                } else {
+                    remove_patches_to_tests(pred["model_patch"].as_str().unwrap_or_default())
+                }),
             ),
             ("instance_id", PyValue::from(&pred["instance_id"])),
         ]);

@@ -16,6 +16,7 @@ const GIT: &str = r#"#!/bin/sh
 case "$1" in
   clone) mkdir -p "$3" && cp -a ./. "$3"/ ;;
   stash) [ "$(cat /testbed/mode 2>/dev/null)" = gitfail ] && { echo git failed; exit 1; } ;;
+  diff) [ "$2" = --no-index ] || echo "salvaged $2" ;;
 esac
 exit 0
 "#;
@@ -35,6 +36,7 @@ while [ $# -gt 0 ]; do
 done
 id=$(basename "$chat" .md)
 [ "$mode" = fail ] && { echo harness failed; exit 1; }
+[ "$mode" = timeout ] && { echo "chat $id" > "$chat"; exit 124; }
 [ "$mode" = nochat ] || echo "chat $id $kind $lang $(pwd) $(cat "$key")" > "$chat"
 echo "more $id" > "/rustyhgm/${id}_1.md"
 [ "$mode" = space ] && echo x > "/rustyhgm/${id}_ x.md"
@@ -87,7 +89,7 @@ fn base_image() {
     }
 }
 
-const MODES: [&str; 8] = [
+const MODES: [&str; 9] = [
     "resolved",
     "unresolved",
     "empty",
@@ -96,6 +98,7 @@ const MODES: [&str; 8] = [
     "nochat",
     "fail",
     "space",
+    "timeout",
 ];
 
 fn entry(mode: &str) -> Value {
@@ -266,12 +269,12 @@ fn the_report_is_named_for_the_harness() {
 
 #[test]
 fn the_report_counts_every_instance() {
-    assert_eq!(shared().report()["total_instances"], 8);
+    assert_eq!(shared().report()["total_instances"], 9);
 }
 
 #[test]
 fn the_report_counts_every_submission() {
-    assert_eq!(shared().report()["submitted_instances"], 8);
+    assert_eq!(shared().report()["submitted_instances"], 9);
 }
 
 #[test]
@@ -312,7 +315,8 @@ fn the_report_lists_the_incomplete() {
             "python__gitfail",
             "python__nochat",
             "python__nopatch",
-            "python__space"
+            "python__space",
+            "python__timeout"
         ])
     );
 }
@@ -364,6 +368,48 @@ fn a_failing_git_keeps_the_patch() {
     assert_eq!(
         shared().result("gitfail")["model_patch"],
         "patch python__gitfail\n"
+    );
+}
+
+#[test]
+fn a_timed_out_harness_is_incomplete() {
+    assert_eq!(shared().result("timeout")["eval_result"], "incomplete");
+}
+
+#[test]
+fn a_timed_out_harness_is_marked() {
+    assert_eq!(shared().result("timeout")["timed_out"], true);
+}
+
+#[test]
+fn a_finished_harness_is_not_marked_as_timed_out() {
+    assert_eq!(shared().result("resolved")["timed_out"], false);
+}
+
+#[test]
+fn a_timed_out_harness_keeps_its_edits() {
+    assert_eq!(shared().result("timeout")["model_patch"], "salvaged c\n");
+}
+
+#[test]
+fn a_timed_out_harness_keeps_its_chat_history() {
+    assert_eq!(
+        shared().text("python__timeout.md"),
+        "chat python__timeout\n"
+    );
+}
+
+#[test]
+fn a_timed_out_harness_is_not_scored() {
+    assert!(!shared().out().join("python__timeout_eval.md").exists());
+}
+
+#[test]
+fn a_timed_out_harness_is_logged() {
+    let log = shared().text("python__timeout_docker.log");
+    assert!(
+        log.contains("Error processing entry python__timeout: timed out after 60 s"),
+        "{log}"
     );
 }
 

@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use rustyhgm_bench::report::{default_run_ids, load_predictions, preds_to_jsonl};
-use rustyhgm_bench::swe::{next_run_name, prediction};
+use rustyhgm_bench::swe::{finished, next_run_name, prediction, timed_out_prediction};
 use serde_json::Value;
 
 use crate::common::{cases, strings};
@@ -190,4 +190,56 @@ fn an_unwritable_jsonl_path_is_an_error() {
     let preds = load_predictions(&[tmp.path().to_path_buf()]).unwrap();
     let e = preds_to_jsonl(tmp.path(), &preds).unwrap_err();
     assert!(e.contains("all_preds.jsonl"), "{e}");
+}
+
+fn timed_out_jsonl() -> Value {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(
+        tmp.path().join("x.json"),
+        timed_out_prediction("harness_1", "x", "diff --git a/f b/f\n"),
+    )
+    .unwrap();
+    let preds = load_predictions(&[tmp.path().to_path_buf()]).unwrap();
+    let path = preds_to_jsonl(tmp.path(), &preds).unwrap();
+    serde_json::from_str(fs::read_to_string(path).unwrap().trim()).unwrap()
+}
+
+#[test]
+fn a_timed_out_patch_is_not_sent_for_scoring() {
+    assert_eq!(timed_out_jsonl()["model_patch"], "");
+}
+
+#[test]
+fn a_timed_out_prediction_keeps_its_patch() {
+    let saved: Value =
+        serde_json::from_str(&timed_out_prediction("harness_1", "x", "d\n")).unwrap();
+    assert_eq!(saved["model_patch"], "d\n");
+}
+
+#[test]
+fn a_timed_out_prediction_says_so() {
+    let saved: Value =
+        serde_json::from_str(&timed_out_prediction("harness_1", "x", "d\n")).unwrap();
+    assert_eq!(saved["timed_out"], true);
+}
+
+#[test]
+fn a_harness_that_ran_to_the_end_finished() {
+    assert_eq!(finished(Ok(String::new())), Ok(true));
+}
+
+#[test]
+fn a_harness_stopped_by_timeout_did_not_finish() {
+    assert_eq!(
+        finished(Err(rustyhgm_sandbox::Error::ExitCode(124))),
+        Ok(false)
+    );
+}
+
+#[test]
+fn a_harness_that_failed_is_an_error() {
+    assert_eq!(
+        finished(Err(rustyhgm_sandbox::Error::ExitCode(1))),
+        Err("Script failed with exit code 1".to_owned())
+    );
 }

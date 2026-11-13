@@ -13,7 +13,8 @@ use serde_json::Value;
 use crate::polyglot_build::Images;
 use crate::polyglot_spec::{TestSpec, get_eval_script, make_test_spec, test_cmd, test_commands};
 use crate::swe::{
-    HARNESS_PATH, Run, Step, key_mount, message, run_logged, run_step, service_flags,
+    HARNESS_PATH, Run, Step, finished, key_mount, message, run_logged, run_step, salvage,
+    service_flags,
 };
 
 pub const DATASET: &str = "polyglot_benchmark_metadata.json";
@@ -37,6 +38,11 @@ pub struct Outcome {
     pub eval_result: String,
 }
 
+enum Ending {
+    Scored(String),
+    TimedOut,
+}
+
 struct Job<'a> {
     entry: &'a Value,
     out_dname: &'a Path,
@@ -47,13 +53,18 @@ fn text(entry: &Value, key: &str) -> String {
     entry[key].as_str().unwrap_or_default().to_owned()
 }
 
-fn result(
-    job: &Job,
-    model_patch: &str,
-    proposed: PyValue,
-    eval_result: &str,
-    success: bool,
-) -> String {
+enum State<'a> {
+    Scored(&'a str),
+    Failed(&'a str),
+    TimedOut,
+}
+
+fn result(job: &Job, model_patch: &str, proposed: PyValue, state: State) -> String {
+    let (eval_result, success, timed_out) = match state {
+        State::Scored(r) => (r, true, false),
+        State::Failed(r) => (r, false, false),
+        State::TimedOut => ("incomplete", false, true),
+    };
     dumps(
         &PyValue::dict([
             ("instance_id", PyValue::str(text(job.entry, "instance_id"))),
@@ -65,6 +76,7 @@ fn result(
             ("proposed_model_patches", proposed),
             ("eval_result", PyValue::str(eval_result)),
             ("success", PyValue::Bool(success)),
+            ("timed_out", PyValue::Bool(timed_out)),
         ]),
         Some(4),
     )
@@ -97,7 +109,7 @@ impl Evaluator {
         run_steps(container, &steps, log)
     }
 
-    fn solve(&self, job: &Job, container: &Container, log: &Log) -> Result<(), String> {
+    fn solve(&self, job: &Job, container: &Container, log: &Log) -> Result<bool, String> {
         let instance_id = text(job.entry, "instance_id");
         let language = text(job.entry, "language");
         let chat_history = format!("/rustyhgm/{instance_id}.md");
@@ -132,9 +144,12 @@ impl Evaluator {
             &timeout,
         ];
         argv.extend(service.iter().map(String::as_str));
-        run_logged(container, &argv, &ExecOptions::workdir("/testbed/"), log)
-            .map(drop)
-            .map_err(message)
+        finished(run_logged(
+            container,
+            &argv,
+            &ExecOptions::workdir("/testbed/"),
+            log,
+        ))
     }
 
     fn collect(&self, job: &Job, container: &Container, log: &Log) -> Result<String, String> {
@@ -231,7 +246,7 @@ impl Evaluator {
         container: &mut Option<Container>,
         model_patch: &mut Option<String>,
         log: &Log,
-    ) -> Result<String, String> {
+    ) -> Result<Ending, String> {
         let spec = self.spec(job.entry);
         let run_id = Local::now().format("%Y%m%d_%H%M%S_%6f").to_string();
         self.docker
@@ -245,7 +260,16 @@ impl Evaluator {
         };
         let started = container.insert(images.build_container(&spec, &run_id, log, true)?);
         self.setup(job, started, log)?;
-        self.solve(job, started, log)?;
+        if !self.solve(job, started, log)? {
+            *model_patch = Some(salvage(
+                started,
+                &spec.instance_id,
+                &text(job.entry, "base_commit"),
+                job.out_dname,
+                log,
+            ));
+            return Ok(Ending::TimedOut);
+        }
         let patch = model_patch.insert(self.collect(job, started, log)?);
         let eval_result = if patch.is_empty() {
             "empty_patch".to_owned()
@@ -255,9 +279,14 @@ impl Evaluator {
         let out_fname = job.out_dname.join(format!("{}.json", spec.instance_id));
         write(
             &out_fname,
-            result(job, patch, PyValue::List(Vec::new()), &eval_result, true),
+            result(
+                job,
+                patch,
+                PyValue::List(Vec::new()),
+                State::Scored(&eval_result),
+            ),
         )?;
-        Ok(eval_result)
+        Ok(Ending::Scored(eval_result))
     }
 
     fn process_entry(&self, job: &Job) -> Outcome {
@@ -281,11 +310,29 @@ impl Evaluator {
         let mut model_patch = None;
         let attempted = self.attempt(job, &mut container, &mut model_patch, &log);
         let outcome = match attempted {
-            Ok(eval_result) => Outcome {
+            Ok(Ending::Scored(eval_result)) => Outcome {
                 instance_id,
                 success: true,
                 eval_result,
             },
+            Ok(Ending::TimedOut) => {
+                let patch = model_patch.unwrap_or_default();
+                if let Err(write_error) = write(
+                    &out_fname,
+                    result(job, &patch, PyValue::List(Vec::new()), State::TimedOut),
+                ) {
+                    println!("Error writing result for {instance_id}: {write_error}");
+                }
+                log.error(format!(
+                    "Error processing entry {instance_id}: timed out after {} s",
+                    self.timeout
+                ));
+                Outcome {
+                    instance_id,
+                    success: false,
+                    eval_result: "incomplete".to_owned(),
+                }
+            }
             Err(e) => {
                 let (patch, proposed, eval_result) = match model_patch {
                     None => (String::new(), PyValue::str(""), "incomplete"),
@@ -293,7 +340,7 @@ impl Evaluator {
                 };
                 if let Err(write_error) = write(
                     &out_fname,
-                    result(job, &patch, proposed, eval_result, false),
+                    result(job, &patch, proposed, State::Failed(eval_result)),
                 ) {
                     println!("Error writing result for {instance_id}: {write_error}");
                 }

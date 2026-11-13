@@ -22,6 +22,7 @@ while [ $# -gt 0 ]; do
 done
 case "$mode" in
   fail) echo harness failed; exit 1 ;;
+  timeout) echo "chat $id" > "$chat"; exit 124 ;;
   norustyhgm) rm -rf /rustyhgm; exit 0 ;;
 esac
 [ "$mode" = nochat ] || echo "chat $id $(cat "$key")" > "$chat"
@@ -541,4 +542,39 @@ fn garbled_specs_stop_the_evaluator() {
 #[test]
 fn a_blocked_run_folder_stops_the_evaluator() {
     assert!(staged(true, "exit 0", &spec_line(IMAGE), "blocked"));
+}
+
+fn timed_out() -> Evaluated {
+    image();
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let h = evaluator(root, swebench(root, "exit 0", "exit 0"));
+    let out = root.join("out");
+    let specs = [spec("timedout", "echo timeout > /mode", IMAGE)];
+    let results = evaluate(&h, &specs, &out, &harness_run(root));
+    Evaluated {
+        _tmp: tmp,
+        out,
+        results,
+    }
+}
+
+#[test]
+fn a_timed_out_harness_says_so() {
+    assert_eq!(
+        timed_out().results[0].error.as_deref(),
+        Some("timed out after 60 s")
+    );
+}
+
+#[test]
+fn a_timed_out_prediction_is_marked() {
+    let e = timed_out();
+    assert_eq!(prediction(&e.out, "timedout")["timed_out"], true);
+}
+
+#[test]
+fn a_timed_out_harness_keeps_its_chat_history() {
+    let e = timed_out();
+    assert_eq!(text(e.out.join("timedout.md")), "chat timedout\n");
 }
