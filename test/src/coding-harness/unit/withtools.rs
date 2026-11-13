@@ -811,11 +811,11 @@ fn a_spent_deadline_stops_the_retries() {
 
 #[test]
 fn a_passed_deadline_leaves_no_time_for_a_request() {
-    assert!(request_limit(std::time::Instant::now()).is_err());
+    assert_eq!(request_limit(std::time::Instant::now()), Duration::ZERO);
 }
 
 #[test]
 fn a_request_waits_at_most_the_client_timeout() {
     let far = std::time::Instant::now() + Duration::from_secs(3600);
-    assert_eq!(request_limit(far).unwrap(), Duration::from_secs(600));
+    assert_eq!(request_limit(far), Duration::from_secs(600));
 }

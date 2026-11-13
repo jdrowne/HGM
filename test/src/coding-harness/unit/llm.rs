@@ -322,3 +322,17 @@ fn a_request_past_its_limit_is_a_timeout() {
 fn a_timeout_says_so() {
     assert!(unanswered().to_string().starts_with("timed out: "));
 }
+
+#[test]
+fn a_request_with_no_time_left_is_a_timeout() {
+    let client = Client {
+        provider: Provider::OpenRouter,
+        model: "m".to_owned(),
+        base_url: silent(),
+        api_key: None,
+    };
+    let e = client
+        .post_within("chat/completions", &json!({}), std::time::Duration::ZERO)
+        .unwrap_err();
+    assert!(matches!(e, Error::Timeout(_)), "{e}");
+}
