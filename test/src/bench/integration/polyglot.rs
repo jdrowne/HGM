@@ -676,7 +676,10 @@ fn an_entry_without_docker_is_incomplete() {
     let outcomes = s
         .gone()
         .evaluate(&[entry("resolved")], &s.root().join("out"), &s.run);
-    assert_eq!(outcomes, [outcome("python__resolved", false, "incomplete")]);
+    assert_eq!(
+        outcomes_json(&outcomes),
+        expected(&[outcome("python__resolved", false, "incomplete")])
+    );
 }
 
 #[test]
