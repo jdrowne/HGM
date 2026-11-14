@@ -122,11 +122,23 @@ fn languages(bench: &Path) {
     exercise(
         bench,
         "cpp/two-fer",
-        &json!({"files": {"solution": ["two_fer.h", "two_fer.cpp"], "test": ["two_fer_test.cpp"]}}),
+        &json!({"files": {
+            "solution": ["two_fer.h", "two_fer.cpp"],
+            "test": ["two_fer_test.cpp"],
+            "example": [".meta/example.cpp", ".meta/example.h", ".meta/absent.h"],
+        }}),
         &[
             ("two_fer.cpp", "a"),
             ("two_fer.h", "b"),
             ("two_fer_test.cpp", "c"),
+            (
+                ".meta/example.cpp",
+                "std::string two_fer::two_fer() { return \"x\"; }\n",
+            ),
+            (
+                ".meta/example.h",
+                "#pragma once\nnamespace two_fer {\nstd::string two_fer();\n}\n",
+            ),
             ("test/catch.hpp", "d"),
             ("CMakeLists.txt", &cmake),
             (".docs/instructions.md", "Two"),
@@ -510,6 +522,19 @@ fn a_dataset_entry_describes_its_exercise() {
         .map(|(key, value)| format!("{key}: {} != {value}", entry[key]))
         .collect();
     assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
+fn a_cpp_problem_statement_ends_with_the_declarations_the_tests_call() {
+    assert_eq!(
+        first().entries()[0]["problem_statement"],
+        "Two\n\n# Interface\n\nThe tests call the solution through the declarations below. Declare each one with exactly this name, these parameters and this return type. Everything else is yours to design.\n\n```cpp\nnamespace two_fer {\n    std::string two_fer();\n}\n```\n\n"
+    );
+}
+
+#[test]
+fn a_problem_statement_in_another_language_gains_nothing() {
+    assert_eq!(first().entries()[1]["problem_statement"], "Bob\n\n");
 }
 
 #[test]

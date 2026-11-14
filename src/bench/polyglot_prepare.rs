@@ -9,6 +9,7 @@ use rustyhgm_core::pool;
 use rustyhgm_core::pyjson::{PyValue, dumps};
 use serde_json::{Map, Value, json};
 
+use crate::cpp_interface::section;
 use crate::polyglot::DATASET;
 
 pub const BENCH: &str = "polyglot-benchmark";
@@ -241,6 +242,18 @@ fn problem_statement(dir: &Path) -> Result<String, String> {
     Ok(statement)
 }
 
+fn interface(exercise: &Exercise, config: &Value) -> String {
+    if exercise.lang != "cpp" {
+        return String::new();
+    }
+    let headers: Vec<String> = listed(config, "example")
+        .into_iter()
+        .filter(|file| file.ends_with(".h") || file.ends_with(".hpp"))
+        .filter_map(|file| fs::read_to_string(exercise.dir.join(file)).ok())
+        .collect();
+    section(&headers)
+}
+
 fn extract_task_metadata(exercise: &Exercise, commits: &Commits) -> Result<Value, String> {
     let id = exercise.id();
     let dir = &exercise.dir;
@@ -262,7 +275,8 @@ fn extract_task_metadata(exercise: &Exercise, commits: &Commits) -> Result<Value
     if let Some(files) = config.get("files").and_then(Value::as_object) {
         metadata.insert("files".into(), Value::Object(files.clone()));
     }
-    metadata.insert("problem_statement".into(), json!(problem_statement(dir)?));
+    let statement = problem_statement(dir)? + &interface(exercise, &config);
+    metadata.insert("problem_statement".into(), json!(statement));
     let (solution_commit, all_files_commit) = commits.get(&id).ok_or_else(|| format!("'{id}'"))?;
     metadata.insert("base_commit".into(), json!(solution_commit));
     metadata.insert("test_commit".into(), json!(all_files_commit));
