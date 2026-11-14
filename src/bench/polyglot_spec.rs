@@ -82,10 +82,9 @@ COPY ./{repo_top} /{repo_top}
 RUN /bin/bash /root/setup_repo.sh
 
 WORKDIR /testbed/
-LABEL {label}=\"{base_commit}\"
 ";
 
-pub const BASE_COMMIT_LABEL: &str = "rustyhgm.base_commit";
+pub const RECIPE_LABEL: &str = "rustyhgm.recipe";
 
 pub const NAMESPACE: &str = "pb";
 
@@ -174,7 +173,7 @@ impl TestSpec {
             .replace("{base_image}", &self.base_image_key())
     }
 
-    pub fn instance_dockerfile(&self) -> String {
+    fn instance_steps(&self) -> String {
         DOCKERFILE_INSTANCE
             .replace("{platform}", self.platform())
             .replace("{env_image_name}", &self.env_image_key())
@@ -182,8 +181,31 @@ impl TestSpec {
                 "{repo_top}",
                 self.repo.split('/').next().unwrap_or_default(),
             )
-            .replace("{label}", BASE_COMMIT_LABEL)
-            .replace("{base_commit}", &self.base_commit)
+    }
+
+    pub fn instance_recipe(&self) -> String {
+        let mut hasher = Sha256::new();
+        for part in [
+            self.instance_steps(),
+            self.install_repo_script(),
+            self.base_commit.clone(),
+        ] {
+            hasher.update(part.as_bytes());
+            hasher.update([0]);
+        }
+        hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
+    }
+
+    pub fn instance_dockerfile(&self) -> String {
+        format!(
+            "{}LABEL {RECIPE_LABEL}=\"{}\"\n",
+            self.instance_steps(),
+            self.instance_recipe()
+        )
     }
 }
 

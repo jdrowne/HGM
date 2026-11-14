@@ -37,7 +37,7 @@ case "$1 $2" in
   "build -t")
     [ -e "$state/buildfail" ] && { echo build exploded; exit 1; }
     for context; do :; done
-    label=$(sed -n 's/^LABEL rustyhgm.base_commit="\(.*\)"$/\1/p' "$context/Dockerfile")
+    label=$(sed -n 's/^LABEL rustyhgm.recipe="\(.*\)"$/\1/p' "$context/Dockerfile")
     printf 'sha256:built-%s\n9999\n%s\n' "$3" "$label" > "$state/images/$3"
     echo step one ;;
   "run -d")
@@ -787,6 +787,22 @@ fn an_instance_image_built_from_another_commit_is_rebuilt() {
     let fake = instance_built();
     fake.images()
         .build_instance_image(&moved_spec(), &Log::discard(), false)
+        .unwrap();
+    assert_eq!(fake.calls().matches("build -t").count(), 2);
+}
+
+fn rescripted_spec() -> TestSpec {
+    let mut spec = go_spec();
+    spec.repo_script_list
+        .push("rm -rf /testbed/.meta".to_owned());
+    spec
+}
+
+#[test]
+fn an_instance_image_built_from_another_setup_script_is_rebuilt() {
+    let fake = instance_built();
+    fake.images()
+        .build_instance_image(&rescripted_spec(), &Log::discard(), false)
         .unwrap();
     assert_eq!(fake.calls().matches("build -t").count(), 2);
 }

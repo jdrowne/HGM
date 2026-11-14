@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use rustyhgm_core::log::Log;
 use rustyhgm_sandbox::{BuildOptions, Container, Docker, RunOptions};
 
-use crate::polyglot_spec::{BASE_COMMIT_LABEL, TestSpec};
+use crate::polyglot_spec::{RECIPE_LABEL, TestSpec};
 
 pub const BASE_IMAGE_BUILD_DIR: &str = "logs/build_images/base";
 pub const ENV_IMAGE_BUILD_DIR: &str = "logs/build_images/env";
@@ -140,8 +140,8 @@ pub fn find_dependent_images(docker: &Docker, image: &str) -> Result<Vec<String>
         .collect())
 }
 
-fn base_commit_format() -> String {
-    format!("{{{{index .Config.Labels \"{BASE_COMMIT_LABEL}\"}}}}")
+fn recipe_format() -> String {
+    format!("{{{{index .Config.Labels \"{RECIPE_LABEL}\"}}}}")
 }
 
 fn created(docker: &Docker, image: &str) -> Result<Option<String>, String> {
@@ -284,8 +284,8 @@ impl Images<'_> {
         ));
         let current = self
             .docker
-            .inspect_image(&image, &base_commit_format())
-            .is_ok_and(|built_from| built_from.as_deref() == Some(spec.base_commit.as_str()));
+            .inspect_image(&image, &recipe_format())
+            .is_ok_and(|built_from| built_from == Some(spec.instance_recipe()));
         let exists = match created(self.docker, &image)? {
             Some(instance_created) if instance_created < env_created || !current => {
                 remove_image_quietly(self.docker, &image)?;
