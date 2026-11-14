@@ -10,6 +10,7 @@ use rustyhgm_core::pyjson::{PyValue, dumps};
 use serde_json::{Map, Value, json};
 
 use crate::polyglot::DATASET;
+use crate::polyglot_build::remove_tree;
 
 pub const BENCH: &str = "polyglot-benchmark";
 pub const COMMITS: &str = "polyglot_benchmark_commits.json";
@@ -122,13 +123,14 @@ fn commit_exercise(
     examples: &[&str],
 ) -> Result<(String, String), String> {
     let dir = &exercise.dir;
-    if exercise.lang == "cpp" {
-        modify_cmake_file(&dir.join("CMakeLists.txt"), &exercise.task).map_err(message)?;
-    }
-    let registered = dir.join(".git");
-    if registered.exists() {
-        fs::remove_dir_all(&registered).map_err(message)?;
-    }
+    let named = if exercise.lang == "cpp" {
+        modify_cmake_file(&dir.join("CMakeLists.txt"), &exercise.task)
+    } else {
+        Ok(())
+    };
+    named
+        .and_then(|()| remove_tree(&dir.join(".git")))
+        .map_err(message)?;
     let withheld: Vec<String> = WITHHELD
         .iter()
         .chain(examples)

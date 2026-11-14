@@ -33,6 +33,14 @@ pub fn copy_tree(from: &Path, to: &Path) -> io::Result<()> {
         })
 }
 
+pub fn remove_tree(path: &Path) -> io::Result<()> {
+    if path.exists() {
+        fs::remove_dir_all(path)
+    } else {
+        Ok(())
+    }
+}
+
 pub fn build_dir(root: &Path, kind: &str, image: &str) -> PathBuf {
     root.join(kind).join(image.replace(':', "__"))
 }
@@ -52,10 +60,7 @@ fn stage(build: &ImageBuild, log: &Log) -> io::Result<()> {
         && source.is_dir()
     {
         let target = build.build_dir.join(rel);
-        if target.exists() {
-            fs::remove_dir_all(&target)?;
-        }
-        copy_tree(source, &target)?;
+        remove_tree(&target).and_then(|()| copy_tree(source, &target))?;
         log.info(format!(
             "Copied folder {} to {}",
             source.display(),
@@ -280,13 +285,12 @@ impl Images<'_> {
         log.info(format!(
             "Environment image {env} found for {id}\nBuilding instance image {image} for {id}"
         ));
-        let moved = self
+        let current = self
             .docker
             .inspect_image(&image, &base_commit_format())
-            .map_err(message)?
-            .is_some_and(|built_from| built_from != spec.base_commit);
+            .is_ok_and(|built_from| built_from.as_deref() == Some(spec.base_commit.as_str()));
         let exists = match created(self.docker, &image)? {
-            Some(instance_created) if instance_created < env_created || moved => {
+            Some(instance_created) if instance_created < env_created || !current => {
                 remove_image_quietly(self.docker, &image)?;
                 false
             }
