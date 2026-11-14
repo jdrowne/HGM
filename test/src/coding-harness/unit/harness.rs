@@ -140,10 +140,10 @@ fn the_instruction_carries_the_test_description() {
 }
 
 #[test]
-fn the_polyglot_instruction_matches_the_python() {
+fn the_polyglot_instruction_names_the_problem_and_the_tests() {
     assert_eq!(
         args(&[("--polyglot", "")]).instruction(),
-        "I have uploaded a code repository in the directory /repo. Help solve the following problem.\n\n<problem_description>\np\n</problem_description>\n\nYour task is to make changes to the files in the /repo directory to address the <problem_description>. I have already taken care of the required dependencies.\n\n\nPlease analyze the problem description carefully. Then make edits to the code files to complete the instruction."
+        "I have uploaded a code repository in the directory /repo. Help solve the following problem.\n\n<problem_description>\np\n</problem_description>\n\n<test_description>\nNone\n</test_description>\n\nYour task is to make changes to the files in the /repo directory to address the <problem_description>. I have already taken care of the required dependencies.\n\n\nPlease analyze the problem description carefully. Then make edits to the code files to complete the instruction."
     );
 }
 

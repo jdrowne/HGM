@@ -40,7 +40,7 @@ pub fn get_test_description(eval_script: &str, repo: TestRepo) -> String {
                 .replace("{test_command}", &command)
         }
         TestRepo::Polyglot => format!(
-            "In the repository folder, the tests can be run with the following bash command(s):\n\n```{eval_script}```\n"
+            "The repository holds the tests that decide whether the problem is solved. Changes to the test files are discarded before scoring. In the repository folder, the tests can be run with the following bash command(s):\n\n```\n{eval_script}\n```\n"
         ),
         TestRepo::Hgm => HGM_TEST_DESCRIPTION.to_owned(),
     };

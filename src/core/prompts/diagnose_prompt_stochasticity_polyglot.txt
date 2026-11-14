@@ -2,8 +2,8 @@ Since the coding harness is stochastic, it may not produce the correct patch for
 Take into account the harness's stochastic nature and provide a solution to handle such cases. 
 For example, one solution could be to ask the harness to try multiple times and select the best patch according to the test results. Scale the reflection times is also a good idea.
 Giving previous attempts and test results as context to the harness may also help.
-The tests for tasks are not provided in the repo, and the harness needs workflow design to implement them.
-The harness's own tests that validate the solution may not cover all the cases that will be checked by the private tests during official scoring. So the quality of implemented tests are crucial.
+The tests for tasks are provided in the repo, and the harness is told the command that runs them.
+The same tests decide the official score, so the harness should run them and act on their results.
 
 Please analyze the log below to identify how we can improve the testing process and multiple solution attempts.
 

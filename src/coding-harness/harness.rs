@@ -71,12 +71,12 @@ impl Args {
     pub fn instruction(&self) -> String {
         let dir = self.git_dir.display();
         let problem = &self.problem_statement;
+        let tests = &self.test_description;
         if self.polyglot {
             return format!(
-                "I have uploaded a code repository in the directory {dir}. Help solve the following problem.\n\n<problem_description>\n{problem}\n</problem_description>\n\nYour task is to make changes to the files in the {dir} directory to address the <problem_description>. I have already taken care of the required dependencies.\n\n\nPlease analyze the problem description carefully. Then make edits to the code files to complete the instruction."
+                "I have uploaded a code repository in the directory {dir}. Help solve the following problem.\n\n<problem_description>\n{problem}\n</problem_description>\n\n<test_description>\n{tests}\n</test_description>\n\nYour task is to make changes to the files in the {dir} directory to address the <problem_description>. I have already taken care of the required dependencies.\n\n\nPlease analyze the problem description carefully. Then make edits to the code files to complete the instruction."
             );
         }
-        let tests = &self.test_description;
         format!(
             "I have uploaded a Python code repository in the directory {dir}. Help solve the following problem.\n\n<problem_description>\n{problem}\n</problem_description>\n\n<test_description>\n{tests}\n</test_description>\n\nYour task is to make changes to the files in the {dir} directory to address the <problem_description>. I have already taken care of the required dependencies.\n"
         )

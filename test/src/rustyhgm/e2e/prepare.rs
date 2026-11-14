@@ -125,20 +125,15 @@ fn languages(bench: &Path) {
         &json!({"files": {
             "solution": ["two_fer.h", "two_fer.cpp"],
             "test": ["two_fer_test.cpp"],
-            "example": [".meta/example.cpp", ".meta/example.h", ".meta/absent.h"],
+            "example": ["example.cpp"],
         }}),
         &[
             ("two_fer.cpp", "a"),
             ("two_fer.h", "b"),
             ("two_fer_test.cpp", "c"),
-            (
-                ".meta/example.cpp",
-                "std::string two_fer::two_fer() { return \"x\"; }\n",
-            ),
-            (
-                ".meta/example.h",
-                "#pragma once\nnamespace two_fer {\nstd::string two_fer();\n}\n",
-            ),
+            ("example.cpp", "e"),
+            (".approaches/introduction.md", "f"),
+            (".articles/config.json", "g"),
             ("test/catch.hpp", "d"),
             ("CMakeLists.txt", &cmake),
             (".docs/instructions.md", "Two"),
@@ -354,20 +349,21 @@ fn every_initialized_exercise_has_its_commits() {
 }
 
 #[test]
-fn the_python_base_commit_holds_only_the_starting_files() {
+fn the_python_base_commit_holds_the_starting_files_and_the_tests() {
     assert_eq!(
         first().base_tree("python/hello"),
         [
             ".docs/instructions.md",
             ".docs/introduction.md",
             ".docs/notes.txt",
-            "hello.py"
+            "hello.py",
+            "hello_test.py"
         ]
     );
 }
 
 #[test]
-fn the_cpp_base_commit_holds_only_the_starting_files() {
+fn the_cpp_base_commit_withholds_the_example_and_the_write_ups() {
     assert_eq!(
         first().base_tree("cpp/two-fer"),
         [
@@ -375,7 +371,8 @@ fn the_cpp_base_commit_holds_only_the_starting_files() {
             "CMakeLists.txt",
             "test/catch.hpp",
             "two_fer.cpp",
-            "two_fer.h"
+            "two_fer.h",
+            "two_fer_test.cpp"
         ]
     );
 }
@@ -397,7 +394,7 @@ fn the_cpp_base_commit_names_the_exercise_in_cmake() {
 }
 
 #[test]
-fn the_java_base_commit_holds_only_the_starting_files() {
+fn the_java_base_commit_holds_the_starting_files_and_the_tests() {
     assert_eq!(
         first().base_tree("java/bob"),
         [
@@ -405,19 +402,21 @@ fn the_java_base_commit_holds_only_the_starting_files() {
             "build.gradle",
             "gradle/wrapper/gradle-wrapper.properties",
             "gradlew",
-            "src/main/java/Bob.java"
+            "src/main/java/Bob.java",
+            "src/test/java/BobTest.java"
         ]
     );
 }
 
 #[test]
-fn the_javascript_base_commit_holds_only_the_starting_files() {
+fn the_javascript_base_commit_holds_the_starting_files_and_the_tests() {
     assert_eq!(
         first().base_tree("javascript/leap"),
         [
             ".docs/instructions.md",
             ".eslintrc",
             "leap.js",
+            "leap.spec.js",
             "package.json"
         ]
     );
@@ -525,19 +524,6 @@ fn a_dataset_entry_describes_its_exercise() {
 }
 
 #[test]
-fn a_cpp_problem_statement_ends_with_the_declarations_the_tests_call() {
-    assert_eq!(
-        first().entries()[0]["problem_statement"],
-        "Two\n\n# Interface\n\nThe tests call the solution through the declarations below. Declare each one with exactly this name, these parameters and this return type. Everything else is yours to design.\n\n```cpp\nnamespace two_fer {\n    std::string two_fer();\n}\n```\n\n"
-    );
-}
-
-#[test]
-fn a_problem_statement_in_another_language_gains_nothing() {
-    assert_eq!(first().entries()[1]["problem_statement"], "Bob\n\n");
-}
-
-#[test]
 fn a_dataset_entry_keeps_the_configured_test_files() {
     assert_eq!(
         first().entries()[3]["files"]["test"],
@@ -553,8 +539,8 @@ fn hello_patch() -> String {
 }
 
 #[test]
-fn the_test_patch_adds_the_tests() {
-    assert!(hello_patch().contains("+++ b/hello_test.py"));
+fn the_test_patch_leaves_out_the_tests_the_base_commit_holds() {
+    assert!(!hello_patch().contains("+++ b/hello_test.py"));
 }
 
 #[test]
@@ -601,6 +587,44 @@ fn a_second_preparation_writes_the_same_dataset() {
     let stage = first();
     let text = stage.dataset_text();
     assert_eq!(stage.then(|_| {}, None, None).dataset_text(), text);
+}
+
+fn another_test(root: &Path) {
+    let hello = practice(&root.join(BENCH), "python/hello");
+    fs::write(hello.join("absent_test.py"), "more\n").unwrap();
+}
+
+fn outdated() -> Stage {
+    again().then(another_test, None, None)
+}
+
+#[test]
+fn an_exercise_whose_base_commit_lacks_a_test_file_is_registered_again() {
+    assert!(
+        outdated()
+            .log()
+            .contains("Initializing git repositories for 1 practice directories...\n")
+    );
+}
+
+#[test]
+fn an_exercise_registered_again_starts_with_the_new_test_file() {
+    assert_eq!(
+        outdated().base_tree("python/hello"),
+        [
+            ".docs/instructions.md",
+            ".docs/introduction.md",
+            ".docs/notes.txt",
+            "absent_test.py",
+            "hello.py",
+            "hello_test.py"
+        ]
+    );
+}
+
+#[test]
+fn an_exercise_registered_again_leaves_the_other_commits_recorded() {
+    assert_eq!(outdated().commits().as_object().unwrap().len(), 9);
 }
 
 fn reconfigure(root: &Path) {

@@ -21,6 +21,7 @@ case "$1 $2" in
     [ -f "$f" ] || exit 1
     case "$4" in
       *Created*) sed -n 2p "$f" ;;
+      *Labels*) sed -n 3p "$f" ;;
       *) sed -n 1p "$f" ;;
     esac ;;
   "image rm")
@@ -35,7 +36,9 @@ case "$1 $2" in
     cat "$f" ;;
   "build -t")
     [ -e "$state/buildfail" ] && { echo build exploded; exit 1; }
-    printf 'sha256:built-%s\n9999\n' "$3" > "$state/images/$3"
+    for context; do :; done
+    label=$(sed -n 's/^LABEL rustyhgm.base_commit="\(.*\)"$/\1/p' "$context/Dockerfile")
+    printf 'sha256:built-%s\n9999\n%s\n' "$3" "$label" > "$state/images/$3"
     echo step one ;;
   "run -d")
     [ -e "$state/runfail" ] && { echo no such image; exit 125; }
@@ -767,6 +770,42 @@ fn an_instance_image_older_than_its_env_is_rebuilt() {
         .build_instance_image(&go_spec(), &Log::discard(), false)
         .unwrap();
     assert_eq!(fake.calls().matches("build -t").count(), 2);
+}
+
+fn moved_spec() -> TestSpec {
+    TestSpec {
+        base_commit: "d".to_owned(),
+        ..go_spec()
+    }
+}
+
+#[test]
+fn an_instance_image_built_from_another_commit_is_rebuilt() {
+    let fake = instance_built();
+    fake.images()
+        .build_instance_image(&moved_spec(), &Log::discard(), false)
+        .unwrap();
+    assert_eq!(fake.calls().matches("build -t").count(), 2);
+}
+
+fn restaged() -> Fake {
+    let fake = stale_instance();
+    fs::remove_file(fake.root.join(&go_spec().repo).join("t.go")).unwrap();
+    fake.images()
+        .build_instance_image(&go_spec(), &Log::discard(), false)
+        .unwrap();
+    fake
+}
+
+#[test]
+fn a_rebuilt_instance_image_stages_the_repo_afresh() {
+    let fake = restaged();
+    assert!(
+        !instance_dir(&fake)
+            .join(&go_spec().repo)
+            .join("t.go")
+            .exists()
+    );
 }
 
 #[test]

@@ -13,6 +13,7 @@ pub const DIAGNOSE_SYSTEM_MESSAGE: &str = include_str!("prompts/diagnose_system_
 pub const SWE_ISSUE_PROMPT: &str = include_str!("prompts/swe_issue_prompt.txt");
 pub const POLYGLOT_ISSUE_PROMPT: &str = include_str!("prompts/polyglot_issue_prompt.txt");
 pub const DIAGNOSE_PROMPT: &str = include_str!("prompts/diagnose_prompt.txt");
+pub const DIAGNOSE_PROMPT_POLYGLOT: &str = include_str!("prompts/diagnose_prompt_polyglot.txt");
 pub const DIAGNOSE_PROMPT_EMPTYPATCHES: &str =
     include_str!("prompts/diagnose_prompt_emptypatches.txt");
 pub const DIAGNOSE_PROMPT_STOCHASTICITY: &str =
@@ -383,9 +384,14 @@ fn entry_field(entry: &Value, key: &str) -> Result<String, String> {
         .ok_or_else(|| format!("dataset entry has no {key}"))
 }
 
-fn issue_prompt(issue: &str, log: &EvalLog, test_patch: &str, github_issue: &str) -> String {
+fn issue_prompt(
+    [issue, template]: [&str; 2],
+    log: &EvalLog,
+    test_patch: &str,
+    github_issue: &str,
+) -> String {
     let body = format_named(
-        DIAGNOSE_PROMPT,
+        template,
         &[
             ("md_log", &log.md_log),
             ("eval_log", &log.eval_log),
@@ -418,7 +424,7 @@ pub fn get_diagnose_prompt_swe(input: &DiagnoseInput) -> Result<(String, String)
             let entry = find_entry(input.dataset, id)
                 .ok_or_else(|| format!("Could not find entry with id {id} in dataset."))?;
             issue_prompt(
-                SWE_ISSUE_PROMPT,
+                [SWE_ISSUE_PROMPT, DIAGNOSE_PROMPT],
                 &log,
                 &entry_field(entry, "test_patch")?,
                 &entry_field(entry, "problem_statement")?,
@@ -448,14 +454,12 @@ pub fn get_diagnose_prompt_polyglot<R: Rng + ?Sized>(
         )
     })?;
     let is_polyglot = entry.get("language").is_some();
-    let test_patch = entry_field(
-        entry,
-        if is_polyglot {
-            "reference_tests"
-        } else {
-            "test_patch"
-        },
-    )?;
+    let (tests, template) = if is_polyglot {
+        ("reference_tests", DIAGNOSE_PROMPT_POLYGLOT)
+    } else {
+        ("test_patch", DIAGNOSE_PROMPT)
+    };
+    let test_patch = entry_field(entry, tests)?;
     let github_issue = entry_field(entry, "problem_statement")?;
     let code = get_current_code(input.root_dir, &CODE_FILES, input.patch_files, &[])
         .map_err(|e| e.to_string())?;
@@ -479,7 +483,12 @@ pub fn get_diagnose_prompt_polyglot<R: Rng + ?Sized>(
     }
     Ok((
         system,
-        issue_prompt(POLYGLOT_ISSUE_PROMPT, &log, &test_patch, &github_issue),
+        issue_prompt(
+            [POLYGLOT_ISSUE_PROMPT, template],
+            &log,
+            &test_patch,
+            &github_issue,
+        ),
     ))
 }
 

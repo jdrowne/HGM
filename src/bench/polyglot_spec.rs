@@ -75,14 +75,17 @@ const SETUP_ENV: &str = include_str!("polyglot_images/setup_env.sh");
 
 const SETUP_ENV_HEADER: &str = "set -euxo pipefail";
 
-const DOCKERFILE_INSTANCE: &str = r"FROM --platform={platform} {env_image_name}
+const DOCKERFILE_INSTANCE: &str = "FROM --platform={platform} {env_image_name}
 
 COPY ./setup_repo.sh /root/
 COPY ./{repo_top} /{repo_top}
 RUN /bin/bash /root/setup_repo.sh
 
 WORKDIR /testbed/
+LABEL {label}=\"{base_commit}\"
 ";
+
+pub const BASE_COMMIT_LABEL: &str = "rustyhgm.base_commit";
 
 pub const NAMESPACE: &str = "pb";
 
@@ -107,6 +110,7 @@ fn py_list_repr(items: &[String]) -> String {
 pub struct TestSpec {
     pub instance_id: String,
     pub repo: String,
+    pub base_commit: String,
     pub repo_script_list: Vec<String>,
     pub eval_script_list: Vec<String>,
     pub env_script_list: Vec<String>,
@@ -178,6 +182,8 @@ impl TestSpec {
                 "{repo_top}",
                 self.repo.split('/').next().unwrap_or_default(),
             )
+            .replace("{label}", BASE_COMMIT_LABEL)
+            .replace("{base_commit}", &self.base_commit)
     }
 }
 
@@ -284,6 +290,7 @@ pub fn make_test_spec(instance: &serde_json::Value, machine: &str) -> TestSpec {
     TestSpec {
         instance_id: field("instance_id").to_owned(),
         repo: field("repo").to_owned(),
+        base_commit: base_commit.to_owned(),
         repo_script_list: repo_script_list(field("repo"), base_commit),
         eval_script_list: eval_script_list(language, base_commit, field("test_patch")),
         env_script_list: env_script_list(language),

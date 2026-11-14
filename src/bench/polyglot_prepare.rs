@@ -9,12 +9,12 @@ use rustyhgm_core::pool;
 use rustyhgm_core::pyjson::{PyValue, dumps};
 use serde_json::{Map, Value, json};
 
-use crate::cpp_interface::section;
 use crate::polyglot::DATASET;
 
 pub const BENCH: &str = "polyglot-benchmark";
 pub const COMMITS: &str = "polyglot_benchmark_commits.json";
 const MARKER: &str = "get_filename_component(exercise ${CMAKE_CURRENT_SOURCE_DIR} NAME)";
+const WITHHELD: [&str; 3] = [".meta", ".approaches", ".articles"];
 const WORKERS: usize = 50;
 
 fn message(e: io::Error) -> String {
@@ -116,35 +116,29 @@ fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
     }
 }
 
-fn extra_files(exercise: &Exercise) -> Result<Vec<&'static str>, String> {
-    let mut adding = vec![".docs/"];
-    match exercise.lang.as_str() {
-        "java" => adding.extend(["gradle/", "build.gradle", "gradlew", "gradlew.bat"]),
-        "cpp" => {
-            modify_cmake_file(&exercise.dir.join("CMakeLists.txt"), &exercise.task)
-                .map_err(message)?;
-            adding.extend(["test/", "CMakeLists.txt"]);
-        }
-        "javascript" => adding.extend([".eslintrc", ".npmrc", "package.json"]),
-        _ => {}
-    }
-    Ok(adding)
-}
-
 fn commit_exercise(
     exercise: &Exercise,
     solution: &BTreeSet<&str>,
+    examples: &[&str],
 ) -> Result<(String, String), String> {
     let dir = &exercise.dir;
+    if exercise.lang == "cpp" {
+        modify_cmake_file(&dir.join("CMakeLists.txt"), &exercise.task).map_err(message)?;
+    }
+    let registered = dir.join(".git");
+    if registered.exists() {
+        fs::remove_dir_all(&registered).map_err(message)?;
+    }
+    let withheld: Vec<String> = WITHHELD
+        .iter()
+        .chain(examples)
+        .map(|path| format!(":(exclude){path}"))
+        .collect();
+    let mut given = vec!["add", "--", "."];
+    given.extend(withheld.iter().map(String::as_str));
     let mut steps: Vec<Vec<&str>> = vec![vec!["init"]];
     steps.extend(solution.iter().map(|file| vec!["add", file]));
-    let extra = extra_files(exercise)?;
-    steps.extend(
-        extra
-            .into_iter()
-            .filter(|file| dir.join(file).exists())
-            .map(|file| vec!["add", file]),
-    );
+    steps.push(given);
     steps.push(vec!["commit", "-m", "Initial commit"]);
     steps.push(vec!["rev-parse", "HEAD"]);
     let solution_at = steps.len() - 1;
@@ -171,10 +165,12 @@ fn init_git_repo(exercise: &Exercise) -> Result<Registered, String> {
             exercise.rel.display()
         ));
     }
-    Ok(commit_exercise(exercise, &solution)
-        .inspect_err(|e| println!("Error initializing git in {}: {e}", exercise.rel.display()))
-        .ok()
-        .map(|pair| (exercise.id(), pair)))
+    Ok(
+        commit_exercise(exercise, &solution, &listed(&config, "example"))
+            .inspect_err(|e| println!("Error initializing git in {}: {e}", exercise.rel.display()))
+            .ok()
+            .map(|pair| (exercise.id(), pair)),
+    )
 }
 
 fn write_json(path: &Path, value: &Value) -> Result<(), String> {
@@ -182,23 +178,47 @@ fn write_json(path: &Path, value: &Value) -> Result<(), String> {
         .map_err(|e| format!("{}: {e}", path.display()))
 }
 
+fn recorded(path: &Path) -> Result<Commits, String> {
+    let text = fs::read_to_string(path)
+        .map_err(|_| format!("Commits file not found: {}", path.display()))?;
+    serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+fn outdated(exercise: &Exercise, commits: &Commits) -> bool {
+    let Some((start, _)) = commits.get(&exercise.id()) else {
+        return false;
+    };
+    let Ok(config) = read_config(&exercise.dir) else {
+        return false;
+    };
+    let tests: Vec<&str> = listed(&config, "test")
+        .into_iter()
+        .filter(|file| exercise.dir.join(file).exists())
+        .collect();
+    let mut args = vec!["ls-tree", "--name-only", start.as_str(), "--"];
+    args.extend(&tests);
+    git(&exercise.dir, &args).is_ok_and(|held| held.lines().count() < tests.len())
+}
+
 pub fn register_git(root: &Path, bench: &Path) -> Result<Commits, String> {
+    let commits_path = root.join(bench).join(COMMITS);
+    let known = recorded(&commits_path);
+    let mut commits = known.clone().unwrap_or_default();
     let pending: Vec<Exercise> = exercises(root, bench)
         .into_iter()
-        .filter(|e| !e.dir.join(".git").exists())
+        .filter(|e| !e.dir.join(".git").exists() || outdated(e, &commits))
         .collect();
-    let commits_path = root.join(bench).join(COMMITS);
     if pending.is_empty() {
         println!("All practice directories already initialized with git");
-        let text = fs::read_to_string(&commits_path)
-            .map_err(|_| format!("Commits file not found: {}", commits_path.display()))?;
-        return serde_json::from_str(&text).map_err(|e| format!("{}: {e}", commits_path.display()));
+        return known;
     }
     println!(
         "Initializing git repositories for {} practice directories...",
         pending.len()
     );
-    let mut commits = Commits::new();
+    for exercise in &pending {
+        commits.remove(&exercise.id());
+    }
     for registered in pool::map(&pending, WORKERS, init_git_repo) {
         commits.extend(registered?);
     }
@@ -242,18 +262,6 @@ fn problem_statement(dir: &Path) -> Result<String, String> {
     Ok(statement)
 }
 
-fn interface(exercise: &Exercise, config: &Value) -> String {
-    if exercise.lang != "cpp" {
-        return String::new();
-    }
-    let headers: Vec<String> = listed(config, "example")
-        .into_iter()
-        .filter(|file| file.ends_with(".h") || file.ends_with(".hpp"))
-        .filter_map(|file| fs::read_to_string(exercise.dir.join(file)).ok())
-        .collect();
-    section(&headers)
-}
-
 fn extract_task_metadata(exercise: &Exercise, commits: &Commits) -> Result<Value, String> {
     let id = exercise.id();
     let dir = &exercise.dir;
@@ -275,8 +283,7 @@ fn extract_task_metadata(exercise: &Exercise, commits: &Commits) -> Result<Value
     if let Some(files) = config.get("files").and_then(Value::as_object) {
         metadata.insert("files".into(), Value::Object(files.clone()));
     }
-    let statement = problem_statement(dir)? + &interface(exercise, &config);
-    metadata.insert("problem_statement".into(), json!(statement));
+    metadata.insert("problem_statement".into(), json!(problem_statement(dir)?));
     let (solution_commit, all_files_commit) = commits.get(&id).ok_or_else(|| format!("'{id}'"))?;
     metadata.insert("base_commit".into(), json!(solution_commit));
     metadata.insert("test_commit".into(), json!(all_files_commit));

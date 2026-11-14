@@ -1,4 +1,3 @@
-pub mod cpp_interface;
 pub mod dataset;
 pub mod polyglot;
 pub mod polyglot_build;

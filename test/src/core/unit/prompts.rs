@@ -18,7 +18,7 @@ fn strings(v: &Value) -> Vec<String> {
         .collect()
 }
 
-fn templates() -> [(&'static str, &'static str); 12] {
+fn templates() -> [(&'static str, &'static str); 13] {
     [
         ("coding_harness_summary", prompts::CODING_HARNESS_SUMMARY),
         (
@@ -29,6 +29,10 @@ fn templates() -> [(&'static str, &'static str); 12] {
         ("swe_issue_prompt", prompts::SWE_ISSUE_PROMPT),
         ("polyglot_issue_prompt", prompts::POLYGLOT_ISSUE_PROMPT),
         ("diagnose_prompt", prompts::DIAGNOSE_PROMPT),
+        (
+            "diagnose_prompt_polyglot",
+            prompts::DIAGNOSE_PROMPT_POLYGLOT,
+        ),
         (
             "diagnose_prompt_emptypatches",
             prompts::DIAGNOSE_PROMPT_EMPTYPATCHES,
@@ -227,16 +231,42 @@ fn rng_drawing(below: bool) -> rand::rngs::StdRng {
     rand::rngs::StdRng::seed_from_u64(seed)
 }
 
-#[test]
-fn diagnose_prompts_match_the_python() {
-    let all = cases("diagnose_prompts");
+fn diagnosed_run(all: &[Value]) -> (tempfile::TempDir, Vec<Value>) {
     let tmp = tempfile::tempdir().unwrap();
     for (rel, text) in all[0]["input"].as_object().unwrap() {
         let path = tmp.path().join(rel);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, text.as_str().unwrap()).unwrap();
     }
-    let dataset = all[0]["output"].as_array().unwrap().clone();
+    (tmp, all[0]["output"].as_array().unwrap().clone())
+}
+
+#[test]
+fn a_polyglot_diagnosis_of_a_language_task_shows_its_tests_as_part_of_the_repository() {
+    let (tmp, mut dataset) = diagnosed_run(&cases("diagnose_prompts"));
+    for entry in &mut dataset {
+        entry["language"] = json!("python");
+        entry["reference_tests"] = json!("the tests");
+    }
+    let input = DiagnoseInput {
+        entry_id: "inst-1",
+        commit: "c1",
+        root_dir: &tmp.path().join("root"),
+        out_dir: &tmp.path().join("out"),
+        dataset: &dataset,
+        patch_files: &[],
+    };
+    let (_, prompt) = get_diagnose_prompt_polyglot(&input, &mut rng_drawing(false)).unwrap();
+    assert!(
+        prompt.contains("----- Tests Start -----\nthe tests\n----- Tests End -----"),
+        "{prompt}"
+    );
+}
+
+#[test]
+fn diagnose_prompts_match_the_python() {
+    let all = cases("diagnose_prompts");
+    let (tmp, dataset) = diagnosed_run(&all);
     let root = tmp.path().join("root");
     let out = tmp.path().join("out");
     let patches = [out.join("c1/model_patch.diff")];

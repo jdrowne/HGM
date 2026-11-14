@@ -35,8 +35,6 @@ fn test_descriptions_match_the_python() {
         |name, input| {
             let repo = if name.starts_with("get_test_description_swe_") {
                 TestRepo::Swe
-            } else if name == "get_test_description_polyglot" {
-                TestRepo::Polyglot
             } else {
                 TestRepo::Hgm
             };
@@ -44,6 +42,14 @@ fn test_descriptions_match_the_python() {
         },
     );
     assert_eq!(found, Vec::<String>::new());
+}
+
+#[test]
+fn a_polyglot_description_says_where_the_tests_are_and_how_to_run_them() {
+    assert_eq!(
+        get_test_description("cd build\nmake", TestRepo::Polyglot),
+        "The repository holds the tests that decide whether the problem is solved. Changes to the test files are discarded before scoring. In the repository folder, the tests can be run with the following bash command(s):\n\n```\ncd build\nmake\n```"
+    );
 }
 
 #[test]

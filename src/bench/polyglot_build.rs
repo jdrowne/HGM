@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use rustyhgm_core::log::Log;
 use rustyhgm_sandbox::{BuildOptions, Container, Docker, RunOptions};
 
-use crate::polyglot_spec::TestSpec;
+use crate::polyglot_spec::{BASE_COMMIT_LABEL, TestSpec};
 
 pub const BASE_IMAGE_BUILD_DIR: &str = "logs/build_images/base";
 pub const ENV_IMAGE_BUILD_DIR: &str = "logs/build_images/env";
@@ -52,6 +52,9 @@ fn stage(build: &ImageBuild, log: &Log) -> io::Result<()> {
         && source.is_dir()
     {
         let target = build.build_dir.join(rel);
+        if target.exists() {
+            fs::remove_dir_all(&target)?;
+        }
         copy_tree(source, &target)?;
         log.info(format!(
             "Copied folder {} to {}",
@@ -133,6 +136,10 @@ pub fn find_dependent_images(docker: &Docker, image: &str) -> Result<Vec<String>
         }
     }
     Ok(dependents)
+}
+
+fn base_commit_format() -> String {
+    format!("{{{{index .Config.Labels \"{BASE_COMMIT_LABEL}\"}}}}")
 }
 
 fn created(docker: &Docker, image: &str) -> Result<Option<String>, String> {
@@ -273,8 +280,13 @@ impl Images<'_> {
         log.info(format!(
             "Environment image {env} found for {id}\nBuilding instance image {image} for {id}"
         ));
+        let moved = self
+            .docker
+            .inspect_image(&image, &base_commit_format())
+            .map_err(message)?
+            .is_some_and(|built_from| built_from != spec.base_commit);
         let exists = match created(self.docker, &image)? {
-            Some(instance_created) if instance_created < env_created => {
+            Some(instance_created) if instance_created < env_created || moved => {
                 remove_image_quietly(self.docker, &image)?;
                 false
             }
