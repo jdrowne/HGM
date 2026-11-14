@@ -26,3 +26,6 @@
 - [Model thinking stays on](model-thinking-stays-on.md) — never propose disabling a thinking model's reasoning; cap tokens or time and handle cut-off replies instead
 - [No Sources lists](no-sources-lists.md) — never end an answer with a Sources list of links, even after a web search
 - [Red CI gets fixed, not filed](red-ci-gets-fixed-not-filed.md) — a red job on main is worked until green in the same session, even when a toolchain or CI tool caused it; an issue never ends the work
+- [The model gets what a human solver gets](the-model-gets-what-a-human-solver-gets.md) — polyglot tasks follow Exercism's treatment of a person: tests in the folder, told how to run them, no example answer, time limit never decides a result
+- [Claims about outside projects come with evidence](claims-about-outside-projects-come-with-evidence.md) — quote the project's own docs or code, or label the statement an inference
+- [Gaps inside the goal are closed in the same pass](gaps-inside-the-goal-are-closed-in-the-same-pass.md) — fix what the stated goal already covers instead of listing it as a follow-up

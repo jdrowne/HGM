@@ -387,10 +387,13 @@ fn images_that_vanished_are_skipped() {
 }
 
 #[test]
-fn an_image_without_a_history_is_an_error() {
+fn an_image_whose_history_cannot_be_read_is_skipped() {
     let fake = without_other_history();
     fake.image("sha256:other", "sha256:other", "1");
-    assert!(find_dependent_images(&fake.docker, "env:latest").is_err());
+    assert_eq!(
+        find_dependent_images(&fake.docker, "env:latest").unwrap(),
+        ["child:latest", "sha256:bare", "sha256:solo"]
+    );
 }
 
 #[test]

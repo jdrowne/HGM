@@ -121,12 +121,10 @@ pub fn remove_image_quietly(docker: &Docker, image: &str) -> Result<(), String> 
     Ok(())
 }
 
-fn derives_from(docker: &Docker, id: &str, base_id: &str) -> Result<bool, String> {
-    match docker.history(id) {
-        Ok(layers) => Ok(layers.iter().any(|layer| layer == base_id)),
-        Err(_) if matches!(docker.image_exists(id), Ok(false)) => Ok(false),
-        Err(e) => Err(message(e)),
-    }
+fn derives_from(docker: &Docker, id: &str, base_id: &str) -> bool {
+    docker
+        .history(id)
+        .is_ok_and(|layers| layers.iter().any(|layer| layer == base_id))
 }
 
 pub fn find_dependent_images(docker: &Docker, image: &str) -> Result<Vec<String>, String> {
@@ -134,13 +132,12 @@ pub fn find_dependent_images(docker: &Docker, image: &str) -> Result<Vec<String>
         println!("Base image {image} not found.");
         return Ok(Vec::new());
     };
-    let mut dependents = Vec::new();
-    for (id, name) in docker.images().map_err(message)? {
-        if id != base_id && derives_from(docker, &id, &base_id)? {
-            dependents.push(name);
-        }
-    }
-    Ok(dependents)
+    let images = docker.images().map_err(message)?;
+    Ok(images
+        .into_iter()
+        .filter(|(id, _)| *id != base_id && derives_from(docker, id, &base_id))
+        .map(|(_, name)| name)
+        .collect())
 }
 
 fn base_commit_format() -> String {

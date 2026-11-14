@@ -39,11 +39,6 @@ pub struct Outcome {
     pub error: Option<String>,
 }
 
-enum Ending {
-    Scored(String),
-    TimedOut,
-}
-
 struct Job<'a> {
     entry: &'a Value,
     out_dname: &'a Path,
@@ -55,16 +50,14 @@ fn text(entry: &Value, key: &str) -> String {
 }
 
 enum State<'a> {
-    Scored(&'a str),
+    Scored(&'a str, bool),
     Failed(&'a str),
-    TimedOut,
 }
 
 fn result(job: &Job, model_patch: &str, proposed: PyValue, state: State) -> String {
     let (eval_result, success, timed_out) = match state {
-        State::Scored(r) => (r, true, false),
+        State::Scored(r, timed_out) => (r, true, timed_out),
         State::Failed(r) => (r, false, false),
-        State::TimedOut => ("incomplete", false, true),
     };
     dumps(
         &PyValue::dict([
@@ -205,7 +198,7 @@ impl Evaluator {
             Step::Command(
                 format!(
                     "git -C /testbed reset --hard {}",
-                    text(job.entry, "test_commit")
+                    text(job.entry, "base_commit")
                 ),
                 "/",
             ),
@@ -247,7 +240,7 @@ impl Evaluator {
         container: &mut Option<Container>,
         model_patch: &mut Option<String>,
         log: &Log,
-    ) -> Result<Ending, String> {
+    ) -> Result<String, String> {
         let spec = self.spec(job.entry);
         let run_id = container_run_id();
         self.docker
@@ -261,17 +254,23 @@ impl Evaluator {
         };
         let started = container.insert(images.build_container(&spec, &run_id, log, true)?);
         self.setup(job, started, log)?;
-        if !self.solve(job, started, log)? {
-            *model_patch = Some(salvage(
+        let finished = self.solve(job, started, log)?;
+        let written = if finished {
+            self.collect(job, started, log)?
+        } else {
+            log.info(format!(
+                "The harness timed out after {} s; scoring what it had written",
+                self.timeout
+            ));
+            salvage(
                 started,
                 &spec.instance_id,
                 &text(job.entry, "base_commit"),
                 job.out_dname,
                 log,
-            ));
-            return Ok(Ending::TimedOut);
-        }
-        let patch = model_patch.insert(self.collect(job, started, log)?);
+            )
+        };
+        let patch = model_patch.insert(written);
         let eval_result = if patch.is_empty() {
             "empty_patch".to_owned()
         } else {
@@ -284,10 +283,10 @@ impl Evaluator {
                 job,
                 patch,
                 PyValue::List(Vec::new()),
-                State::Scored(&eval_result),
+                State::Scored(&eval_result, !finished),
             ),
         )?;
-        Ok(Ending::Scored(eval_result))
+        Ok(eval_result)
     }
 
     fn process_entry(&self, job: &Job) -> Outcome {
@@ -314,29 +313,12 @@ impl Evaluator {
         let mut model_patch = None;
         let attempted = self.attempt(job, &mut container, &mut model_patch, &log);
         let outcome = match attempted {
-            Ok(Ending::Scored(eval_result)) => Outcome {
+            Ok(eval_result) => Outcome {
                 instance_id,
                 success: true,
                 eval_result,
                 error: None,
             },
-            Ok(Ending::TimedOut) => {
-                let patch = model_patch.unwrap_or_default();
-                if let Err(write_error) = write(
-                    &out_fname,
-                    result(job, &patch, PyValue::List(Vec::new()), State::TimedOut),
-                ) {
-                    println!("Error writing result for {instance_id}: {write_error}");
-                }
-                let e = format!("timed out after {} s", self.timeout);
-                log.error(format!("Error processing entry {instance_id}: {e}"));
-                Outcome {
-                    instance_id,
-                    success: false,
-                    eval_result: "incomplete".to_owned(),
-                    error: Some(e),
-                }
-            }
             Err(e) => {
                 let (patch, proposed, eval_result) = match model_patch {
                     None => (String::new(), PyValue::str(""), "incomplete"),

@@ -271,16 +271,25 @@ fn env_script_list(language: &str) -> Vec<String> {
 }
 
 fn repo_script_list(repo: &str, base_commit: &str) -> Vec<String> {
-    vec![
+    let mut list = vec![
         format!("cd /{repo}"),
         "git clone . /testbed".to_owned(),
         "chmod -R 777 /testbed".to_owned(),
         "cd /testbed".to_owned(),
         format!("git reset --hard {base_commit}"),
+        "git remote remove origin".to_owned(),
+        "rm -f .git/ORIG_HEAD".to_owned(),
+        "git reflog expire --expire=now --all".to_owned(),
+        "git gc --quiet --prune=now".to_owned(),
+    ];
+    let copied = repo.split('/').next().filter(|top| !top.is_empty());
+    list.extend(copied.map(|top| format!("rm -rf /{top}")));
+    list.extend([
         "source /opt/miniconda3/bin/activate".to_owned(),
         "conda activate testbed".to_owned(),
         "echo \"Current environment: $CONDA_DEFAULT_ENV\"".to_owned(),
-    ]
+    ]);
+    list
 }
 
 pub fn make_test_spec(instance: &serde_json::Value, machine: &str) -> TestSpec {

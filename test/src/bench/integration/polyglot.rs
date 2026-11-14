@@ -301,7 +301,7 @@ fn the_report_counts_every_submission() {
 fn the_report_lists_the_resolved() {
     assert_eq!(
         shared().report()["resolved_ids"],
-        json!(["python__resolved"])
+        json!(["python__resolved", "python__timeout"])
     );
 }
 
@@ -335,8 +335,7 @@ fn the_report_lists_the_incomplete() {
             "python__gitfail",
             "python__nochat",
             "python__nopatch",
-            "python__space",
-            "python__timeout"
+            "python__space"
         ])
     );
 }
@@ -392,8 +391,8 @@ fn a_failing_git_keeps_the_patch() {
 }
 
 #[test]
-fn a_timed_out_harness_is_incomplete() {
-    assert_eq!(shared().result("timeout")["eval_result"], "incomplete");
+fn a_timed_out_harness_is_scored_on_what_it_wrote() {
+    assert_eq!(shared().result("timeout")["eval_result"], "resolved");
 }
 
 #[test]
@@ -420,15 +419,15 @@ fn a_timed_out_harness_keeps_its_chat_history() {
 }
 
 #[test]
-fn a_timed_out_harness_is_not_scored() {
-    assert!(!shared().out().join("python__timeout_eval.md").exists());
+fn a_timed_out_harness_keeps_its_eval_output() {
+    assert!(shared().out().join("python__timeout_eval.md").exists());
 }
 
 #[test]
 fn a_timed_out_harness_is_logged() {
     let log = shared().text("python__timeout_docker.log");
     assert!(
-        log.contains("Error processing entry python__timeout: timed out after 60 s"),
+        log.contains("The harness timed out after 60 s; scoring what it had written"),
         "{log}"
     );
 }
@@ -508,7 +507,7 @@ fn again() -> Value {
 
 #[test]
 fn a_second_run_resolves_the_same() {
-    assert_eq!(again()["resolved_ids"], json!(["python__resolved"]));
+    assert_eq!(again()["resolved_ids"], shared().report()["resolved_ids"]);
 }
 
 #[test]
@@ -534,7 +533,7 @@ fn unwritable_outputs_are_errors() {
         expected(&[
             outcome("python__empty", false, "error"),
             outcome("python__resolved", false, "error"),
-            outcome("python__timeout", false, "incomplete"),
+            outcome("python__timeout", false, "error"),
             outcome("python__unresolved", false, "error"),
         ])
     );
@@ -690,8 +689,8 @@ fn an_entry_without_docker_is_incomplete() {
 }
 
 #[test]
-fn a_timed_out_outcome_says_how_long_it_ran() {
-    assert_eq!(shared().seen["errors"]["timedout"], "timed out after 60 s");
+fn a_timed_out_outcome_carries_no_error() {
+    assert_eq!(shared().seen["errors"]["timedout"], Value::Null);
 }
 
 #[test]

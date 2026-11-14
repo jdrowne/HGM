@@ -157,6 +157,34 @@ fn arm64_specs_use_the_v8_platform() {
     assert_eq!(arm_spec().platform(), "linux/arm64/v8");
 }
 
+fn go_setup(repo: &str) -> String {
+    make_test_spec(
+        &json!({"language": "go", "repo": repo, "base_commit": "c"}),
+        "arm64",
+    )
+    .install_repo_script()
+}
+
+#[test]
+fn the_repo_setup_keeps_no_commit_but_the_base() {
+    assert!(go_setup("polyglot-benchmark/go/exercises/practice/x").contains(
+        "git reset --hard c\ngit remote remove origin\nrm -f .git/ORIG_HEAD\ngit reflog expire --expire=now --all\ngit gc --quiet --prune=now\n"
+    ));
+}
+
+#[test]
+fn the_repo_setup_removes_the_copied_exercise_folder() {
+    assert!(
+        go_setup("polyglot-benchmark/go/exercises/practice/x")
+            .contains("\nrm -rf /polyglot-benchmark\n")
+    );
+}
+
+#[test]
+fn a_repo_setup_without_a_repo_removes_no_folder() {
+    assert!(!go_setup("").contains("rm -rf"));
+}
+
 fn renamed() -> TestSpec {
     TestSpec {
         namespace: "fake".to_owned(),
